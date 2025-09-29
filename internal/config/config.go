@@ -9,27 +9,27 @@ import (
 )
 
 var (
-	Config  *Configuration
-	Version = "v0.0.1"
-	URL     = URLLocal
-	// URL      = URLProd
+	Config   *Configuration
+	Version  = "v0.0.1"
+	URL      = URLProd
 	URLProd  = "https://cert.yzys.cc/deploy"
 	URLLocal = "http://localhost:9000/deploy"
 )
 
 // Configuration 应用配置结构
 type Configuration struct {
-	Server ServerConfig `mapstructure:"server"`
-	SSL    SSLConfig    `mapstructure:"ssl"`
+	Server ServerConfig `yaml:"server"`
+	SSL    SSLConfig    `yaml:"ssl"`
 }
 
 type (
 	ServerConfig struct {
-		AccessKey string `mapstructure:"accessKey"`
+		AccessKey string `yaml:"accessKey"`
+		Env       string `yaml:"env"`
 	}
 
 	SSLConfig struct {
-		Path string `mapstructure:"path"`
+		Path string `yaml:"path"`
 	}
 )
 
@@ -66,6 +66,10 @@ func validateConfig() error {
 		if err := os.MkdirAll(Config.SSL.Path, 0755); err != nil {
 			return fmt.Errorf("创建证书存储目录失败: %w", err)
 		}
+	}
+
+	if Config.Server.Env == "local" {
+		URL = URLLocal
 	}
 
 	return nil

@@ -46,32 +46,38 @@ func (cd *CertDeployer) DeployCertificate(domain, url string) error {
 
 	fmt.Printf("证书下载完成: %s\n", zipFile)
 
-	// 证书文件夹名
-	folderName := domain + "_certificates"
-
-	// 1. 解压zip文件
-	extractDir := filepath.Join(certsDir, folderName)
-	if err := cd.extractZip(zipFile, extractDir); err != nil {
-		return fmt.Errorf("解压证书失败: %w", err)
-	}
-
-	// 2. 移动到配置的SSL目录
+	// 2. 检查是否配置了SSL目录
 	sslPath := config.GetConfig().SSL.Path
-	if err := cd.moveCertificates(extractDir, sslPath, folderName); err != nil {
-		return fmt.Errorf("移动证书失败: %w", err)
+	if sslPath != "" {
+		// 证书文件夹名
+		folderName := domain + "_certificates"
+
+		// 1. 解压zip文件
+		extractDir := filepath.Join(certsDir, folderName)
+		if err := cd.extractZip(zipFile, extractDir); err != nil {
+			return fmt.Errorf("解压证书失败: %w", err)
+		}
+
+		// 移动到配置的SSL目录
+		if err := cd.moveCertificates(extractDir, sslPath, folderName); err != nil {
+			return fmt.Errorf("移动证书失败: %w", err)
+		}
+
+		// 3. 测试nginx配置
+		if err := cd.testNginxConfig(); err != nil {
+			return fmt.Errorf("nginx配置测试失败: %w", err)
+		}
+
+		// 4. 重新加载nginx
+		if err := cd.reloadNginx(); err != nil {
+			return fmt.Errorf("nginx重新加载失败: %w", err)
+		}
+		fmt.Printf("证书部署完成: %s\n", domain)
+
+	} else {
+		fmt.Println("未配置SSL目录，证书已下载到: ", zipFile)
 	}
 
-	// 3. 测试nginx配置
-	if err := cd.testNginxConfig(); err != nil {
-		return fmt.Errorf("nginx配置测试失败: %w", err)
-	}
-
-	// 4. 重新加载nginx
-	if err := cd.reloadNginx(); err != nil {
-		return fmt.Errorf("nginx重新加载失败: %w", err)
-	}
-
-	fmt.Printf("证书部署完成: %s\n", domain)
 	return nil
 }
 

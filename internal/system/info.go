@@ -5,7 +5,9 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -36,9 +38,11 @@ func GetSystemInfo() (*SystemInfo, error) {
 		info.Hostname = hostname
 	}
 
-	// 获取本机IP
-	if ip := getLocalIP(); ip != "" {
-		info.IP = ip
+	// 获取IP地址（优先公网IP，失败则使用内网IP）
+	if publicIP := getPublicIP(); publicIP != "" {
+		info.IP = publicIP
+	} else if localIP := getLocalIP(); localIP != "" {
+		info.IP = localIP
 	}
 
 	return info, nil
@@ -359,4 +363,65 @@ func trimNL(b []byte) []byte {
 		return b[:n-1]
 	}
 	return b
+}
+
+// getPublicIP 获取公网IP地址
+func getPublicIP() string {
+	// 使用多个服务提供商，提高成功率
+	services := []string{
+		"https://checkip.amazonaws.com",
+		"https://ifconfig.me/ip",
+		"https://api.ipify.org",
+		"https://ipv4.icanhazip.com",
+		"https://api.ip.sb/ip", // 国内可能无法访问
+	}
+
+	for _, service := range services {
+		if ip := getIPFromService(service); ip != "" {
+			return ip
+		}
+	}
+	return ""
+}
+
+// getIPFromService 从指定服务获取IP地址
+func getIPFromService(serviceURL string) string {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	client := &http.Client{
+		Timeout: 5 * time.Second,
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "GET", serviceURL, nil)
+	if err != nil {
+		return ""
+	}
+
+	// 设置User-Agent，避免被某些服务拒绝
+	req.Header.Set("User-Agent", "cert-deploy-client/1.0")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return ""
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return ""
+	}
+
+	ip := strings.TrimSpace(string(body))
+
+	// 验证IP地址格式
+	if net.ParseIP(ip) != nil {
+		return ip
+	}
+
+	return ""
 }
