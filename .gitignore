@@ -36,5 +36,5 @@ cert-deploy
 certs
 ssl
 install.sh
-Makefile
 config.yaml
+cert-deploy.log
