@@ -58,19 +58,24 @@ func (cd *CertDeployer) DeployCertificate(domain, url string) error {
 			return fmt.Errorf("解压证书失败: %w", err)
 		}
 
-		// 移动到配置的SSL目录
+		// 2. 移动到配置的SSL目录
 		if err := cd.moveCertificates(extractDir, sslPath, folderName); err != nil {
 			return fmt.Errorf("移动证书失败: %w", err)
 		}
 
-		// 3. 测试nginx配置
-		if err := cd.testNginxConfig(); err != nil {
-			return fmt.Errorf("nginx配置测试失败: %w", err)
-		}
+		// 3. 检查nginx是否存在，如果存在则测试配置和重新加载
+		if cd.isNginxAvailable() {
+			// 测试nginx配置
+			if err := cd.testNginxConfig(); err != nil {
+				return fmt.Errorf("nginx配置测试失败: %w", err)
+			}
 
-		// 4. 重新加载nginx
-		if err := cd.reloadNginx(); err != nil {
-			return fmt.Errorf("nginx重新加载失败: %w", err)
+			// 重新加载nginx
+			if err := cd.reloadNginx(); err != nil {
+				return fmt.Errorf("nginx重新加载失败: %w", err)
+			}
+		} else {
+			fmt.Println("nginx未安装或不在PATH中，跳过nginx相关操作")
 		}
 		fmt.Printf("证书部署完成: %s\n", domain)
 
@@ -238,6 +243,12 @@ func (cd *CertDeployer) moveCertificates(sourceDir, sslPath, folderName string) 
 
 	fmt.Printf("移动证书文件夹: %s -> %s\n", sourceDir, targetDir)
 	return nil
+}
+
+// isNginxAvailable 检查nginx是否可用
+func (cd *CertDeployer) isNginxAvailable() bool {
+	_, err := exec.LookPath("nginx")
+	return err == nil
 }
 
 // testNginxConfig 测试nginx配置

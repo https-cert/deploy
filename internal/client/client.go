@@ -15,7 +15,6 @@ import (
 	"github.com/orange-juzipi/cert-deploy/pb/deployPB"
 	"github.com/orange-juzipi/cert-deploy/pb/deployPB/deployPBconnect"
 	"github.com/orange-juzipi/cert-deploy/pkg/logger"
-	"github.com/orange-juzipi/cert-deploy/pkg/utils"
 )
 
 var (
@@ -129,10 +128,6 @@ func (c *Client) StartConnectNotify() {
 				case deployPB.NotifyResponse_TYPE_CONNECT:
 
 				case deployPB.NotifyResponse_TYPE_CERT:
-					fmt.Println("-------------收到证书部署通知-------------------")
-					utils.PrintlnJson(response)
-					fmt.Println("---------------开始下载证书-----------------")
-
 					go c.deployCertificate(response.Domain, response.Url)
 				}
 

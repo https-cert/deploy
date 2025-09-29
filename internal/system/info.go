@@ -50,9 +50,10 @@ func GetSystemInfo() (*SystemInfo, error) {
 
 // ValidateSystemRequirements 验证系统要求
 func ValidateSystemRequirements() error {
-	// 检查nginx是否安装
+	// 检查nginx是否安装（可选）
 	if _, err := exec.LookPath("nginx"); err != nil {
-		return fmt.Errorf("nginx未安装或不在PATH中")
+		fmt.Println("警告: nginx未安装或不在PATH中，将跳过nginx相关操作")
+		return nil
 	}
 
 	// 检查是否有权限执行nginx命令
@@ -61,7 +62,8 @@ func ValidateSystemRequirements() error {
 
 	cmd := exec.CommandContext(ctx, "nginx", "-t")
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("无法执行nginx命令，请检查权限: %w", err)
+		fmt.Printf("警告: 无法执行nginx命令，请检查权限: %v\n", err)
+		return nil
 	}
 
 	return nil
