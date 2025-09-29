@@ -38,3 +38,4 @@ ssl
 install.sh
 config.yaml
 cert-deploy.log
+release.sh

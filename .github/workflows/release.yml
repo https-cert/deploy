@@ -1,0 +1,202 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (e.g., v1.0.0)"
+        required: true
+        default: "v1.0.0"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "latest"
+          cache: true
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Verify dependencies
+        run: go mod verify
+
+      - name: Run tests
+        run: go test -v ./...
+
+      - name: Install UPX
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y upx
+
+      - name: Get version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build for multiple platforms
+        run: |
+          # 创建发布目录
+          mkdir -p release
+
+          # 构建 Mac 版本
+          echo "构建 Mac 版本..."
+          GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -trimpath -o release/cert-deploy-mac main.go
+          GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -trimpath -o release/cert-deploy-mac-arm64 main.go
+
+          # 构建 Linux 版本
+          echo "构建 Linux 版本..."
+          GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -trimpath -o release/cert-deploy-linux main.go
+          GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -trimpath -o release/cert-deploy-linux-arm64 main.go
+
+          # 构建 Windows 版本
+          echo "构建 Windows 版本..."
+          GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -trimpath -o release/cert-deploy-windows.exe main.go
+          GOOS=windows GOARCH=arm64 go build -ldflags="-s -w" -trimpath -o release/cert-deploy-windows-arm64.exe main.go
+
+      - name: Show build info
+        run: |
+          echo "=== 构建信息 ==="
+          echo "版本: ${{ steps.version.outputs.VERSION }}"
+          echo "Go 版本: $(go version)"
+          echo "UPX 版本: $(upx --version)"
+          echo "构建文件:"
+          ls -lh release/cert-deploy-*
+
+      - name: Compress with UPX
+        run: |
+          echo "开始 UPX 压缩..."
+          upx --best release/cert-deploy-*
+          echo "压缩完成"
+          echo "压缩后文件大小:"
+          ls -lh release/cert-deploy-*
+
+      - name: Create release packages
+        run: |
+          # 创建各平台的发布包
+          cd release
+
+          # Mac 包
+          tar -czf cert-deploy-mac-${{ steps.version.outputs.VERSION }}.tar.gz cert-deploy-mac cert-deploy-mac-arm64
+          echo "Mac 包大小: $(du -h cert-deploy-mac-${{ steps.version.outputs.VERSION }}.tar.gz)"
+
+          # Linux 包
+          tar -czf cert-deploy-linux-${{ steps.version.outputs.VERSION }}.tar.gz cert-deploy-linux cert-deploy-linux-arm64
+          echo "Linux 包大小: $(du -h cert-deploy-linux-${{ steps.version.outputs.VERSION }}.tar.gz)"
+
+          # Windows 包
+          zip -r cert-deploy-windows-${{ steps.version.outputs.VERSION }}.zip cert-deploy-windows*.exe
+          echo "Windows 包大小: $(du -h cert-deploy-windows-${{ steps.version.outputs.VERSION }}.zip)"
+
+          # 创建通用包
+          tar -czf cert-deploy-${{ steps.version.outputs.VERSION }}.tar.gz cert-deploy-*
+          echo "通用包大小: $(du -h cert-deploy-${{ steps.version.outputs.VERSION }}.tar.gz)"
+
+          # 复制配置文件
+          cp ../config.yaml .
+          cp ../README.md .
+
+      - name: Generate checksums
+        run: |
+          cd release
+          sha256sum cert-deploy-* > checksums.txt
+          echo "生成校验和文件"
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-files
+          path: release/
+          retention-days: 30
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: github.event_name == 'push'
+        with:
+          files: |
+            release/cert-deploy-mac-${{ steps.version.outputs.VERSION }}.tar.gz
+            release/cert-deploy-linux-${{ steps.version.outputs.VERSION }}.tar.gz
+            release/cert-deploy-windows-${{ steps.version.outputs.VERSION }}.zip
+            release/cert-deploy-${{ steps.version.outputs.VERSION }}.tar.gz
+            release/checksums.txt
+          body: |
+            ## 证书部署工具 ${{ steps.version.outputs.VERSION }}
+
+            ### 下载说明
+
+            - **Mac**: `cert-deploy-mac-${{ steps.version.outputs.VERSION }}.tar.gz`
+            - **Linux**: `cert-deploy-linux-${{ steps.version.outputs.VERSION }}.tar.gz`
+            - **Windows**: `cert-deploy-windows-${{ steps.version.outputs.VERSION }}.zip`
+            - **通用包**: `cert-deploy-${{ steps.version.outputs.VERSION }}.tar.gz`
+
+            ### 安装使用
+
+            1. 下载对应平台的压缩包
+            2. 解压到目标目录
+            3. 配置 `config.yaml` 文件
+            4. 运行 `./cert-deploy daemon` 启动服务
+
+            ### 校验文件
+
+            请使用 `checksums.txt` 文件验证下载的完整性。
+          draft: false
+          prerelease: false
+
+      - name: Create Manual Release
+        uses: softprops/action-gh-release@v2
+        if: github.event_name == 'workflow_dispatch'
+        with:
+          tag_name: ${{ steps.version.outputs.VERSION }}
+          name: Release ${{ steps.version.outputs.VERSION }}
+          files: |
+            release/cert-deploy-mac-${{ steps.version.outputs.VERSION }}.tar.gz
+            release/cert-deploy-linux-${{ steps.version.outputs.VERSION }}.tar.gz
+            release/cert-deploy-windows-${{ steps.version.outputs.VERSION }}.zip
+            release/cert-deploy-${{ steps.version.outputs.VERSION }}.tar.gz
+            release/checksums.txt
+          body: |
+            ## 证书部署工具 ${{ steps.version.outputs.VERSION }}
+
+            ### 下载说明
+
+            - **Mac**: `cert-deploy-mac-${{ steps.version.outputs.VERSION }}.tar.gz`
+            - **Linux**: `cert-deploy-linux-${{ steps.version.outputs.VERSION }}.tar.gz`
+            - **Windows**: `cert-deploy-windows-${{ steps.version.outputs.VERSION }}.zip`
+            - **通用包**: `cert-deploy-${{ steps.version.outputs.VERSION }}.tar.gz`
+
+            ### 安装使用
+
+            1. 下载对应平台的压缩包
+            2. 解压到目标目录
+            3. 配置 `config.yaml` 文件
+            4. 运行 `./cert-deploy daemon` 启动服务
+
+            ### 校验文件
+
+            请使用 `checksums.txt` 文件验证下载的完整性。
+          draft: false
+          prerelease: false
