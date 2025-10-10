@@ -121,10 +121,6 @@ jobs:
           tar -czf cert-deploy-${{ steps.version.outputs.VERSION }}.tar.gz cert-deploy-*
           echo "通用包大小: $(du -h cert-deploy-${{ steps.version.outputs.VERSION }}.tar.gz)"
 
-          # 复制配置文件
-          cp ../config.yaml .
-          cp ../README.md .
-
       - name: Generate checksums
         run: |
           cd release
