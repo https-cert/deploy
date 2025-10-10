@@ -27,7 +27,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "stable"
+          go-version: stable
           cache: true
 
       - name: Cache Go modules
@@ -38,6 +38,49 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
 
+      - name: Install UPX
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y upx
+
+      # 取得版本号：
+      # - workflow_dispatch：若未填写则自动 vX.Y.(Z+1)，并创建/推送该 tag
+      # - push tag：使用该 tag
+      - name: Get version
+        id: version
+        run: |
+          set -e
+          git fetch --tags --force --prune
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            INPUT_VER="${{ github.event.inputs.version }}"
+            if [ -n "$INPUT_VER" ]; then
+              NEW_VER="$INPUT_VER"
+            else
+              LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+              ver="${LAST_TAG#v}"
+              IFS='.' read -r MAJ MIN PAT <<< "$ver"
+              : "${MAJ:=0}" ; : "${MIN:=0}" ; : "${PAT:=0}"
+              NEW_VER="v${MAJ}.${MIN}.$((PAT+1))"
+            fi
+            echo "VERSION=$NEW_VER" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create and push tag (manual dispatch only)
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          set -e
+          TAG="${{ steps.version.outputs.VERSION }}"
+          echo "Ensure tag exists: $TAG"
+          if ! git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag -a "$TAG" -m "Release $TAG"
+          fi
+          git push origin "$TAG"
+
       - name: Download dependencies
         run: go mod download
 
@@ -47,160 +90,91 @@ jobs:
       - name: Run tests
         run: go test -v ./...
 
-      - name: Install UPX
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y upx
-
-      - name: Get version
-        id: version
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
-          else
-            echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-          fi
-
       - name: Build for multiple platforms
+        env:
+          CGO_ENABLED: 0
         run: |
-          # 创建发布目录
           mkdir -p release
+          LDFLAGS="-s -w -X 'main.version=${{ steps.version.outputs.VERSION }}'"
 
-          # 构建 Mac 版本
-          echo "构建 Mac 版本..."
-          GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -trimpath -o release/cert-deploy-mac main.go
-          GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -trimpath -o release/cert-deploy-mac-arm64 main.go
+          echo "Build macOS..."
+          GOOS=darwin  GOARCH=amd64  go build -ldflags="${LDFLAGS}" -trimpath -o release/cert-deploy-mac main.go
+          GOOS=darwin  GOARCH=arm64  go build -ldflags="${LDFLAGS}" -trimpath -o release/cert-deploy-mac-arm64 main.go
 
-          # 构建 Linux 版本
-          echo "构建 Linux 版本..."
-          GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -trimpath -o release/cert-deploy-linux main.go
-          GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -trimpath -o release/cert-deploy-linux-arm64 main.go
+          echo "Build Linux..."
+          GOOS=linux   GOARCH=amd64  go build -ldflags="${LDFLAGS}" -trimpath -o release/cert-deploy-linux main.go
+          GOOS=linux   GOARCH=arm64  go build -ldflags="${LDFLAGS}" -trimpath -o release/cert-deploy-linux-arm64 main.go
 
-          # 构建 Windows 版本
-          echo "构建 Windows 版本..."
-          GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -trimpath -o release/cert-deploy-windows.exe main.go
-          GOOS=windows GOARCH=arm64 go build -ldflags="-s -w" -trimpath -o release/cert-deploy-windows-arm64.exe main.go
+          echo "Build Windows..."
+          GOOS=windows GOARCH=amd64  go build -ldflags="${LDFLAGS}" -trimpath -o release/cert-deploy-windows.exe main.go
+          GOOS=windows GOARCH=arm64  go build -ldflags="${LDFLAGS}" -trimpath -o release/cert-deploy-windows-arm64.exe main.go
 
       - name: Show build info
         run: |
-          echo "=== 构建信息 ==="
-          echo "版本: ${{ steps.version.outputs.VERSION }}"
-          echo "Go 版本: $(go version)"
-          echo "UPX 版本: $(upx --version)"
-          echo "构建文件:"
-          ls -lh release/cert-deploy-*
+          echo "=== Build Info ==="
+          echo "Version: ${{ steps.version.outputs.VERSION }}"
+          echo "Go: $(go version)"
+          echo "UPX: $(upx --version)"
+          echo "Files:"
+          ls -lh release/
 
       - name: Compress Linux binaries with UPX
         run: |
-          echo "开始压缩 Linux 版本..."
+          echo "UPX Linux binaries..."
           for f in release/cert-deploy-linux release/cert-deploy-linux-arm64; do
             if [ -f "$f" ]; then
-              echo "UPX 压缩: $f"
-              upx --best "$f" || echo "⚠️ 压缩失败(已忽略): $f"
+              echo "UPX -> $f"
+              upx --best "$f" || echo "⚠️ ignore UPX failure: $f"
             fi
           done
-          echo "✅ Linux 压缩完成"
-          echo "压缩后文件大小:"
+          echo "Done."
           ls -lh release/cert-deploy-linux*
 
-      - name: Create release packages
-        run: |
-          # 创建各平台的发布包
-          cd release
-
-          # Mac 包
-          tar -czf cert-deploy-mac-${{ steps.version.outputs.VERSION }}.tar.gz cert-deploy-mac cert-deploy-mac-arm64
-          echo "Mac 包大小: $(du -h cert-deploy-mac-${{ steps.version.outputs.VERSION }}.tar.gz)"
-
-          # Linux 包
-          tar -czf cert-deploy-linux-${{ steps.version.outputs.VERSION }}.tar.gz cert-deploy-linux cert-deploy-linux-arm64
-          echo "Linux 包大小: $(du -h cert-deploy-linux-${{ steps.version.outputs.VERSION }}.tar.gz)"
-
-          # Windows 包
-          zip -r cert-deploy-windows-${{ steps.version.outputs.VERSION }}.zip cert-deploy-windows*.exe
-          echo "Windows 包大小: $(du -h cert-deploy-windows-${{ steps.version.outputs.VERSION }}.zip)"
-
-          # 创建通用包
-          tar -czf cert-deploy-${{ steps.version.outputs.VERSION }}.tar.gz cert-deploy-*
-          echo "通用包大小: $(du -h cert-deploy-${{ steps.version.outputs.VERSION }}.tar.gz)"
-
+      # 不再打包 zip/tar.gz；直接上传可执行文件
       - name: Generate checksums
         run: |
           cd release
           sha256sum cert-deploy-* > checksums.txt
-          echo "生成校验和文件"
+          echo "checksums generated:"
+          cat checksums.txt
 
-      - name: Upload release artifacts
+      - name: Upload release artifacts (for job debug/download)
         uses: actions/upload-artifact@v4
         with:
           name: release-files
           path: release/
           retention-days: 30
 
-      - name: Create GitHub Release
+      - name: Create GitHub Release (push trigger)
         uses: softprops/action-gh-release@v2
         if: github.event_name == 'push'
         with:
+          generate_release_notes: true
           files: |
-            release/cert-deploy-mac-${{ steps.version.outputs.VERSION }}.tar.gz
-            release/cert-deploy-linux-${{ steps.version.outputs.VERSION }}.tar.gz
-            release/cert-deploy-windows-${{ steps.version.outputs.VERSION }}.zip
-            release/cert-deploy-${{ steps.version.outputs.VERSION }}.tar.gz
+            release/cert-deploy-mac
+            release/cert-deploy-mac-arm64
+            release/cert-deploy-linux
+            release/cert-deploy-linux-arm64
+            release/cert-deploy-windows.exe
+            release/cert-deploy-windows-arm64.exe
             release/checksums.txt
-          body: |
-            ## 证书部署工具 ${{ steps.version.outputs.VERSION }}
-
-            ### 下载说明
-
-            - **Mac**: `cert-deploy-mac-${{ steps.version.outputs.VERSION }}.tar.gz`
-            - **Linux**: `cert-deploy-linux-${{ steps.version.outputs.VERSION }}.tar.gz`
-            - **Windows**: `cert-deploy-windows-${{ steps.version.outputs.VERSION }}.zip`
-            - **通用包**: `cert-deploy-${{ steps.version.outputs.VERSION }}.tar.gz`
-
-            ### 安装使用
-
-            1. 下载对应平台的压缩包
-            2. 解压到目标目录
-            3. 配置 `config.yaml` 文件
-            4. 运行 `./cert-deploy daemon` 启动服务
-
-            ### 校验文件
-
-            请使用 `checksums.txt` 文件验证下载的完整性。
           draft: false
           prerelease: false
 
-      - name: Create Manual Release
+      - name: Create GitHub Release (manual trigger)
         uses: softprops/action-gh-release@v2
         if: github.event_name == 'workflow_dispatch'
         with:
           tag_name: ${{ steps.version.outputs.VERSION }}
           name: Release ${{ steps.version.outputs.VERSION }}
+          generate_release_notes: true
           files: |
-            release/cert-deploy-mac-${{ steps.version.outputs.VERSION }}.tar.gz
-            release/cert-deploy-linux-${{ steps.version.outputs.VERSION }}.tar.gz
-            release/cert-deploy-windows-${{ steps.version.outputs.VERSION }}.zip
-            release/cert-deploy-${{ steps.version.outputs.VERSION }}.tar.gz
+            release/cert-deploy-mac
+            release/cert-deploy-mac-arm64
+            release/cert-deploy-linux
+            release/cert-deploy-linux-arm64
+            release/cert-deploy-windows.exe
+            release/cert-deploy-windows-arm64.exe
             release/checksums.txt
-          body: |
-            ## 证书部署工具 ${{ steps.version.outputs.VERSION }}
-
-            ### 下载说明
-
-            - **Mac**: `cert-deploy-mac-${{ steps.version.outputs.VERSION }}.tar.gz`
-            - **Linux**: `cert-deploy-linux-${{ steps.version.outputs.VERSION }}.tar.gz`
-            - **Windows**: `cert-deploy-windows-${{ steps.version.outputs.VERSION }}.zip`
-            - **通用包**: `cert-deploy-${{ steps.version.outputs.VERSION }}.tar.gz`
-
-            ### 安装使用
-
-            1. 下载对应平台的压缩包
-            2. 解压到目标目录
-            3. 配置 `config.yaml` 文件
-            4. 运行 `./cert-deploy daemon` 启动服务
-
-            ### 校验文件
-
-            请使用 `checksums.txt` 文件验证下载的完整性。
           draft: false
           prerelease: false
