@@ -39,3 +39,4 @@ install.sh
 config.yaml
 cert-deploy.log
 release.sh
+.DS_Store
