@@ -12,7 +12,7 @@ var (
 	Config   *Configuration
 	Version  = "v0.0.1"
 	URL      = URLProd
-	URLProd  = "https://cert.yzys.cc/deploy"
+	URLProd  = "https://anssl.cn/deploy"
 	URLLocal = "http://localhost:9000/deploy"
 )
 
