@@ -213,7 +213,7 @@ $ ./cert-deploy log -f
 2024/01/15 10:35:22 [INFO] 证书下载完成: certs/example.com_certificates.zip
 2024/01/15 10:35:23 [INFO] nginx配置测试通过
 2024/01/15 10:35:23 [INFO] nginx重新加载成功
-2024/01/15 10:35:23 [INFO] 证书部署完成: example.com
+2024/01/15 10:35:23 [INFO] 自动部署流程完成: example.com
 ```
 
 ## 🛠️ 开发指南
