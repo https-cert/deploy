@@ -40,3 +40,4 @@ config.yaml
 cert-deploy.log
 release.sh
 .DS_Store
+CLAUDE.md
