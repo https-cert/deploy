@@ -20,6 +20,7 @@ var (
 type Configuration struct {
 	Server ServerConfig `yaml:"server"`
 	SSL    SSLConfig    `yaml:"ssl"`
+	Update UpdateConfig `yaml:"update"`
 }
 
 type (
@@ -30,6 +31,15 @@ type (
 
 	SSLConfig struct {
 		Path string `yaml:"path"`
+	}
+
+	UpdateConfig struct {
+		// 镜像源类型: github(默认), ghproxy, fastgit, custom
+		Mirror string `yaml:"mirror"`
+		// 自定义镜像地址（当 mirror=custom 时使用）
+		CustomURL string `yaml:"customUrl"`
+		// HTTP 代理地址
+		Proxy string `yaml:"proxy"`
 	}
 )
 

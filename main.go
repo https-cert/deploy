@@ -15,6 +15,7 @@ import (
 
 	"github.com/orange-juzipi/cert-deploy/internal/config"
 	"github.com/orange-juzipi/cert-deploy/internal/scheduler"
+	"github.com/orange-juzipi/cert-deploy/internal/updater"
 	"github.com/orange-juzipi/cert-deploy/pkg/logger"
 	"github.com/spf13/cobra"
 )
@@ -37,6 +38,8 @@ func main() {
 	rootCmd.AddCommand(createStatusCmd())
 	rootCmd.AddCommand(createRestartCmd())
 	rootCmd.AddCommand(createLogCmd())
+	rootCmd.AddCommand(createCheckUpdateCmd())
+	rootCmd.AddCommand(createUpdateCmd())
 
 	// 全局标志
 	rootCmd.PersistentFlags().StringVarP(&configFile, "config", "c", "config.yaml", "配置文件路径")
@@ -54,6 +57,9 @@ func createDaemonCmd() *cobra.Command {
 		Short: "启动守护进程（后台运行）",
 		Long:  "在后台启动证书部署守护进程",
 		Run: func(cmd *cobra.Command, args []string) {
+			// 检查更新
+			go checkUpdateSilently()
+
 			// 检查是否已经在运行
 			if isRunning() {
 				fmt.Println("证书部署守护进程已经在运行，正在重启...")
@@ -174,6 +180,9 @@ func createRestartCmd() *cobra.Command {
 		Short: "重启守护进程",
 		Long:  "重启证书部署守护进程",
 		Run: func(cmd *cobra.Command, args []string) {
+			// 检查更新（后台，不阻塞重启）
+			go checkUpdateSilently()
+
 			// 先停止
 			if isRunning() {
 				if err := stopDaemon(); err != nil {
@@ -431,4 +440,130 @@ func followLogs(logFile string) {
 	<-sigChan
 	fmt.Println("\n停止日志跟踪")
 	done <- true
+}
+
+// createCheckUpdateCmd 创建检查更新命令
+func createCheckUpdateCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "check-update",
+		Short: "检查是否有新版本",
+		Long:  "检查 GitHub 是否有新版本可用",
+		Run: func(cmd *cobra.Command, args []string) {
+			ctx := context.Background()
+
+			fmt.Println("正在检查更新...")
+			info, err := updater.CheckUpdate(ctx)
+			if err != nil {
+				fmt.Printf("检查更新失败: %v\n", err)
+				os.Exit(1)
+			}
+
+			fmt.Printf("当前版本: %s\n", info.CurrentVersion)
+			fmt.Printf("最新版本: %s\n", info.LatestVersion)
+
+			if info.HasUpdate {
+				fmt.Println("\n✨ 发现新版本！")
+				fmt.Println("\n更新说明:")
+				fmt.Println(info.ReleaseNotes)
+				fmt.Println("\n执行以下命令进行更新:")
+				fmt.Println("  cert-deploy update")
+			} else {
+				fmt.Println("\n✓ 当前已是最新版本")
+			}
+		},
+	}
+}
+
+// createUpdateCmd 创建更新命令
+func createUpdateCmd() *cobra.Command {
+	var autoRestart bool
+
+	cmd := &cobra.Command{
+		Use:   "update",
+		Short: "更新到最新版本",
+		Long:  "从 GitHub Release 下载并更新到最新版本",
+		Run: func(cmd *cobra.Command, args []string) {
+			ctx := context.Background()
+
+			// 检查更新
+			fmt.Println("正在检查更新...")
+			info, err := updater.CheckUpdate(ctx)
+			if err != nil {
+				fmt.Printf("检查更新失败: %v\n", err)
+				os.Exit(1)
+			}
+
+			if !info.HasUpdate {
+				fmt.Println("当前已是最新版本，无需更新")
+				return
+			}
+
+			fmt.Printf("发现新版本: %s -> %s\n", info.CurrentVersion, info.LatestVersion)
+
+			// 如果守护进程正在运行，先停止
+			wasRunning := isRunning()
+			if wasRunning {
+				fmt.Println("检测到守护进程正在运行，正在停止...")
+				if err := stopDaemon(); err != nil {
+					fmt.Printf("停止守护进程失败: %v\n", err)
+					fmt.Println("请手动停止守护进程后再执行更新")
+					os.Exit(1)
+				}
+				time.Sleep(2 * time.Second)
+			}
+
+			// 执行更新
+			if err := updater.PerformUpdate(ctx, info); err != nil {
+				fmt.Printf("更新失败: %v\n", err)
+				os.Exit(1)
+			}
+
+			fmt.Println("\n✓ 更新成功！")
+
+			// 如果之前在运行且设置了自动重启，则重启
+			if wasRunning && autoRestart {
+				fmt.Println("正在重启守护进程...")
+				if err := startDaemon(); err != nil {
+					fmt.Printf("重启守护进程失败: %v\n", err)
+					fmt.Println("请手动启动守护进程:")
+					fmt.Println("  cert-deploy daemon")
+					os.Exit(1)
+				}
+				fmt.Println("守护进程已重启")
+			} else if wasRunning {
+				fmt.Println("\n请手动重启守护进程:")
+				fmt.Println("  cert-deploy restart")
+			}
+		},
+	}
+
+	// 添加自动重启标志
+	cmd.Flags().BoolVarP(&autoRestart, "restart", "r", false, "更新后自动重启守护进程")
+
+	return cmd
+}
+
+// checkUpdateSilently 静默检查更新（后台运行，不阻塞主流程）
+func checkUpdateSilently() {
+	// 创建带超时的 context，避免检查更新阻塞太久
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// 等待一小段时间再检查，避免影响启动速度
+	time.Sleep(1 * time.Second)
+
+	info, err := updater.CheckUpdate(ctx)
+	if err != nil {
+		return
+	}
+
+	if info.HasUpdate {
+		fmt.Println()
+		fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+		fmt.Printf("📢 发现新版本: %s -> %s\n", info.CurrentVersion, info.LatestVersion)
+		fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+		fmt.Println("执行以下命令进行更新:")
+		fmt.Println("  cert-deploy update -r")
+		fmt.Println()
+	}
 }
