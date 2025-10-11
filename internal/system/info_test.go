@@ -1,7 +1,6 @@
 package system_test
 
 import (
-	"context"
 	"encoding/json"
 	"testing"
 
@@ -23,7 +22,7 @@ func TestGetSystemInfo(t *testing.T) {
 }
 
 func TestGetClientID(t *testing.T) {
-	clientID, err := system.GetUniqueClientID(context.Background())
+	clientID, err := system.GetUniqueClientID(t.Context())
 	if err != nil {
 		t.Fatalf("获取客户端 ID2失败: %v", err)
 	}
