@@ -84,6 +84,26 @@ ssl:
   # 证书存储根目录
   # 留空则默认存储在程序目录下的 certs 文件夹
   path: "/etc/nginx/ssl"
+
+# 在线更新配置（可选）
+update:
+  # 镜像源类型，可选值：
+  # - custom (自定义镜像地址)
+  # - github (默认，直连 GitHub)
+  # - ghproxy (使用 ghproxy 镜像加速，推荐国内用户使用)
+  # - ghproxy2
+  mirror: ""
+
+  # 自定义镜像地址（仅当 mirror=custom 时使用）
+  # 示例: "https://your-mirror.com"
+  customUrl: ""
+
+  # HTTP 代理地址（可选）
+  # 支持 http、https、socks5 协议
+  # 示例: "http://127.0.0.1:7890"
+  # 示例: "socks5://127.0.0.1:1080"
+  # 注意：也可以通过环境变量 HTTP_PROXY 和 HTTPS_PROXY 设置代理
+  proxy: ""
 ```
 
 ### 配置说明
@@ -121,6 +141,12 @@ ssl:
 
 # 停止守护进程
 ./cert-deploy stop
+
+# 检查更新
+./cert-deploy check-update
+
+# 手动触发更新检查
+./cert-deploy update
 ```
 
 ### 运行方式
