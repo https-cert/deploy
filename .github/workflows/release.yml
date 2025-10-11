@@ -138,6 +138,52 @@ jobs:
           echo "checksums generated:"
           cat checksums.txt
 
+      # 生成详细的更新日志
+      - name: Generate changelog
+        id: changelog
+        run: |
+          set -e
+
+          # 获取上一个 tag
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          CURRENT_TAG="${{ steps.version.outputs.VERSION }}"
+
+          echo "Generating changelog from ${PREVIOUS_TAG} to ${CURRENT_TAG}..."
+
+          # 创建 changelog 文件
+          CHANGELOG_FILE="release/CHANGELOG.md"
+
+          echo "## 📝 更新内容" > $CHANGELOG_FILE
+          echo "" >> $CHANGELOG_FILE
+
+          if [ -z "$PREVIOUS_TAG" ]; then
+            # 首次发布，列出所有提交
+            git log --pretty=format:"- %s ([%h](https://github.com/${{ github.repository }}/commit/%H))" >> $CHANGELOG_FILE
+          else
+            # 列出自上个版本以来的所有提交
+            git log ${PREVIOUS_TAG}..HEAD --pretty=format:"- %s ([%h](https://github.com/${{ github.repository }}/commit/%H))" >> $CHANGELOG_FILE
+          fi
+
+          echo "" >> $CHANGELOG_FILE
+          echo "" >> $CHANGELOG_FILE
+          echo "---" >> $CHANGELOG_FILE
+          echo "" >> $CHANGELOG_FILE
+
+          if [ -z "$PREVIOUS_TAG" ]; then
+            echo "**初始版本发布**" >> $CHANGELOG_FILE
+          else
+            echo "**完整更新日志**: https://github.com/${{ github.repository }}/compare/${PREVIOUS_TAG}...${CURRENT_TAG}" >> $CHANGELOG_FILE
+          fi
+
+          # 输出到控制台查看
+          echo "Generated changelog:"
+          cat $CHANGELOG_FILE
+
+          # 将 changelog 内容保存到环境变量（用于 release body）
+          echo "CHANGELOG_CONTENT<<EOF" >> $GITHUB_OUTPUT
+          cat $CHANGELOG_FILE >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
       - name: Upload release artifacts (for job debug/download)
         uses: actions/upload-artifact@v4
         with:
@@ -149,7 +195,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: github.event_name == 'push'
         with:
-          generate_release_notes: true
+          body: ${{ steps.changelog.outputs.CHANGELOG_CONTENT }}
           files: |
             release/cert-deploy-mac
             release/cert-deploy-mac-arm64
@@ -158,6 +204,7 @@ jobs:
             release/cert-deploy-windows.exe
             release/cert-deploy-windows-arm64.exe
             release/checksums.txt
+            release/CHANGELOG.md
           draft: false
           prerelease: false
 
@@ -167,7 +214,7 @@ jobs:
         with:
           tag_name: ${{ steps.version.outputs.VERSION }}
           name: Release ${{ steps.version.outputs.VERSION }}
-          generate_release_notes: true
+          body: ${{ steps.changelog.outputs.CHANGELOG_CONTENT }}
           files: |
             release/cert-deploy-mac
             release/cert-deploy-mac-arm64
@@ -176,5 +223,6 @@ jobs:
             release/cert-deploy-windows.exe
             release/cert-deploy-windows-arm64.exe
             release/checksums.txt
+            release/CHANGELOG.md
           draft: false
           prerelease: false
