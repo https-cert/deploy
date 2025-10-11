@@ -260,13 +260,21 @@ func getHTTPClient() *http.Client {
 // transformDownloadURL 根据配置转换下载 URL（使用镜像加速）
 func transformDownloadURL(originalURL string) string {
 	cfg := config.GetConfig()
-	if cfg == nil || cfg.Update.Mirror == "" || cfg.Update.Mirror == mirrorGitHub {
-		// 未配置使用 mirrorGHProxy
-		if cfg.Update.Mirror == "" {
-			mirrorURL := mirrorMap[mirrorGHProxy]
 
-			return strings.Replace(originalURL, "https://github.com", mirrorURL, 1)
-		}
+	// 如果配置为空或未配置镜像，使用默认镜像 ghproxy
+	if cfg == nil {
+		mirrorURL := mirrorMap[mirrorGHProxy]
+		return strings.Replace(originalURL, "https://github.com", mirrorURL, 1)
+	}
+
+	// 如果未配置镜像或镜像为空，使用默认镜像 ghproxy
+	if cfg.Update.Mirror == "" {
+		mirrorURL := mirrorMap[mirrorGHProxy]
+		return strings.Replace(originalURL, "https://github.com", mirrorURL, 1)
+	}
+
+	// 如果明确配置使用 GitHub 原始地址，直接返回
+	if cfg.Update.Mirror == mirrorGitHub {
 		return originalURL
 	}
 
@@ -429,8 +437,27 @@ func replaceExecutable(newPath, oldPath string) error {
 		return nil
 	}
 
-	// Unix 系统可以直接替换
-	return copyFile(newPath, oldPath)
+	// Unix 系统：先删除旧文件，再移动新文件
+	// 注意：即使进程正在运行，删除文件也不会影响当前进程（inode 仍然存在）
+	// 但是需要保留权限，所以先获取权限
+	oldInfo, err := os.Stat(oldPath)
+	if err != nil {
+		return err
+	}
+	oldMode := oldInfo.Mode()
+
+	// 删除旧文件（进程仍在运行，inode 保留）
+	if err := os.Remove(oldPath); err != nil {
+		return err
+	}
+
+	// 移动新文件到目标位置（原子操作）
+	if err := os.Rename(newPath, oldPath); err != nil {
+		return err
+	}
+
+	// 设置正确的权限
+	return os.Chmod(oldPath, oldMode)
 }
 
 // copyFile 复制文件

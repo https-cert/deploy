@@ -463,10 +463,10 @@ func createCheckUpdateCmd() *cobra.Command {
 
 			if info.HasUpdate {
 				fmt.Println("\n✨ 发现新版本！")
-				fmt.Println("\n更新说明:")
-				fmt.Println(info.ReleaseNotes)
+				// fmt.Println("\n更新说明:")
+				// fmt.Println(info.ReleaseNotes)
 				fmt.Println("\n执行以下命令进行更新:")
-				fmt.Println("  cert-deploy update")
+				fmt.Println("  ./cert-deploy-linux update")
 			} else {
 				fmt.Println("\n✓ 当前已是最新版本")
 			}
