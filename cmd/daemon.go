@@ -226,10 +226,11 @@ func StopDaemon() error {
 		time.Sleep(1 * time.Second)
 	}
 
+	// 如果进程还在运行，强制杀死
 	if IsRunning() {
-		if err := process.Signal(syscall.SIGKILL); err != nil {
-			return fmt.Errorf("强制停止失败: %w", err)
-		}
+		// 忽略错误，因为进程可能在检查和发送信号之间已经退出
+		process.Signal(syscall.SIGKILL)
+		time.Sleep(500 * time.Millisecond)
 	}
 
 	os.Remove(pidFile)
