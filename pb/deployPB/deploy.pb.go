@@ -21,53 +21,57 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type NotifyResponse_Type int32
+// MARK: - 通知类型
+type Type int32
 
 const (
-	NotifyResponse_TYPE_UNKNOWN NotifyResponse_Type = 0 // 未知
-	NotifyResponse_TYPE_CONNECT NotifyResponse_Type = 1 // 连接成功
-	NotifyResponse_TYPE_CERT    NotifyResponse_Type = 2 // 证书更新通知
+	Type_UNKNOWN        Type = 0 // 未知
+	Type_CONNECT        Type = 1 // 连接成功
+	Type_CERT           Type = 2 // 证书更新通知
+	Type_UPDATE_VERSION Type = 3 // 更新版本通知
 )
 
-// Enum value maps for NotifyResponse_Type.
+// Enum value maps for Type.
 var (
-	NotifyResponse_Type_name = map[int32]string{
-		0: "TYPE_UNKNOWN",
-		1: "TYPE_CONNECT",
-		2: "TYPE_CERT",
+	Type_name = map[int32]string{
+		0: "UNKNOWN",
+		1: "CONNECT",
+		2: "CERT",
+		3: "UPDATE_VERSION",
 	}
-	NotifyResponse_Type_value = map[string]int32{
-		"TYPE_UNKNOWN": 0,
-		"TYPE_CONNECT": 1,
-		"TYPE_CERT":    2,
+	Type_value = map[string]int32{
+		"UNKNOWN":        0,
+		"CONNECT":        1,
+		"CERT":           2,
+		"UPDATE_VERSION": 3,
 	}
 )
 
-func (x NotifyResponse_Type) Enum() *NotifyResponse_Type {
-	p := new(NotifyResponse_Type)
+func (x Type) Enum() *Type {
+	p := new(Type)
 	*p = x
 	return p
 }
 
-func (x NotifyResponse_Type) String() string {
+func (x Type) String() string {
 	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
 }
 
-func (NotifyResponse_Type) Descriptor() protoreflect.EnumDescriptor {
+func (Type) Descriptor() protoreflect.EnumDescriptor {
 	return file_deployPB_deploy_proto_enumTypes[0].Descriptor()
 }
 
-func (NotifyResponse_Type) Type() protoreflect.EnumType {
+func (Type) Type() protoreflect.EnumType {
 	return &file_deployPB_deploy_proto_enumTypes[0]
 }
 
-func (x NotifyResponse_Type) Number() protoreflect.EnumNumber {
+func (x Type) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use NotifyResponse_Type.Descriptor instead.
-func (NotifyResponse_Type) EnumDescriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{3, 0}
+// Deprecated: Use Type.Descriptor instead.
+func (Type) EnumDescriptor() ([]byte, []int) {
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{0}
 }
 
 // MARK: - 注册客户端请求
@@ -238,10 +242,10 @@ func (x *NotifyRequest) GetClientId() string {
 
 type NotifyResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Type          NotifyResponse_Type    `protobuf:"varint,1,opt,name=type,proto3,enum=deployPB.NotifyResponse_Type" json:"type,omitempty"` // 类型
-	ClientId      string                 `protobuf:"bytes,2,opt,name=clientId,proto3" json:"clientId,omitempty"`                            // 客户端ID
-	Domain        string                 `protobuf:"bytes,3,opt,name=domain,proto3" json:"domain,omitempty"`                                // 域名
-	Url           string                 `protobuf:"bytes,4,opt,name=url,proto3" json:"url,omitempty"`                                      // 证书下载URL
+	Type          Type                   `protobuf:"varint,1,opt,name=type,proto3,enum=deployPB.Type" json:"type,omitempty"` // 类型
+	ClientId      string                 `protobuf:"bytes,2,opt,name=clientId,proto3" json:"clientId,omitempty"`             // 客户端ID
+	Domain        string                 `protobuf:"bytes,3,opt,name=domain,proto3" json:"domain,omitempty"`                 // 域名
+	Url           string                 `protobuf:"bytes,4,opt,name=url,proto3" json:"url,omitempty"`                       // 证书下载URL
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -276,11 +280,11 @@ func (*NotifyResponse) Descriptor() ([]byte, []int) {
 	return file_deployPB_deploy_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *NotifyResponse) GetType() NotifyResponse_Type {
+func (x *NotifyResponse) GetType() Type {
 	if x != nil {
 		return x.Type
 	}
-	return NotifyResponse_TYPE_UNKNOWN
+	return Type_UNKNOWN
 }
 
 func (x *NotifyResponse) GetClientId() string {
@@ -394,16 +398,17 @@ const file_deployPB_deploy_proto_rawDesc = "" +
 	"\bclientId\x18\x01 \x01(\tR\bclientId\"I\n" +
 	"\rNotifyRequest\x12\x1c\n" +
 	"\taccessKey\x18\x01 \x01(\tR\taccessKey\x12\x1a\n" +
-	"\bclientId\x18\x02 \x01(\tR\bclientId\"\xc4\x01\n" +
-	"\x0eNotifyResponse\x121\n" +
-	"\x04type\x18\x01 \x01(\x0e2\x1d.deployPB.NotifyResponse.TypeR\x04type\x12\x1a\n" +
+	"\bclientId\x18\x02 \x01(\tR\bclientId\"z\n" +
+	"\x0eNotifyResponse\x12\"\n" +
+	"\x04type\x18\x01 \x01(\x0e2\x0e.deployPB.TypeR\x04type\x12\x1a\n" +
 	"\bclientId\x18\x02 \x01(\tR\bclientId\x12\x16\n" +
 	"\x06domain\x18\x03 \x01(\tR\x06domain\x12\x10\n" +
-	"\x03url\x18\x04 \x01(\tR\x03url\"9\n" +
-	"\x04Type\x12\x10\n" +
-	"\fTYPE_UNKNOWN\x10\x00\x12\x10\n" +
-	"\fTYPE_CONNECT\x10\x01\x12\r\n" +
-	"\tTYPE_CERT\x10\x022\xa3\x01\n" +
+	"\x03url\x18\x04 \x01(\tR\x03url*>\n" +
+	"\x04Type\x12\v\n" +
+	"\aUNKNOWN\x10\x00\x12\v\n" +
+	"\aCONNECT\x10\x01\x12\b\n" +
+	"\x04CERT\x10\x02\x12\x12\n" +
+	"\x0eUPDATE_VERSION\x10\x032\xa3\x01\n" +
 	"\rDeployService\x12S\n" +
 	"\x0eRegisterClient\x12\x1f.deployPB.RegisterClientRequest\x1a .deployPB.RegisterClientResponse\x12=\n" +
 	"\x06Notify\x12\x17.deployPB.NotifyRequest\x1a\x18.deployPB.NotifyResponse0\x01B\x8d\x01\n" +
@@ -424,7 +429,7 @@ func file_deployPB_deploy_proto_rawDescGZIP() []byte {
 var file_deployPB_deploy_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_deployPB_deploy_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_deployPB_deploy_proto_goTypes = []any{
-	(NotifyResponse_Type)(0),                 // 0: deployPB.NotifyResponse.Type
+	(Type)(0),                                // 0: deployPB.Type
 	(*RegisterClientRequest)(nil),            // 1: deployPB.RegisterClientRequest
 	(*RegisterClientResponse)(nil),           // 2: deployPB.RegisterClientResponse
 	(*NotifyRequest)(nil),                    // 3: deployPB.NotifyRequest
@@ -433,7 +438,7 @@ var file_deployPB_deploy_proto_goTypes = []any{
 }
 var file_deployPB_deploy_proto_depIdxs = []int32{
 	5, // 0: deployPB.RegisterClientRequest.systemInfo:type_name -> deployPB.RegisterClientRequest.SystemInfo
-	0, // 1: deployPB.NotifyResponse.type:type_name -> deployPB.NotifyResponse.Type
+	0, // 1: deployPB.NotifyResponse.type:type_name -> deployPB.Type
 	1, // 2: deployPB.DeployService.RegisterClient:input_type -> deployPB.RegisterClientRequest
 	3, // 3: deployPB.DeployService.Notify:input_type -> deployPB.NotifyRequest
 	2, // 4: deployPB.DeployService.RegisterClient:output_type -> deployPB.RegisterClientResponse

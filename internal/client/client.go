@@ -7,12 +7,14 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"sync/atomic"
 	"time"
 
 	"connectrpc.com/connect"
 	"github.com/orange-juzipi/cert-deploy/internal/config"
 	"github.com/orange-juzipi/cert-deploy/internal/system"
+	"github.com/orange-juzipi/cert-deploy/internal/updater"
 	"github.com/orange-juzipi/cert-deploy/pb/deployPB"
 	"github.com/orange-juzipi/cert-deploy/pb/deployPB/deployPBconnect"
 	"github.com/orange-juzipi/cert-deploy/pkg/logger"
@@ -177,13 +179,17 @@ func (c *Client) handleNotifyStream(stream *connect.ServerStreamForClient[deploy
 			}
 
 			switch response.Type {
-			case deployPB.NotifyResponse_TYPE_UNKNOWN:
+			case deployPB.Type_UNKNOWN:
 				isConnected.Store(false)
 
-			case deployPB.NotifyResponse_TYPE_CONNECT:
+			case deployPB.Type_CONNECT:
 
-			case deployPB.NotifyResponse_TYPE_CERT:
+			case deployPB.Type_CERT:
 				go c.deployCertificate(response.Domain, response.Url)
+
+			case deployPB.Type_UPDATE_VERSION:
+				go c.handleUpdate()
+
 			}
 
 		} else {
@@ -264,12 +270,11 @@ func (c *Client) downloadFile(downloadURL, filepath string) error {
 	defer file.Close()
 
 	// 复制数据到文件
-	written, err := io.Copy(file, resp.Body)
+	_, err = io.Copy(file, resp.Body)
 	if err != nil {
 		return err
 	}
 
-	logger.Info("文件下载完成", "size", formatBytes(written))
 	return nil
 }
 
@@ -293,4 +298,38 @@ func min(a, b time.Duration) time.Duration {
 		return a
 	}
 	return b
+}
+
+// handleUpdate 处理版本更新
+func (c *Client) handleUpdate() {
+	logger.Info("收到更新通知")
+
+	updateInfo, err := updater.CheckUpdate(c.ctx)
+	if err != nil {
+		logger.Error("检查更新失败", err)
+		return
+	}
+
+	if !updateInfo.HasUpdate {
+		return
+	}
+
+	logger.Info("发现新版本", "current", updateInfo.CurrentVersion, "latest", updateInfo.LatestVersion)
+
+	if err := updater.PerformUpdate(c.ctx, updateInfo); err != nil {
+		logger.Error("更新失败", err)
+		return
+	}
+
+	logger.Info("更新完成，重启中...")
+
+	// 创建更新标记文件
+	execPath, _ := os.Executable()
+	execDir := filepath.Dir(execPath)
+	markerFile := filepath.Join(execDir, ".cert-deploy-updated")
+	content := fmt.Sprintf("%s\n%s\n", updateInfo.LatestVersion, time.Now().Format(time.RFC3339))
+	os.WriteFile(markerFile, []byte(content), 0644)
+
+	time.Sleep(1 * time.Second)
+	os.Exit(0)
 }

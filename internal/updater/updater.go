@@ -68,22 +68,17 @@ type UpdateInfo struct {
 
 // CheckUpdate 检查是否有新版本
 func CheckUpdate(ctx context.Context) (*UpdateInfo, error) {
-	// 获取当前版本
 	currentVersion := config.Version
 	if currentVersion == "" {
 		currentVersion = "v0.0.1"
 	}
 
-	logger.Info("检查更新", "current_version", currentVersion)
-
-	// 获取最新版本信息
 	release, err := fetchLatestRelease(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("获取最新版本失败: %w", err)
 	}
 
 	latestVersion := release.TagName
-	logger.Info("最新版本", "version", latestVersion)
 
 	// 比较版本
 	hasUpdate := compareVersions(currentVersion, latestVersion)
@@ -134,7 +129,7 @@ func CheckUpdate(ctx context.Context) (*UpdateInfo, error) {
 
 // PerformUpdate 执行更新
 func PerformUpdate(ctx context.Context, info *UpdateInfo) error {
-	logger.Info("开始下载更新", "version", info.LatestVersion)
+	logger.Info("下载更新中...", "version", info.LatestVersion)
 
 	// 获取当前可执行文件路径
 	execPath, err := os.Executable()
@@ -195,9 +190,6 @@ func PerformUpdate(ctx context.Context, info *UpdateInfo) error {
 
 	// 删除备份
 	os.Remove(backupPath)
-
-	logger.Info("更新完成", "version", info.LatestVersion)
-	logger.Info("请重启程序以使用新版本")
 
 	return nil
 }
@@ -363,12 +355,11 @@ func downloadFile(ctx context.Context, downloadURL, filepath string) error {
 	}
 	defer out.Close()
 
-	written, err := io.Copy(out, resp.Body)
+	_, err = io.Copy(out, resp.Body)
 	if err != nil {
 		return err
 	}
 
-	logger.Info("文件下载完成", "size", formatBytes(written))
 	return nil
 }
 

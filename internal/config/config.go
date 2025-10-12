@@ -82,6 +82,26 @@ func validateConfig() error {
 		URL = URLLocal
 	}
 
+	// 验证更新配置
+	if Config.Update.Mirror != "" {
+		validMirrors := []string{"github", "ghproxy", "ghproxy2", "custom"}
+		isValid := false
+		for _, m := range validMirrors {
+			if Config.Update.Mirror == m {
+				isValid = true
+				break
+			}
+		}
+		if !isValid {
+			return fmt.Errorf("不支持的镜像源类型: %s (支持: github, ghproxy, ghproxy2, custom)", Config.Update.Mirror)
+		}
+
+		// 如果使用自定义镜像，检查 customUrl 是否设置
+		if Config.Update.Mirror == "custom" && Config.Update.CustomURL == "" {
+			return errors.New("使用 custom 镜像源时，customUrl 不能为空")
+		}
+	}
+
 	return nil
 }
 
