@@ -18,10 +18,10 @@ import (
 	"github.com/orange-juzipi/cert-deploy/pb/deployPB"
 	"github.com/orange-juzipi/cert-deploy/pb/deployPB/deployPBconnect"
 	"github.com/orange-juzipi/cert-deploy/pkg/logger"
+	"golang.org/x/net/http2"
 )
 
 const (
-	heartbeatInterval = 5 * time.Second
 	downloadTimeout   = 5 * time.Minute
 	maxReconnectDelay = 5 * time.Minute
 )
@@ -50,11 +50,13 @@ func NewClient(ctx context.Context) (*Client, error) {
 	}
 
 	httpClient := &http.Client{
-		Transport: &http.Transport{
-			TLSHandshakeTimeout:   10 * time.Second,
-			ExpectContinueTimeout: 1 * time.Second,
-			IdleConnTimeout:       90 * time.Second,
+		Transport: &http2.Transport{
+			// 若连接在 30s 内无任何帧往来，自动发送 HTTP/2 PING
+			ReadIdleTimeout: 30 * time.Second,
+			// PING 发出后 15s 内没响应就视为断开
+			PingTimeout: 10 * time.Second,
 		},
+		Timeout: 0,
 	}
 
 	client := &Client{
@@ -199,24 +201,6 @@ func (c *Client) handleNotifyStream(stream *connect.ServerStreamForClient[deploy
 			}
 			// 没有新消息，等待一段时间再检查
 			time.Sleep(1 * time.Second)
-		}
-	}
-}
-
-// StartHeartbeat 启动心跳
-func (c *Client) StartHeartbeat() {
-	ticker := time.NewTicker(heartbeatInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-c.ctx.Done():
-			logger.Info("停止发送心跳")
-			return
-		case <-ticker.C:
-			if err := c.register(); err != nil {
-				continue
-			}
 		}
 	}
 }

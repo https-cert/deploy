@@ -35,9 +35,6 @@ func Start(ctx context.Context) {
 		logger.Fatal("创建调度器失败", "error", err)
 	}
 
-	// 启动心跳
-	go scheduler.client.StartHeartbeat()
-
 	// 等待上下文取消
 	<-ctx.Done()
 
