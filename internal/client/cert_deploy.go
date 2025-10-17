@@ -180,14 +180,10 @@ func (cd *CertDeployer) moveCertificates(sourceDir, sslPath, folderName string) 
 	// 构建目标路径
 	targetDir := filepath.Join(sslPath, folderName)
 
-	// 如果目标目录已存在，先备份
+	// 如果目标目录已存在，直接删除
 	if _, err := os.Stat(targetDir); err == nil {
-		backupDir := targetDir + ".backup"
-		// 删除旧备份
-		os.RemoveAll(backupDir)
-		// 移动现有目录到备份
-		if err := os.Rename(targetDir, backupDir); err != nil {
-			return fmt.Errorf("备份现有目录失败: %w", err)
+		if err := os.RemoveAll(targetDir); err != nil {
+			return fmt.Errorf("删除现有目录失败: %w", err)
 		}
 	}
 
