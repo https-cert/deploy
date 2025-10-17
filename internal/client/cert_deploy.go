@@ -217,7 +217,6 @@ func (cd *CertDeployer) testNginxConfig() error {
 		return fmt.Errorf("nginx配置测试失败: %w, 输出: %s", err, string(output))
 	}
 
-	fmt.Println("nginx配置测试通过")
 	return nil
 }
 

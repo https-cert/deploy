@@ -115,7 +115,6 @@ func (c *Client) StartConnectNotify() {
 	for {
 		select {
 		case <-c.ctx.Done():
-			logger.Info("停止监听通知")
 			return
 		default:
 		}
@@ -127,7 +126,6 @@ func (c *Client) StartConnectNotify() {
 		if err != nil {
 			// 只在状态变化时打印日志（从连接到断开）
 			if !c.lastDisconnectLogged.Load() {
-				logger.Error("建立连接通知失败，等待重连", err)
 				c.lastDisconnectLogged.Store(true)
 			}
 			isConnected.Store(false)
@@ -144,7 +142,6 @@ func (c *Client) StartConnectNotify() {
 		if err := c.handleNotifyStream(stream); err != nil {
 			// 只在状态变化时打印日志（从连接到断开）
 			if !c.lastDisconnectLogged.Load() {
-				logger.Error("连接中断，等待重连", err)
 				c.lastDisconnectLogged.Store(true)
 			}
 			isConnected.Store(false)
@@ -176,7 +173,6 @@ func (c *Client) handleNotifyStream(stream *connect.ServerStreamForClient[deploy
 
 			// 只在状态变化时打印连接成功日志（从断开到连接）
 			if wasDisconnected && c.lastDisconnectLogged.Load() {
-				logger.Info("连接服务器成功")
 				c.lastDisconnectLogged.Store(false)
 			}
 
@@ -260,20 +256,6 @@ func (c *Client) downloadFile(downloadURL, filepath string) error {
 	}
 
 	return nil
-}
-
-// formatBytes 格式化字节大小
-func formatBytes(bytes int64) string {
-	const unit = 1024
-	if bytes < unit {
-		return fmt.Sprintf("%d B", bytes)
-	}
-	div, exp := int64(unit), 0
-	for n := bytes / unit; n >= unit; n /= unit {
-		div *= unit
-		exp++
-	}
-	return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
 }
 
 // min 返回两个 time.Duration 中的较小值
