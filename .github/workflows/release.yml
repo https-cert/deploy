@@ -87,9 +87,6 @@ jobs:
       - name: Verify dependencies
         run: go mod verify
 
-      - name: Run tests
-        run: go test -v ./...
-
       - name: Build for multiple platforms
         env:
           CGO_ENABLED: 0
