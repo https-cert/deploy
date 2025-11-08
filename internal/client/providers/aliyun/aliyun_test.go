@@ -1,3 +1,5 @@
+//go:build !windows
+
 package aliyun_test
 
 import (

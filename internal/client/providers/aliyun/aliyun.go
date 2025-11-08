@@ -3,6 +3,8 @@
 调试控制台：https://next.api.aliyun.com/api/cas/2020-04-07/UploadUserCertificate
 */
 
+//go:build !windows
+
 package aliyun
 
 import (
