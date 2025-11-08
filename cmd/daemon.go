@@ -91,7 +91,7 @@ func runSupervisor() {
 		return
 	}
 
-	supervisorLogFile, err := os.OpenFile(GetLogFile(), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	supervisorLogFile, err := os.OpenFile(GetLogFile(), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
 	if err != nil {
 		fmt.Printf("打开日志文件失败: %v\n", err)
 		return
@@ -120,7 +120,7 @@ func runSupervisor() {
 
 		cmd := exec.Command(execPath, "start", "-c", ConfigFile)
 
-		logFile, err := os.OpenFile(GetLogFile(), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+		logFile, err := os.OpenFile(GetLogFile(), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
 		if err != nil {
 			time.Sleep(restartDelay)
 			continue
@@ -138,7 +138,7 @@ func runSupervisor() {
 		}
 
 		pidFile := GetPIDFile()
-		if err := os.WriteFile(pidFile, []byte(strconv.Itoa(cmd.Process.Pid)), 0644); err != nil {
+		if err := os.WriteFile(pidFile, []byte(strconv.Itoa(cmd.Process.Pid)), 0600); err != nil {
 			cmd.Process.Kill()
 			logFile.Close()
 			time.Sleep(restartDelay)
@@ -183,7 +183,11 @@ func runSupervisor() {
 
 // shouldStopSupervisor 检查是否应该停止监控器
 func shouldStopSupervisor() bool {
-	homeDir, _ := os.UserHomeDir()
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		// 如果无法获取用户主目录，使用当前目录
+		homeDir = "."
+	}
 	stopMarker := filepath.Join(homeDir, ".cert-deploy-stop")
 	if _, err := os.Stat(stopMarker); err == nil {
 		os.Remove(stopMarker)
@@ -194,9 +198,15 @@ func shouldStopSupervisor() bool {
 
 // StopDaemon 停止守护进程
 func StopDaemon() error {
-	homeDir, _ := os.UserHomeDir()
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		// 如果无法获取用户主目录，使用当前目录
+		homeDir = "."
+	}
 	stopMarker := filepath.Join(homeDir, ".cert-deploy-stop")
-	os.WriteFile(stopMarker, []byte("stop"), 0644)
+	if err := os.WriteFile(stopMarker, []byte("stop"), 0600); err != nil {
+		return fmt.Errorf("创建停止标记失败: %w", err)
+	}
 
 	pidFile := GetPIDFile()
 	data, err := os.ReadFile(pidFile)

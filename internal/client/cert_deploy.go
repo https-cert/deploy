@@ -128,10 +128,16 @@ func (cd *CertDeployer) extractZip(zipFile, extractDir string) error {
 func (cd *CertDeployer) extractZipFile(file *zip.File, extractDir string) error {
 	// 使用 filepath.Rel 安全地检查路径
 	targetPath := filepath.Join(extractDir, file.Name)
-	rel, err := filepath.Rel(extractDir, targetPath)
-	if err != nil || strings.HasPrefix(rel, "..") {
+
+	// 清理路径并检查符号链接
+	cleanTarget := filepath.Clean(targetPath)
+	rel, err := filepath.Rel(extractDir, cleanTarget)
+	if err != nil || strings.HasPrefix(rel, "..") || strings.Contains(rel, ".."+string(filepath.Separator)) {
 		return fmt.Errorf("不安全的文件路径: %s", file.Name)
 	}
+
+	// 使用清理后的路径
+	targetPath = cleanTarget
 
 	// 创建目录
 	if file.FileInfo().IsDir() {

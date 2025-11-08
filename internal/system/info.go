@@ -86,7 +86,10 @@ func GetUniqueClientID(ctx context.Context) (string, error) {
 	id := hex.EncodeToString(sum[:])
 
 	// 缓存结果，确保下次启动时使用相同的ID
-	_ = writeCachedID(id)
+	if err := writeCachedID(id); err != nil {
+		// 缓存失败不影响主流程，仅记录错误
+		fmt.Fprintf(os.Stderr, "警告: 缓存客户端ID失败: %v\n", err)
+	}
 
 	return id, nil
 }

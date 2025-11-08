@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -35,7 +36,9 @@ type Client struct {
 	connectClient        deployPBconnect.DeployServiceClient
 	ctx                  context.Context
 	accessKey            string
-	lastDisconnectLogged atomic.Bool // 记录是否已打印断开连接日志
+	lastDisconnectLogged atomic.Bool        // 记录是否已打印断开连接日志
+	systemInfo           *system.SystemInfo // 缓存的系统信息
+	systemInfoOnce       sync.Once          // 确保系统信息只获取一次
 }
 
 func NewClient(ctx context.Context) (*Client, error) {
@@ -48,14 +51,26 @@ func NewClient(ctx context.Context) (*Client, error) {
 	}
 
 	// 配置 HTTP 客户端
-	httpClient := &http.Client{}
+	httpClient := &http.Client{
+		Timeout: 30 * time.Second,
+	}
 	if cfg.Server.Env == "local" {
 		p := new(http.Protocols)
 		p.SetUnencryptedHTTP2(true)
 		httpClient = &http.Client{
+			Timeout: 30 * time.Second,
 			Transport: &http.Transport{
-				Protocols: p,
+				Protocols:           p,
+				MaxIdleConns:        100,
+				MaxIdleConnsPerHost: 10,
+				IdleConnTimeout:     90 * time.Second,
 			},
+		}
+	} else {
+		httpClient.Transport = &http.Transport{
+			MaxIdleConns:        100,
+			MaxIdleConnsPerHost: 10,
+			IdleConnTimeout:     90 * time.Second,
 		}
 	}
 
@@ -73,6 +88,15 @@ func NewClient(ctx context.Context) (*Client, error) {
 	go client.StartConnectNotify()
 
 	return client, nil
+}
+
+// getSystemInfo 获取系统信息（带缓存）
+func (c *Client) getSystemInfo() (*system.SystemInfo, error) {
+	var err error
+	c.systemInfoOnce.Do(func() {
+		c.systemInfo, err = system.GetSystemInfo()
+	})
+	return c.systemInfo, err
 }
 
 // StartConnectNotify 启动连接通知
@@ -110,10 +134,10 @@ func (c *Client) StartConnectNotify() {
 		consecutiveFailures = 0
 		reconnectDelay = time.Second
 
-		// 获取系统信息
-		systemInfo, err := system.GetSystemInfo()
+		// 获取系统信息（使用缓存）
+		systemInfo, err := c.getSystemInfo()
 		if err != nil {
-			logger.Error("获取系统信息失败: %v", err)
+			logger.Error("获取系统信息失败", "error", err)
 			stream.CloseRequest()
 			time.Sleep(reconnectDelay)
 			continue
@@ -138,31 +162,32 @@ func (c *Client) StartConnectNotify() {
 
 		// 注册客户端
 		if err := stream.Send(registerReq); err != nil {
-			// logger.Error("注册失败", "error", err)
 			stream.CloseRequest()
 			time.Sleep(reconnectDelay)
 			continue
 		}
 
-		// 处理消息流
-		err = c.handleNotifyStream(stream)
-
-		// 流断开
-		if err != nil {
-			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-				return
-			}
-
-			isConnected.Store(false)
-			c.lastDisconnectLogged.Store(true)
-
-			// 等待后重连
-			time.Sleep(reconnectDelay)
-			reconnectDelay = min(reconnectDelay*2, maxReconnectDelay)
-			continue
+		// 流断开，先检查主 context 是否被取消（而不是检查错误类型）
+		// 因为错误链中可能包含 context.Canceled，但实际是连接断开导致的
+		select {
+		case <-c.ctx.Done():
+			logger.Info("主 context 已取消，退出连接循环")
+			return
+		default:
 		}
 
-		return
+		// 处理消息流
+		if err := c.handleNotifyStream(stream); err != nil {
+			// logger.Error("连接断开", "error", err)
+		}
+
+		// 标记断开连接
+		isConnected.Store(false)
+		c.lastDisconnectLogged.Store(true)
+
+		// 等待后重连
+		time.Sleep(reconnectDelay)
+		reconnectDelay = min(reconnectDelay*2, maxReconnectDelay)
 	}
 }
 
@@ -197,7 +222,9 @@ func (c *Client) handleNotifyStream(stream *connect.BidiStreamForClientSimple[de
 		if !isConnected.Load() {
 			isConnected.Store(true)
 
+			// 如果之前断开过连接，打印重连成功日志
 			if c.lastDisconnectLogged.Load() {
+				// logger.Info("重新连接成功")
 				c.lastDisconnectLogged.Store(false)
 			}
 		}
@@ -249,7 +276,7 @@ func (c *Client) sendHeartbeat(ctx context.Context, stream *connect.BidiStreamFo
 				Version:   config.Version,
 			})
 			if err != nil {
-				logger.Error("发送心跳失败: %v", err)
+				// logger.Error("发送心跳失败", "error", err)
 				return
 			}
 		}

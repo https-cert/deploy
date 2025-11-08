@@ -43,7 +43,11 @@ func CreateRootCmd() *cobra.Command {
 
 // GetPIDFile 获取PID文件路径
 func GetPIDFile() string {
-	homeDir, _ := os.UserHomeDir()
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		// 如果无法获取用户主目录，使用当前目录
+		homeDir = "."
+	}
 	return filepath.Join(homeDir, ".cert-deploy.pid")
 }
 

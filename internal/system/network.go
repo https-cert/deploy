@@ -12,6 +12,17 @@ import (
 	"github.com/orange-juzipi/cert-deploy/internal/config"
 )
 
+// 共享的 HTTP Client，避免重复创建
+var publicIPClient = &http.Client{
+	Timeout: 5 * time.Second,
+	Transport: &http.Transport{
+		MaxIdleConns:        10,
+		IdleConnTimeout:     30 * time.Second,
+		DisableKeepAlives:   false,
+		MaxIdleConnsPerHost: 2,
+	},
+}
+
 // getPublicIP 获取公网IP地址（使用并发请求优化）
 func getPublicIP() string {
 	// 使用多个服务提供商，并发请求，提高成功率和速度
@@ -30,14 +41,17 @@ func getPublicIP() string {
 
 	var wg sync.WaitGroup
 	for _, serviceURL := range services {
-		wg.Go(func() {
+		serviceURL := serviceURL // 捕获循环变量
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
 			if ip := getIPFromService(ctx, serviceURL); ip != "" {
 				select {
 				case resultChan <- ip:
 				case <-ctx.Done():
 				}
 			}
-		})
+		}()
 	}
 
 	// 启动一个 goroutine 来关闭通道
@@ -69,10 +83,6 @@ func getPublicIP() string {
 
 // getIPFromService 从指定服务获取IP地址
 func getIPFromService(ctx context.Context, serviceURL string) string {
-	client := &http.Client{
-		Timeout: 5 * time.Second,
-	}
-
 	req, err := http.NewRequestWithContext(ctx, "GET", serviceURL, nil)
 	if err != nil {
 		return ""
@@ -81,7 +91,7 @@ func getIPFromService(ctx context.Context, serviceURL string) string {
 	// 使用配置的版本号
 	req.Header.Set("User-Agent", "cert-deploy-client/"+config.Version)
 
-	resp, err := client.Do(req)
+	resp, err := publicIPClient.Do(req)
 	if err != nil {
 		return ""
 	}

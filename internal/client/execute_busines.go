@@ -22,6 +22,12 @@ func (c *Client) executeBusines(stream *connect.BidiStreamForClientSimple[deploy
 	cert := resp.Cert
 	key := resp.Key
 
+	if domain == "" {
+		logger.Error("域名不能为空")
+		c.sendExecuteBusinesResponse(stream, requestId, deployPB.ExecuteBusinesRequest_REQUEST_RESULT_FAILED)
+		return
+	}
+
 	// 上传证书备注
 	remark := domain + "_" + time.Now().Format(time.DateTime)
 
@@ -117,6 +123,11 @@ func (c *Client) sendExecuteBusinesResponse(stream *connect.BidiStreamForClientS
 
 // deployCertificate 部署证书
 func (c *Client) deployCertificate(domain, downloadURL string) {
+	if domain == "" {
+		logger.Error("域名不能为空")
+		return
+	}
+
 	deployer := NewCertDeployer(c)
 	if err := deployer.DeployCertificate(domain, downloadURL); err != nil {
 		logger.Error("证书部署失败", "error", err, "domain", domain)
