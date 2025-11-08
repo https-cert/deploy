@@ -33,19 +33,14 @@ const (
 // reflection-formatted method names, remove the leading slash and convert the remaining slash to a
 // period.
 const (
-	// DeployServiceRegisterClientProcedure is the fully-qualified name of the DeployService's
-	// RegisterClient RPC.
-	DeployServiceRegisterClientProcedure = "/deployPB.DeployService/RegisterClient"
 	// DeployServiceNotifyProcedure is the fully-qualified name of the DeployService's Notify RPC.
 	DeployServiceNotifyProcedure = "/deployPB.DeployService/Notify"
 )
 
 // DeployServiceClient is a client for the deployPB.DeployService service.
 type DeployServiceClient interface {
-	// 注册客户端
-	RegisterClient(context.Context, *deployPB.RegisterClientRequest) (*deployPB.RegisterClientResponse, error)
 	// 通知
-	Notify(context.Context, *deployPB.NotifyRequest) (*connect.ServerStreamForClient[deployPB.NotifyResponse], error)
+	Notify(context.Context) (*connect.BidiStreamForClientSimple[deployPB.NotifyRequest, deployPB.NotifyResponse], error)
 }
 
 // NewDeployServiceClient constructs a client for the deployPB.DeployService service. By default, it
@@ -59,12 +54,6 @@ func NewDeployServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 	baseURL = strings.TrimRight(baseURL, "/")
 	deployServiceMethods := deployPB.File_deployPB_deploy_proto.Services().ByName("DeployService").Methods()
 	return &deployServiceClient{
-		registerClient: connect.NewClient[deployPB.RegisterClientRequest, deployPB.RegisterClientResponse](
-			httpClient,
-			baseURL+DeployServiceRegisterClientProcedure,
-			connect.WithSchema(deployServiceMethods.ByName("RegisterClient")),
-			connect.WithClientOptions(opts...),
-		),
 		notify: connect.NewClient[deployPB.NotifyRequest, deployPB.NotifyResponse](
 			httpClient,
 			baseURL+DeployServiceNotifyProcedure,
@@ -76,30 +65,18 @@ func NewDeployServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 
 // deployServiceClient implements DeployServiceClient.
 type deployServiceClient struct {
-	registerClient *connect.Client[deployPB.RegisterClientRequest, deployPB.RegisterClientResponse]
-	notify         *connect.Client[deployPB.NotifyRequest, deployPB.NotifyResponse]
-}
-
-// RegisterClient calls deployPB.DeployService.RegisterClient.
-func (c *deployServiceClient) RegisterClient(ctx context.Context, req *deployPB.RegisterClientRequest) (*deployPB.RegisterClientResponse, error) {
-	response, err := c.registerClient.CallUnary(ctx, connect.NewRequest(req))
-	if response != nil {
-		return response.Msg, err
-	}
-	return nil, err
+	notify *connect.Client[deployPB.NotifyRequest, deployPB.NotifyResponse]
 }
 
 // Notify calls deployPB.DeployService.Notify.
-func (c *deployServiceClient) Notify(ctx context.Context, req *deployPB.NotifyRequest) (*connect.ServerStreamForClient[deployPB.NotifyResponse], error) {
-	return c.notify.CallServerStream(ctx, connect.NewRequest(req))
+func (c *deployServiceClient) Notify(ctx context.Context) (*connect.BidiStreamForClientSimple[deployPB.NotifyRequest, deployPB.NotifyResponse], error) {
+	return c.notify.CallBidiStreamSimple(ctx)
 }
 
 // DeployServiceHandler is an implementation of the deployPB.DeployService service.
 type DeployServiceHandler interface {
-	// 注册客户端
-	RegisterClient(context.Context, *deployPB.RegisterClientRequest) (*deployPB.RegisterClientResponse, error)
 	// 通知
-	Notify(context.Context, *deployPB.NotifyRequest, *connect.ServerStream[deployPB.NotifyResponse]) error
+	Notify(context.Context, *connect.BidiStream[deployPB.NotifyRequest, deployPB.NotifyResponse]) error
 }
 
 // NewDeployServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -109,13 +86,7 @@ type DeployServiceHandler interface {
 // and JSON codecs. They also support gzip compression.
 func NewDeployServiceHandler(svc DeployServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
 	deployServiceMethods := deployPB.File_deployPB_deploy_proto.Services().ByName("DeployService").Methods()
-	deployServiceRegisterClientHandler := connect.NewUnaryHandlerSimple(
-		DeployServiceRegisterClientProcedure,
-		svc.RegisterClient,
-		connect.WithSchema(deployServiceMethods.ByName("RegisterClient")),
-		connect.WithHandlerOptions(opts...),
-	)
-	deployServiceNotifyHandler := connect.NewServerStreamHandlerSimple(
+	deployServiceNotifyHandler := connect.NewBidiStreamHandler(
 		DeployServiceNotifyProcedure,
 		svc.Notify,
 		connect.WithSchema(deployServiceMethods.ByName("Notify")),
@@ -123,8 +94,6 @@ func NewDeployServiceHandler(svc DeployServiceHandler, opts ...connect.HandlerOp
 	)
 	return "/deployPB.DeployService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case DeployServiceRegisterClientProcedure:
-			deployServiceRegisterClientHandler.ServeHTTP(w, r)
 		case DeployServiceNotifyProcedure:
 			deployServiceNotifyHandler.ServeHTTP(w, r)
 		default:
@@ -136,10 +105,6 @@ func NewDeployServiceHandler(svc DeployServiceHandler, opts ...connect.HandlerOp
 // UnimplementedDeployServiceHandler returns CodeUnimplemented from all methods.
 type UnimplementedDeployServiceHandler struct{}
 
-func (UnimplementedDeployServiceHandler) RegisterClient(context.Context, *deployPB.RegisterClientRequest) (*deployPB.RegisterClientResponse, error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("deployPB.DeployService.RegisterClient is not implemented"))
-}
-
-func (UnimplementedDeployServiceHandler) Notify(context.Context, *deployPB.NotifyRequest, *connect.ServerStream[deployPB.NotifyResponse]) error {
+func (UnimplementedDeployServiceHandler) Notify(context.Context, *connect.BidiStream[deployPB.NotifyRequest, deployPB.NotifyResponse]) error {
 	return connect.NewError(connect.CodeUnimplemented, errors.New("deployPB.DeployService.Notify is not implemented"))
 }

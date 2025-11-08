@@ -9,6 +9,7 @@
 - 🚀 **自动化部署**：自动下载证书、解压、部署到指定目录
 - 🔄 **智能重载**：自动测试 Nginx 配置并重载服务
 - 🌐 **实时通知**：通过长连接接收服务器推送的证书更新通知
+- ☁️ **云服务支持**：支持自动上传证书到云服务提供商
 - 🛡️ **稳定可靠**：心跳保活、自动重连机制
 - 🔧 **守护进程**：支持后台运行，可通过命令管理进程状态
 - 📦 **开箱即用**：单一可执行文件，无需依赖
@@ -78,6 +79,8 @@ make build-compress
 server:
   # 从网站的 设置 -> 个人资料 中获取 AccessKey
   accessKey: "your_access_key_here"
+  # 环境类型：local（本地开发）或 prod（生产环境）
+  env: "prod"
 
 # SSL 证书配置
 ssl:
@@ -104,16 +107,54 @@ update:
   # 示例: "socks5://127.0.0.1:1080"
   # 注意：也可以通过环境变量 HTTP_PROXY 和 HTTPS_PROXY 设置代理
   proxy: ""
+
+# 云服务提供商配置（可选）
+# 配置后，工具可以自动将证书上传到对应的云服务
+provider:
+  # 阿里云配置
+  - name: "aliyun"
+    remark: "阿里云"
+    accessKeyId: "your_aliyun_access_key_id"
+    accessKeySecret: "your_aliyun_access_key_secret"
+
+  # 七牛云配置
+  - name: "qiniu"
+    remark: "七牛云"
+    accessKey: "your_qiniu_access_key"
+    accessSecret: "your_qiniu_access_secret"
+
+  # 腾讯云配置（开发中）
+  # - name: "cloudTencent"
+  #   remark: "腾讯云"
+  #   secretId: "your_tencent_secret_id"
+  #   secretKey: "your_tencent_secret_key"
 ```
 
 ### 配置说明
 
-| 配置项             | 必填 | 说明                                                  |
-| ------------------ | ---- | ----------------------------------------------------- |
-| `server.accessKey` | ✅   | 从 [anssl.cn](https://anssl.cn) 获取的访问密钥        |
-| `ssl.path`         | ❌   | 证书存储目录，留空则保存在程序目录下的 `certs` 文件夹 |
+| 配置项                    | 必填 | 说明                                                         |
+| ------------------------- | ---- | ------------------------------------------------------------ |
+| `server.accessKey`        | ✅   | 从 [anssl.cn](https://anssl.cn) 获取的访问密钥               |
+| `server.env`              | ❌   | 环境类型：`local`（本地开发）或 `prod`（生产环境），默认生产 |
+| `ssl.path`                | ❌   | 证书存储目录，留空则保存在程序目录下的 `certs` 文件夹         |
+| `provider`                | ❌   | 云服务提供商配置数组，支持多个提供商                         |
+| `provider[].name`         | ❌   | 提供商名称：`aliyun`（阿里云）、`qiniu`（七牛云）            |
+| `provider[].remark`       | ❌   | 备注信息，用于标识                                           |
+| `provider[].accessKeyId`  | ❌   | 阿里云 AccessKey ID（仅阿里云需要）                          |
+| `provider[].accessKeySecret` | ❌   | 阿里云 AccessKey Secret（仅阿里云需要）                      |
+| `provider[].accessKey`    | ❌   | 七牛云 AccessKey（仅七牛云需要）                             |
+| `provider[].accessSecret` | ❌   | 七牛云 AccessSecret（仅七牛云需要）                           |
 
 ## 🚀 使用方法
+
+### 部署模式
+
+工具支持两种部署模式：
+
+1. **本地部署模式**（`ansslCli`）：下载证书到本地服务器并自动重载 Nginx
+2. **云服务上传模式**（`aliyun`、`qiniu`）：将证书上传到云服务提供商的证书管理平台
+
+部署模式由服务器端根据配置自动选择，你只需要在配置文件中配置相应的云服务提供商凭证即可。
 
 ### 基本命令
 
@@ -270,6 +311,10 @@ make build-compress
 ├── main.go                 # 主程序入口，Cobra CLI 命令定义
 ├── internal/
 │   ├── client/            # RPC 客户端和证书部署逻辑
+│   │   ├── providers/     # 云服务提供商实现
+│   │   │   ├── aliyun/   # 阿里云提供商
+│   │   │   └── qiniu/    # 七牛云提供商
+│   │   └── ...
 │   ├── config/            # 配置管理
 │   ├── scheduler/         # 任务调度器
 │   └── system/            # 系统信息收集
@@ -285,6 +330,9 @@ make build-compress
 - **配置管理**：[Viper](https://github.com/spf13/viper)
 - **RPC 通信**：[Connect RPC](https://connectrpc.com/)
 - **协议**：Protocol Buffers
+- **云服务 SDK**：
+  - 阿里云：[Alibaba Cloud SDK](https://github.com/alibabacloud-go)
+  - 七牛云：[Qiniu Go SDK](https://github.com/qiniu/go-sdk)
 
 ## 🐛 故障排除
 
@@ -341,6 +389,22 @@ make build-compress
 - 工具会自动跳过 Nginx 相关操作，证书仍会正常下载
 - 如需自动重载功能，请先安装 Nginx
 
+### 云服务上传失败
+
+**问题**：证书上传到云服务失败
+
+**解决方案**：
+
+1. **检查配置**：确认 `config.yaml` 中的云服务凭证是否正确
+2. **检查权限**：确保 AccessKey 具有 SSL 证书管理权限
+3. **查看日志**：使用 `./cert-deploy log` 查看详细错误信息
+4. **测试连接**：可以运行测试用例验证云服务连接（需要配置测试凭证）
+
+**常见错误**：
+- `提供商配置不存在`：检查 `provider` 配置段中的 `name` 是否正确（`aliyun` 或 `qiniu`）
+- `配置不完整`：检查对应云服务的必填字段是否都已填写
+- `创建提供商实例失败`：检查 AccessKey 和 Secret 是否正确
+
 ## 📝 许可证
 
 MIT License
@@ -363,9 +427,31 @@ MIT License
 
 目前仅支持 Nginx 的自动重载。其他 Web 服务器（如 Apache、Caddy）可以使用本工具下载证书，但需要手动配置服务器重载。
 
+### 2.1. 如何配置云服务提供商？
+
+在 `config.yaml` 中添加 `provider` 配置段，填写对应云服务的凭证：
+
+**阿里云配置：**
+- 登录 [阿里云控制台](https://home.console.aliyun.com/)
+- 进入 [访问控制](https://ram.console.aliyun.com/manage/ak) 创建 AccessKey
+- 确保 AccessKey 具有 SSL 证书管理权限
+
+**七牛云配置：**
+- 登录 [七牛云控制台](https://portal.qiniu.com/)
+- 进入 [密钥管理](https://portal.qiniu.com/user/key) 获取 AccessKey 和 SecretKey
+
+配置完成后，当服务器推送证书更新通知时，工具会自动将证书上传到配置的云服务提供商。
+
 ### 3. 证书更新频率是多少？
 
-工具通过服务器推送实时接收证书更新通知，无需手动检查。客户端每 5 秒发送一次心跳保持连接。
+工具通过服务器推送实时接收证书更新通知，无需手动检查。客户端每 30 秒发送一次心跳保持连接。
+
+### 3.1. 证书会同时部署到本地和云服务吗？
+
+不会。部署模式由服务器端根据你的配置决定：
+- 如果配置了云服务提供商凭证，服务器会优先选择云服务上传模式
+- 如果没有配置云服务，则使用本地部署模式
+- 两种模式不会同时执行
 
 ### 4. 如何设置开机自启动？
 

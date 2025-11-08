@@ -25,10 +25,12 @@ const (
 type Type int32
 
 const (
-	Type_UNKNOWN        Type = 0 // 未知
-	Type_CONNECT        Type = 1 // 连接成功
-	Type_CERT           Type = 2 // 证书更新通知
-	Type_UPDATE_VERSION Type = 3 // 更新版本通知
+	Type_UNKNOWN         Type = 0 // 未知
+	Type_CONNECT         Type = 1 // 连接成功
+	Type_UPDATE_VERSION  Type = 3 // 更新版本
+	Type_GET_PROVIDER    Type = 4 // 获取提供商信息
+	Type_REGISTER        Type = 5 // 注册客户端
+	Type_EXECUTE_BUSINES Type = 6 // 执行业务
 )
 
 // Enum value maps for Type.
@@ -36,14 +38,18 @@ var (
 	Type_name = map[int32]string{
 		0: "UNKNOWN",
 		1: "CONNECT",
-		2: "CERT",
 		3: "UPDATE_VERSION",
+		4: "GET_PROVIDER",
+		5: "REGISTER",
+		6: "EXECUTE_BUSINES",
 	}
 	Type_value = map[string]int32{
-		"UNKNOWN":        0,
-		"CONNECT":        1,
-		"CERT":           2,
-		"UPDATE_VERSION": 3,
+		"UNKNOWN":         0,
+		"CONNECT":         1,
+		"UPDATE_VERSION":  3,
+		"GET_PROVIDER":    4,
+		"REGISTER":        5,
+		"EXECUTE_BUSINES": 6,
 	}
 )
 
@@ -74,131 +80,139 @@ func (Type) EnumDescriptor() ([]byte, []int) {
 	return file_deployPB_deploy_proto_rawDescGZIP(), []int{0}
 }
 
-// MARK: - 注册客户端请求
-type RegisterClientRequest struct {
-	state         protoimpl.MessageState            `protogen:"open.v1"`
-	ClientId      string                            `protobuf:"bytes,1,opt,name=clientId,proto3" json:"clientId,omitempty"`     // 客户端ID
-	SystemInfo    *RegisterClientRequest_SystemInfo `protobuf:"bytes,2,opt,name=systemInfo,proto3" json:"systemInfo,omitempty"` // 系统信息
-	Version       string                            `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`       // 版本
-	AccessKey     string                            `protobuf:"bytes,4,opt,name=accessKey,proto3" json:"accessKey,omitempty"`   // 令牌
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
+// MARK: - 执行业务类型
+type ExecuteBusinesType int32
 
-func (x *RegisterClientRequest) Reset() {
-	*x = RegisterClientRequest{}
-	mi := &file_deployPB_deploy_proto_msgTypes[0]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
+const (
+	ExecuteBusinesType_EXECUTE_BUSINES_UNKNOWN        ExecuteBusinesType = 0 // 未知
+	ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_CERT ExecuteBusinesType = 1 // anssl自动部署客户端 cli
+	ExecuteBusinesType_EXECUTE_BUSINES_UPLOAD_CERT    ExecuteBusinesType = 2 // 上传证书
+	ExecuteBusinesType_EXECUTE_BUSINES_CDN            ExecuteBusinesType = 3 // CDN
+	ExecuteBusinesType_EXECUTE_BUSINES_DCDN           ExecuteBusinesType = 4 // DCDN
+	ExecuteBusinesType_EXECUTE_BUSINES_OSS            ExecuteBusinesType = 5 // OSS
+)
 
-func (x *RegisterClientRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RegisterClientRequest) ProtoMessage() {}
-
-func (x *RegisterClientRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_deployPB_deploy_proto_msgTypes[0]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
+// Enum value maps for ExecuteBusinesType.
+var (
+	ExecuteBusinesType_name = map[int32]string{
+		0: "EXECUTE_BUSINES_UNKNOWN",
+		1: "EXECUTE_BUSINES_ANSSL_CLI_CERT",
+		2: "EXECUTE_BUSINES_UPLOAD_CERT",
+		3: "EXECUTE_BUSINES_CDN",
+		4: "EXECUTE_BUSINES_DCDN",
+		5: "EXECUTE_BUSINES_OSS",
 	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RegisterClientRequest.ProtoReflect.Descriptor instead.
-func (*RegisterClientRequest) Descriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{0}
-}
-
-func (x *RegisterClientRequest) GetClientId() string {
-	if x != nil {
-		return x.ClientId
+	ExecuteBusinesType_value = map[string]int32{
+		"EXECUTE_BUSINES_UNKNOWN":        0,
+		"EXECUTE_BUSINES_ANSSL_CLI_CERT": 1,
+		"EXECUTE_BUSINES_UPLOAD_CERT":    2,
+		"EXECUTE_BUSINES_CDN":            3,
+		"EXECUTE_BUSINES_DCDN":           4,
+		"EXECUTE_BUSINES_OSS":            5,
 	}
-	return ""
+)
+
+func (x ExecuteBusinesType) Enum() *ExecuteBusinesType {
+	p := new(ExecuteBusinesType)
+	*p = x
+	return p
 }
 
-func (x *RegisterClientRequest) GetSystemInfo() *RegisterClientRequest_SystemInfo {
-	if x != nil {
-		return x.SystemInfo
-	}
-	return nil
+func (x ExecuteBusinesType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
 }
 
-func (x *RegisterClientRequest) GetVersion() string {
-	if x != nil {
-		return x.Version
-	}
-	return ""
+func (ExecuteBusinesType) Descriptor() protoreflect.EnumDescriptor {
+	return file_deployPB_deploy_proto_enumTypes[1].Descriptor()
 }
 
-func (x *RegisterClientRequest) GetAccessKey() string {
-	if x != nil {
-		return x.AccessKey
-	}
-	return ""
+func (ExecuteBusinesType) Type() protoreflect.EnumType {
+	return &file_deployPB_deploy_proto_enumTypes[1]
 }
 
-type RegisterClientResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ClientId      string                 `protobuf:"bytes,1,opt,name=clientId,proto3" json:"clientId,omitempty"` // 客户端ID
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+func (x ExecuteBusinesType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
 }
 
-func (x *RegisterClientResponse) Reset() {
-	*x = RegisterClientResponse{}
-	mi := &file_deployPB_deploy_proto_msgTypes[1]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *RegisterClientResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RegisterClientResponse) ProtoMessage() {}
-
-func (x *RegisterClientResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_deployPB_deploy_proto_msgTypes[1]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RegisterClientResponse.ProtoReflect.Descriptor instead.
-func (*RegisterClientResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use ExecuteBusinesType.Descriptor instead.
+func (ExecuteBusinesType) EnumDescriptor() ([]byte, []int) {
 	return file_deployPB_deploy_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *RegisterClientResponse) GetClientId() string {
-	if x != nil {
-		return x.ClientId
+// 请求结果
+type ExecuteBusinesRequest_RequestResult int32
+
+const (
+	ExecuteBusinesRequest_REQUEST_RESULT_UNKNOWN       ExecuteBusinesRequest_RequestResult = 0 // 未知
+	ExecuteBusinesRequest_REQUEST_RESULT_SUCCESS       ExecuteBusinesRequest_RequestResult = 1 // 成功
+	ExecuteBusinesRequest_REQUEST_RESULT_FAILED        ExecuteBusinesRequest_RequestResult = 2 // 失败
+	ExecuteBusinesRequest_REQUEST_RESULT_NOT_SUPPORTED ExecuteBusinesRequest_RequestResult = 3 // 不支持
+)
+
+// Enum value maps for ExecuteBusinesRequest_RequestResult.
+var (
+	ExecuteBusinesRequest_RequestResult_name = map[int32]string{
+		0: "REQUEST_RESULT_UNKNOWN",
+		1: "REQUEST_RESULT_SUCCESS",
+		2: "REQUEST_RESULT_FAILED",
+		3: "REQUEST_RESULT_NOT_SUPPORTED",
 	}
-	return ""
+	ExecuteBusinesRequest_RequestResult_value = map[string]int32{
+		"REQUEST_RESULT_UNKNOWN":       0,
+		"REQUEST_RESULT_SUCCESS":       1,
+		"REQUEST_RESULT_FAILED":        2,
+		"REQUEST_RESULT_NOT_SUPPORTED": 3,
+	}
+)
+
+func (x ExecuteBusinesRequest_RequestResult) Enum() *ExecuteBusinesRequest_RequestResult {
+	p := new(ExecuteBusinesRequest_RequestResult)
+	*p = x
+	return p
 }
 
-// MARK: - 通知请求
+func (x ExecuteBusinesRequest_RequestResult) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ExecuteBusinesRequest_RequestResult) Descriptor() protoreflect.EnumDescriptor {
+	return file_deployPB_deploy_proto_enumTypes[2].Descriptor()
+}
+
+func (ExecuteBusinesRequest_RequestResult) Type() protoreflect.EnumType {
+	return &file_deployPB_deploy_proto_enumTypes[2]
+}
+
+func (x ExecuteBusinesRequest_RequestResult) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ExecuteBusinesRequest_RequestResult.Descriptor instead.
+func (ExecuteBusinesRequest_RequestResult) EnumDescriptor() ([]byte, []int) {
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{9, 0}
+}
+
+// MARK: - 通知
 type NotifyRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	AccessKey     string                 `protobuf:"bytes,1,opt,name=accessKey,proto3" json:"accessKey,omitempty"` // 令牌
-	ClientId      string                 `protobuf:"bytes,2,opt,name=clientId,proto3" json:"clientId,omitempty"`   // 客户端ID
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	AccessKey string                 `protobuf:"bytes,1,opt,name=accessKey,proto3" json:"accessKey,omitempty"` // 令牌
+	ClientId  string                 `protobuf:"bytes,2,opt,name=clientId,proto3" json:"clientId,omitempty"`   // 客户端ID
+	RequestId string                 `protobuf:"bytes,3,opt,name=requestId,proto3" json:"requestId,omitempty"` // 请求ID（用于请求-响应匹配）
+	Version   string                 `protobuf:"bytes,4,opt,name=version,proto3" json:"version,omitempty"`     // 客户端版本
+	// Types that are valid to be assigned to Data:
+	//
+	//	*NotifyRequest_GetProviderResponse
+	//	*NotifyRequest_RegisterResponse
+	//	*NotifyRequest_ConnectRequest
+	//	*NotifyRequest_ExecuteBusinesRequest
+	Data          isNotifyRequest_Data `protobuf_oneof:"data"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *NotifyRequest) Reset() {
 	*x = NotifyRequest{}
-	mi := &file_deployPB_deploy_proto_msgTypes[2]
+	mi := &file_deployPB_deploy_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -210,7 +224,7 @@ func (x *NotifyRequest) String() string {
 func (*NotifyRequest) ProtoMessage() {}
 
 func (x *NotifyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_deployPB_deploy_proto_msgTypes[2]
+	mi := &file_deployPB_deploy_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -223,7 +237,7 @@ func (x *NotifyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NotifyRequest.ProtoReflect.Descriptor instead.
 func (*NotifyRequest) Descriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{2}
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *NotifyRequest) GetAccessKey() string {
@@ -240,19 +254,110 @@ func (x *NotifyRequest) GetClientId() string {
 	return ""
 }
 
+func (x *NotifyRequest) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
+}
+
+func (x *NotifyRequest) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *NotifyRequest) GetData() isNotifyRequest_Data {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+func (x *NotifyRequest) GetGetProviderResponse() *GetProviderResponse {
+	if x != nil {
+		if x, ok := x.Data.(*NotifyRequest_GetProviderResponse); ok {
+			return x.GetProviderResponse
+		}
+	}
+	return nil
+}
+
+func (x *NotifyRequest) GetRegisterResponse() *RegisterResponse {
+	if x != nil {
+		if x, ok := x.Data.(*NotifyRequest_RegisterResponse); ok {
+			return x.RegisterResponse
+		}
+	}
+	return nil
+}
+
+func (x *NotifyRequest) GetConnectRequest() *ConnectRequest {
+	if x != nil {
+		if x, ok := x.Data.(*NotifyRequest_ConnectRequest); ok {
+			return x.ConnectRequest
+		}
+	}
+	return nil
+}
+
+func (x *NotifyRequest) GetExecuteBusinesRequest() *ExecuteBusinesRequest {
+	if x != nil {
+		if x, ok := x.Data.(*NotifyRequest_ExecuteBusinesRequest); ok {
+			return x.ExecuteBusinesRequest
+		}
+	}
+	return nil
+}
+
+type isNotifyRequest_Data interface {
+	isNotifyRequest_Data()
+}
+
+type NotifyRequest_GetProviderResponse struct {
+	GetProviderResponse *GetProviderResponse `protobuf:"bytes,10,opt,name=getProviderResponse,proto3,oneof"`
+}
+
+type NotifyRequest_RegisterResponse struct {
+	RegisterResponse *RegisterResponse `protobuf:"bytes,11,opt,name=registerResponse,proto3,oneof"`
+}
+
+type NotifyRequest_ConnectRequest struct {
+	ConnectRequest *ConnectRequest `protobuf:"bytes,12,opt,name=connectRequest,proto3,oneof"`
+}
+
+type NotifyRequest_ExecuteBusinesRequest struct {
+	ExecuteBusinesRequest *ExecuteBusinesRequest `protobuf:"bytes,13,opt,name=executeBusinesRequest,proto3,oneof"`
+}
+
+func (*NotifyRequest_GetProviderResponse) isNotifyRequest_Data() {}
+
+func (*NotifyRequest_RegisterResponse) isNotifyRequest_Data() {}
+
+func (*NotifyRequest_ConnectRequest) isNotifyRequest_Data() {}
+
+func (*NotifyRequest_ExecuteBusinesRequest) isNotifyRequest_Data() {}
+
 type NotifyResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Type          Type                   `protobuf:"varint,1,opt,name=type,proto3,enum=deployPB.Type" json:"type,omitempty"` // 类型
-	ClientId      string                 `protobuf:"bytes,2,opt,name=clientId,proto3" json:"clientId,omitempty"`             // 客户端ID
-	Domain        string                 `protobuf:"bytes,3,opt,name=domain,proto3" json:"domain,omitempty"`                 // 域名
-	Url           string                 `protobuf:"bytes,4,opt,name=url,proto3" json:"url,omitempty"`                       // 证书下载URL
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	Type      Type                   `protobuf:"varint,1,opt,name=type,proto3,enum=deployPB.Type" json:"type,omitempty"` // 类型
+	ClientId  string                 `protobuf:"bytes,2,opt,name=clientId,proto3" json:"clientId,omitempty"`             // 客户端ID
+	RequestId string                 `protobuf:"bytes,3,opt,name=requestId,proto3" json:"requestId,omitempty"`           // 请求ID（用于请求-响应匹配）
+	// Types that are valid to be assigned to Data:
+	//
+	//	*NotifyResponse_GetProviderResponse
+	//	*NotifyResponse_RegisterRequest
+	//	*NotifyResponse_ConnectRequest
+	//	*NotifyResponse_ExecuteBusinesResponse
+	Data          isNotifyResponse_Data `protobuf_oneof:"data"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *NotifyResponse) Reset() {
 	*x = NotifyResponse{}
-	mi := &file_deployPB_deploy_proto_msgTypes[3]
+	mi := &file_deployPB_deploy_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -264,7 +369,7 @@ func (x *NotifyResponse) String() string {
 func (*NotifyResponse) ProtoMessage() {}
 
 func (x *NotifyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_deployPB_deploy_proto_msgTypes[3]
+	mi := &file_deployPB_deploy_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -277,7 +382,7 @@ func (x *NotifyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NotifyResponse.ProtoReflect.Descriptor instead.
 func (*NotifyResponse) Descriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{3}
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *NotifyResponse) GetType() Type {
@@ -294,44 +399,196 @@ func (x *NotifyResponse) GetClientId() string {
 	return ""
 }
 
-func (x *NotifyResponse) GetDomain() string {
+func (x *NotifyResponse) GetRequestId() string {
 	if x != nil {
-		return x.Domain
+		return x.RequestId
 	}
 	return ""
 }
 
-func (x *NotifyResponse) GetUrl() string {
+func (x *NotifyResponse) GetData() isNotifyResponse_Data {
 	if x != nil {
-		return x.Url
+		return x.Data
 	}
-	return ""
+	return nil
 }
 
-type RegisterClientRequest_SystemInfo struct {
+func (x *NotifyResponse) GetGetProviderResponse() *GetProviderResponse {
+	if x != nil {
+		if x, ok := x.Data.(*NotifyResponse_GetProviderResponse); ok {
+			return x.GetProviderResponse
+		}
+	}
+	return nil
+}
+
+func (x *NotifyResponse) GetRegisterRequest() *RegisterRequest {
+	if x != nil {
+		if x, ok := x.Data.(*NotifyResponse_RegisterRequest); ok {
+			return x.RegisterRequest
+		}
+	}
+	return nil
+}
+
+func (x *NotifyResponse) GetConnectRequest() *ConnectRequest {
+	if x != nil {
+		if x, ok := x.Data.(*NotifyResponse_ConnectRequest); ok {
+			return x.ConnectRequest
+		}
+	}
+	return nil
+}
+
+func (x *NotifyResponse) GetExecuteBusinesResponse() *ExecuteBusinesResponse {
+	if x != nil {
+		if x, ok := x.Data.(*NotifyResponse_ExecuteBusinesResponse); ok {
+			return x.ExecuteBusinesResponse
+		}
+	}
+	return nil
+}
+
+type isNotifyResponse_Data interface {
+	isNotifyResponse_Data()
+}
+
+type NotifyResponse_GetProviderResponse struct {
+	GetProviderResponse *GetProviderResponse `protobuf:"bytes,5,opt,name=getProviderResponse,proto3,oneof"`
+}
+
+type NotifyResponse_RegisterRequest struct {
+	RegisterRequest *RegisterRequest `protobuf:"bytes,6,opt,name=registerRequest,proto3,oneof"`
+}
+
+type NotifyResponse_ConnectRequest struct {
+	ConnectRequest *ConnectRequest `protobuf:"bytes,7,opt,name=connectRequest,proto3,oneof"`
+}
+
+type NotifyResponse_ExecuteBusinesResponse struct {
+	ExecuteBusinesResponse *ExecuteBusinesResponse `protobuf:"bytes,8,opt,name=executeBusinesResponse,proto3,oneof"`
+}
+
+func (*NotifyResponse_GetProviderResponse) isNotifyResponse_Data() {}
+
+func (*NotifyResponse_RegisterRequest) isNotifyResponse_Data() {}
+
+func (*NotifyResponse_ConnectRequest) isNotifyResponse_Data() {}
+
+func (*NotifyResponse_ExecuteBusinesResponse) isNotifyResponse_Data() {}
+
+// MARK: - Connect: 连接
+type ConnectRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Os            string                 `protobuf:"bytes,1,opt,name=os,proto3" json:"os,omitempty"`             // 操作系统
-	Arch          string                 `protobuf:"bytes,2,opt,name=arch,proto3" json:"arch,omitempty"`         // 架构
-	Hostname      string                 `protobuf:"bytes,3,opt,name=hostname,proto3" json:"hostname,omitempty"` // 主机名
-	Ip            string                 `protobuf:"bytes,4,opt,name=ip,proto3" json:"ip,omitempty"`             // IP地址
+	Provider      string                 `protobuf:"bytes,1,opt,name=provider,proto3" json:"provider,omitempty"` // 提供商
+	Success       bool                   `protobuf:"varint,2,opt,name=success,proto3" json:"success,omitempty"`  // 是否成功
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *RegisterClientRequest_SystemInfo) Reset() {
-	*x = RegisterClientRequest_SystemInfo{}
+func (x *ConnectRequest) Reset() {
+	*x = ConnectRequest{}
+	mi := &file_deployPB_deploy_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConnectRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConnectRequest) ProtoMessage() {}
+
+func (x *ConnectRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_deployPB_deploy_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConnectRequest.ProtoReflect.Descriptor instead.
+func (*ConnectRequest) Descriptor() ([]byte, []int) {
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *ConnectRequest) GetProvider() string {
+	if x != nil {
+		return x.Provider
+	}
+	return ""
+}
+
+func (x *ConnectRequest) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+// MARK: - 证书更新
+type CertUpdateRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CertUpdateRequest) Reset() {
+	*x = CertUpdateRequest{}
+	mi := &file_deployPB_deploy_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CertUpdateRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CertUpdateRequest) ProtoMessage() {}
+
+func (x *CertUpdateRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_deployPB_deploy_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CertUpdateRequest.ProtoReflect.Descriptor instead.
+func (*CertUpdateRequest) Descriptor() ([]byte, []int) {
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{3}
+}
+
+type CertUpdateResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Domain        string                 `protobuf:"bytes,1,opt,name=domain,proto3" json:"domain,omitempty"` // 域名
+	Url           string                 `protobuf:"bytes,2,opt,name=url,proto3" json:"url,omitempty"`       // 证书下载URL
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CertUpdateResponse) Reset() {
+	*x = CertUpdateResponse{}
 	mi := &file_deployPB_deploy_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *RegisterClientRequest_SystemInfo) String() string {
+func (x *CertUpdateResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*RegisterClientRequest_SystemInfo) ProtoMessage() {}
+func (*CertUpdateResponse) ProtoMessage() {}
 
-func (x *RegisterClientRequest_SystemInfo) ProtoReflect() protoreflect.Message {
+func (x *CertUpdateResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_deployPB_deploy_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -343,33 +600,430 @@ func (x *RegisterClientRequest_SystemInfo) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RegisterClientRequest_SystemInfo.ProtoReflect.Descriptor instead.
-func (*RegisterClientRequest_SystemInfo) Descriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{0, 0}
+// Deprecated: Use CertUpdateResponse.ProtoReflect.Descriptor instead.
+func (*CertUpdateResponse) Descriptor() ([]byte, []int) {
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{4}
 }
 
-func (x *RegisterClientRequest_SystemInfo) GetOs() string {
+func (x *CertUpdateResponse) GetDomain() string {
+	if x != nil {
+		return x.Domain
+	}
+	return ""
+}
+
+func (x *CertUpdateResponse) GetUrl() string {
+	if x != nil {
+		return x.Url
+	}
+	return ""
+}
+
+// MARK: - 获取提供商信息
+type GetProviderRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetProviderRequest) Reset() {
+	*x = GetProviderRequest{}
+	mi := &file_deployPB_deploy_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetProviderRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetProviderRequest) ProtoMessage() {}
+
+func (x *GetProviderRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_deployPB_deploy_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetProviderRequest.ProtoReflect.Descriptor instead.
+func (*GetProviderRequest) Descriptor() ([]byte, []int) {
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{5}
+}
+
+type GetProviderResponse struct {
+	state         protoimpl.MessageState          `protogen:"open.v1"`
+	Providers     []*GetProviderResponse_Provider `protobuf:"bytes,1,rep,name=providers,proto3" json:"providers,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetProviderResponse) Reset() {
+	*x = GetProviderResponse{}
+	mi := &file_deployPB_deploy_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetProviderResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetProviderResponse) ProtoMessage() {}
+
+func (x *GetProviderResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_deployPB_deploy_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetProviderResponse.ProtoReflect.Descriptor instead.
+func (*GetProviderResponse) Descriptor() ([]byte, []int) {
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *GetProviderResponse) GetProviders() []*GetProviderResponse_Provider {
+	if x != nil {
+		return x.Providers
+	}
+	return nil
+}
+
+// MARK: - 注册客户端
+type RegisterRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RegisterRequest) Reset() {
+	*x = RegisterRequest{}
+	mi := &file_deployPB_deploy_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RegisterRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RegisterRequest) ProtoMessage() {}
+
+func (x *RegisterRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_deployPB_deploy_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RegisterRequest.ProtoReflect.Descriptor instead.
+func (*RegisterRequest) Descriptor() ([]byte, []int) {
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{7}
+}
+
+type RegisterResponse struct {
+	state         protoimpl.MessageState       `protogen:"open.v1"`
+	SystemInfo    *RegisterResponse_SystemInfo `protobuf:"bytes,1,opt,name=systemInfo,proto3" json:"systemInfo,omitempty"` // 系统信息
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RegisterResponse) Reset() {
+	*x = RegisterResponse{}
+	mi := &file_deployPB_deploy_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RegisterResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RegisterResponse) ProtoMessage() {}
+
+func (x *RegisterResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_deployPB_deploy_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RegisterResponse.ProtoReflect.Descriptor instead.
+func (*RegisterResponse) Descriptor() ([]byte, []int) {
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *RegisterResponse) GetSystemInfo() *RegisterResponse_SystemInfo {
+	if x != nil {
+		return x.SystemInfo
+	}
+	return nil
+}
+
+// MARK: - 执行业务
+type ExecuteBusinesRequest struct {
+	state         protoimpl.MessageState              `protogen:"open.v1"`
+	RequestResult ExecuteBusinesRequest_RequestResult `protobuf:"varint,1,opt,name=requestResult,proto3,enum=deployPB.ExecuteBusinesRequest_RequestResult" json:"requestResult,omitempty"` // 请求结果
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExecuteBusinesRequest) Reset() {
+	*x = ExecuteBusinesRequest{}
+	mi := &file_deployPB_deploy_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExecuteBusinesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExecuteBusinesRequest) ProtoMessage() {}
+
+func (x *ExecuteBusinesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_deployPB_deploy_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExecuteBusinesRequest.ProtoReflect.Descriptor instead.
+func (*ExecuteBusinesRequest) Descriptor() ([]byte, []int) {
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *ExecuteBusinesRequest) GetRequestResult() ExecuteBusinesRequest_RequestResult {
+	if x != nil {
+		return x.RequestResult
+	}
+	return ExecuteBusinesRequest_REQUEST_RESULT_UNKNOWN
+}
+
+type ExecuteBusinesResponse struct {
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	Provider           string                 `protobuf:"bytes,1,opt,name=provider,proto3" json:"provider,omitempty"`                                                       // 提供商
+	ExecuteBusinesType ExecuteBusinesType     `protobuf:"varint,2,opt,name=executeBusinesType,proto3,enum=deployPB.ExecuteBusinesType" json:"executeBusinesType,omitempty"` // 执行业务类型
+	Domain             string                 `protobuf:"bytes,3,opt,name=domain,proto3" json:"domain,omitempty"`                                                           // 域名
+	Url                string                 `protobuf:"bytes,4,opt,name=url,proto3" json:"url,omitempty"`                                                                 // 证书下载URL
+	Cert               string                 `protobuf:"bytes,5,opt,name=cert,proto3" json:"cert,omitempty"`                                                               // 证书
+	Key                string                 `protobuf:"bytes,6,opt,name=key,proto3" json:"key,omitempty"`                                                                 // 私钥
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *ExecuteBusinesResponse) Reset() {
+	*x = ExecuteBusinesResponse{}
+	mi := &file_deployPB_deploy_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExecuteBusinesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExecuteBusinesResponse) ProtoMessage() {}
+
+func (x *ExecuteBusinesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_deployPB_deploy_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExecuteBusinesResponse.ProtoReflect.Descriptor instead.
+func (*ExecuteBusinesResponse) Descriptor() ([]byte, []int) {
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *ExecuteBusinesResponse) GetProvider() string {
+	if x != nil {
+		return x.Provider
+	}
+	return ""
+}
+
+func (x *ExecuteBusinesResponse) GetExecuteBusinesType() ExecuteBusinesType {
+	if x != nil {
+		return x.ExecuteBusinesType
+	}
+	return ExecuteBusinesType_EXECUTE_BUSINES_UNKNOWN
+}
+
+func (x *ExecuteBusinesResponse) GetDomain() string {
+	if x != nil {
+		return x.Domain
+	}
+	return ""
+}
+
+func (x *ExecuteBusinesResponse) GetUrl() string {
+	if x != nil {
+		return x.Url
+	}
+	return ""
+}
+
+func (x *ExecuteBusinesResponse) GetCert() string {
+	if x != nil {
+		return x.Cert
+	}
+	return ""
+}
+
+func (x *ExecuteBusinesResponse) GetKey() string {
+	if x != nil {
+		return x.Key
+	}
+	return ""
+}
+
+type GetProviderResponse_Provider struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`     // 提供商名称
+	Remark        string                 `protobuf:"bytes,2,opt,name=remark,proto3" json:"remark,omitempty"` // 备注
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetProviderResponse_Provider) Reset() {
+	*x = GetProviderResponse_Provider{}
+	mi := &file_deployPB_deploy_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetProviderResponse_Provider) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetProviderResponse_Provider) ProtoMessage() {}
+
+func (x *GetProviderResponse_Provider) ProtoReflect() protoreflect.Message {
+	mi := &file_deployPB_deploy_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetProviderResponse_Provider.ProtoReflect.Descriptor instead.
+func (*GetProviderResponse_Provider) Descriptor() ([]byte, []int) {
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{6, 0}
+}
+
+func (x *GetProviderResponse_Provider) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *GetProviderResponse_Provider) GetRemark() string {
+	if x != nil {
+		return x.Remark
+	}
+	return ""
+}
+
+type RegisterResponse_SystemInfo struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Os            string                 `protobuf:"bytes,1,opt,name=os,proto3" json:"os,omitempty"`             // 操作系统
+	Arch          string                 `protobuf:"bytes,2,opt,name=arch,proto3" json:"arch,omitempty"`         // 架构
+	Hostname      string                 `protobuf:"bytes,3,opt,name=hostname,proto3" json:"hostname,omitempty"` // 主机名
+	Ip            string                 `protobuf:"bytes,4,opt,name=ip,proto3" json:"ip,omitempty"`             // IP地址
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RegisterResponse_SystemInfo) Reset() {
+	*x = RegisterResponse_SystemInfo{}
+	mi := &file_deployPB_deploy_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RegisterResponse_SystemInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RegisterResponse_SystemInfo) ProtoMessage() {}
+
+func (x *RegisterResponse_SystemInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_deployPB_deploy_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RegisterResponse_SystemInfo.ProtoReflect.Descriptor instead.
+func (*RegisterResponse_SystemInfo) Descriptor() ([]byte, []int) {
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{8, 0}
+}
+
+func (x *RegisterResponse_SystemInfo) GetOs() string {
 	if x != nil {
 		return x.Os
 	}
 	return ""
 }
 
-func (x *RegisterClientRequest_SystemInfo) GetArch() string {
+func (x *RegisterResponse_SystemInfo) GetArch() string {
 	if x != nil {
 		return x.Arch
 	}
 	return ""
 }
 
-func (x *RegisterClientRequest_SystemInfo) GetHostname() string {
+func (x *RegisterResponse_SystemInfo) GetHostname() string {
 	if x != nil {
 		return x.Hostname
 	}
 	return ""
 }
 
-func (x *RegisterClientRequest_SystemInfo) GetIp() string {
+func (x *RegisterResponse_SystemInfo) GetIp() string {
 	if x != nil {
 		return x.Ip
 	}
@@ -380,38 +1034,81 @@ var File_deployPB_deploy_proto protoreflect.FileDescriptor
 
 const file_deployPB_deploy_proto_rawDesc = "" +
 	"\n" +
-	"\x15deployPB/deploy.proto\x12\bdeployPB\"\x95\x02\n" +
-	"\x15RegisterClientRequest\x12\x1a\n" +
-	"\bclientId\x18\x01 \x01(\tR\bclientId\x12J\n" +
+	"\x15deployPB/deploy.proto\x12\bdeployPB\"\xc3\x03\n" +
+	"\rNotifyRequest\x12\x1c\n" +
+	"\taccessKey\x18\x01 \x01(\tR\taccessKey\x12\x1a\n" +
+	"\bclientId\x18\x02 \x01(\tR\bclientId\x12\x1c\n" +
+	"\trequestId\x18\x03 \x01(\tR\trequestId\x12\x18\n" +
+	"\aversion\x18\x04 \x01(\tR\aversion\x12Q\n" +
+	"\x13getProviderResponse\x18\n" +
+	" \x01(\v2\x1d.deployPB.GetProviderResponseH\x00R\x13getProviderResponse\x12H\n" +
+	"\x10registerResponse\x18\v \x01(\v2\x1a.deployPB.RegisterResponseH\x00R\x10registerResponse\x12B\n" +
+	"\x0econnectRequest\x18\f \x01(\v2\x18.deployPB.ConnectRequestH\x00R\x0econnectRequest\x12W\n" +
+	"\x15executeBusinesRequest\x18\r \x01(\v2\x1f.deployPB.ExecuteBusinesRequestH\x00R\x15executeBusinesRequestB\x06\n" +
+	"\x04data\"\xb0\x03\n" +
+	"\x0eNotifyResponse\x12\"\n" +
+	"\x04type\x18\x01 \x01(\x0e2\x0e.deployPB.TypeR\x04type\x12\x1a\n" +
+	"\bclientId\x18\x02 \x01(\tR\bclientId\x12\x1c\n" +
+	"\trequestId\x18\x03 \x01(\tR\trequestId\x12Q\n" +
+	"\x13getProviderResponse\x18\x05 \x01(\v2\x1d.deployPB.GetProviderResponseH\x00R\x13getProviderResponse\x12E\n" +
+	"\x0fregisterRequest\x18\x06 \x01(\v2\x19.deployPB.RegisterRequestH\x00R\x0fregisterRequest\x12B\n" +
+	"\x0econnectRequest\x18\a \x01(\v2\x18.deployPB.ConnectRequestH\x00R\x0econnectRequest\x12Z\n" +
+	"\x16executeBusinesResponse\x18\b \x01(\v2 .deployPB.ExecuteBusinesResponseH\x00R\x16executeBusinesResponseB\x06\n" +
+	"\x04data\"F\n" +
+	"\x0eConnectRequest\x12\x1a\n" +
+	"\bprovider\x18\x01 \x01(\tR\bprovider\x12\x18\n" +
+	"\asuccess\x18\x02 \x01(\bR\asuccess\"\x13\n" +
+	"\x11CertUpdateRequest\">\n" +
+	"\x12CertUpdateResponse\x12\x16\n" +
+	"\x06domain\x18\x01 \x01(\tR\x06domain\x12\x10\n" +
+	"\x03url\x18\x02 \x01(\tR\x03url\"\x14\n" +
+	"\x12GetProviderRequest\"\x93\x01\n" +
+	"\x13GetProviderResponse\x12D\n" +
+	"\tproviders\x18\x01 \x03(\v2&.deployPB.GetProviderResponse.ProviderR\tproviders\x1a6\n" +
+	"\bProvider\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x16\n" +
+	"\x06remark\x18\x02 \x01(\tR\x06remark\"\x11\n" +
+	"\x0fRegisterRequest\"\xb7\x01\n" +
+	"\x10RegisterResponse\x12E\n" +
 	"\n" +
-	"systemInfo\x18\x02 \x01(\v2*.deployPB.RegisterClientRequest.SystemInfoR\n" +
-	"systemInfo\x12\x18\n" +
-	"\aversion\x18\x03 \x01(\tR\aversion\x12\x1c\n" +
-	"\taccessKey\x18\x04 \x01(\tR\taccessKey\x1a\\\n" +
+	"systemInfo\x18\x01 \x01(\v2%.deployPB.RegisterResponse.SystemInfoR\n" +
+	"systemInfo\x1a\\\n" +
 	"\n" +
 	"SystemInfo\x12\x0e\n" +
 	"\x02os\x18\x01 \x01(\tR\x02os\x12\x12\n" +
 	"\x04arch\x18\x02 \x01(\tR\x04arch\x12\x1a\n" +
 	"\bhostname\x18\x03 \x01(\tR\bhostname\x12\x0e\n" +
-	"\x02ip\x18\x04 \x01(\tR\x02ip\"4\n" +
-	"\x16RegisterClientResponse\x12\x1a\n" +
-	"\bclientId\x18\x01 \x01(\tR\bclientId\"I\n" +
-	"\rNotifyRequest\x12\x1c\n" +
-	"\taccessKey\x18\x01 \x01(\tR\taccessKey\x12\x1a\n" +
-	"\bclientId\x18\x02 \x01(\tR\bclientId\"z\n" +
-	"\x0eNotifyResponse\x12\"\n" +
-	"\x04type\x18\x01 \x01(\x0e2\x0e.deployPB.TypeR\x04type\x12\x1a\n" +
-	"\bclientId\x18\x02 \x01(\tR\bclientId\x12\x16\n" +
+	"\x02ip\x18\x04 \x01(\tR\x02ip\"\xf3\x01\n" +
+	"\x15ExecuteBusinesRequest\x12S\n" +
+	"\rrequestResult\x18\x01 \x01(\x0e2-.deployPB.ExecuteBusinesRequest.RequestResultR\rrequestResult\"\x84\x01\n" +
+	"\rRequestResult\x12\x1a\n" +
+	"\x16REQUEST_RESULT_UNKNOWN\x10\x00\x12\x1a\n" +
+	"\x16REQUEST_RESULT_SUCCESS\x10\x01\x12\x19\n" +
+	"\x15REQUEST_RESULT_FAILED\x10\x02\x12 \n" +
+	"\x1cREQUEST_RESULT_NOT_SUPPORTED\x10\x03\"\xd2\x01\n" +
+	"\x16ExecuteBusinesResponse\x12\x1a\n" +
+	"\bprovider\x18\x01 \x01(\tR\bprovider\x12L\n" +
+	"\x12executeBusinesType\x18\x02 \x01(\x0e2\x1c.deployPB.ExecuteBusinesTypeR\x12executeBusinesType\x12\x16\n" +
 	"\x06domain\x18\x03 \x01(\tR\x06domain\x12\x10\n" +
-	"\x03url\x18\x04 \x01(\tR\x03url*>\n" +
+	"\x03url\x18\x04 \x01(\tR\x03url\x12\x12\n" +
+	"\x04cert\x18\x05 \x01(\tR\x04cert\x12\x10\n" +
+	"\x03key\x18\x06 \x01(\tR\x03key*i\n" +
 	"\x04Type\x12\v\n" +
 	"\aUNKNOWN\x10\x00\x12\v\n" +
-	"\aCONNECT\x10\x01\x12\b\n" +
-	"\x04CERT\x10\x02\x12\x12\n" +
-	"\x0eUPDATE_VERSION\x10\x032\xa3\x01\n" +
-	"\rDeployService\x12S\n" +
-	"\x0eRegisterClient\x12\x1f.deployPB.RegisterClientRequest\x1a .deployPB.RegisterClientResponse\x12=\n" +
-	"\x06Notify\x12\x17.deployPB.NotifyRequest\x1a\x18.deployPB.NotifyResponse0\x01B\x8d\x01\n" +
+	"\aCONNECT\x10\x01\x12\x12\n" +
+	"\x0eUPDATE_VERSION\x10\x03\x12\x10\n" +
+	"\fGET_PROVIDER\x10\x04\x12\f\n" +
+	"\bREGISTER\x10\x05\x12\x13\n" +
+	"\x0fEXECUTE_BUSINES\x10\x06*\xc2\x01\n" +
+	"\x12ExecuteBusinesType\x12\x1b\n" +
+	"\x17EXECUTE_BUSINES_UNKNOWN\x10\x00\x12\"\n" +
+	"\x1eEXECUTE_BUSINES_ANSSL_CLI_CERT\x10\x01\x12\x1f\n" +
+	"\x1bEXECUTE_BUSINES_UPLOAD_CERT\x10\x02\x12\x17\n" +
+	"\x13EXECUTE_BUSINES_CDN\x10\x03\x12\x18\n" +
+	"\x14EXECUTE_BUSINES_DCDN\x10\x04\x12\x17\n" +
+	"\x13EXECUTE_BUSINES_OSS\x10\x052P\n" +
+	"\rDeployService\x12?\n" +
+	"\x06Notify\x12\x17.deployPB.NotifyRequest\x1a\x18.deployPB.NotifyResponse(\x010\x01B\x8d\x01\n" +
 	"\fcom.deployPBB\vDeployProtoP\x01Z0github.com/orange-juzipi/cert-deploy/pb/deployPB\xa2\x02\x03DXX\xaa\x02\bDeployPB\xca\x02\bDeployPB\xe2\x02\x14DeployPB\\GPBMetadata\xea\x02\bDeployPBb\x06proto3"
 
 var (
@@ -426,28 +1123,47 @@ func file_deployPB_deploy_proto_rawDescGZIP() []byte {
 	return file_deployPB_deploy_proto_rawDescData
 }
 
-var file_deployPB_deploy_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_deployPB_deploy_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_deployPB_deploy_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
+var file_deployPB_deploy_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_deployPB_deploy_proto_goTypes = []any{
 	(Type)(0),                                // 0: deployPB.Type
-	(*RegisterClientRequest)(nil),            // 1: deployPB.RegisterClientRequest
-	(*RegisterClientResponse)(nil),           // 2: deployPB.RegisterClientResponse
+	(ExecuteBusinesType)(0),                  // 1: deployPB.ExecuteBusinesType
+	(ExecuteBusinesRequest_RequestResult)(0), // 2: deployPB.ExecuteBusinesRequest.RequestResult
 	(*NotifyRequest)(nil),                    // 3: deployPB.NotifyRequest
 	(*NotifyResponse)(nil),                   // 4: deployPB.NotifyResponse
-	(*RegisterClientRequest_SystemInfo)(nil), // 5: deployPB.RegisterClientRequest.SystemInfo
+	(*ConnectRequest)(nil),                   // 5: deployPB.ConnectRequest
+	(*CertUpdateRequest)(nil),                // 6: deployPB.CertUpdateRequest
+	(*CertUpdateResponse)(nil),               // 7: deployPB.CertUpdateResponse
+	(*GetProviderRequest)(nil),               // 8: deployPB.GetProviderRequest
+	(*GetProviderResponse)(nil),              // 9: deployPB.GetProviderResponse
+	(*RegisterRequest)(nil),                  // 10: deployPB.RegisterRequest
+	(*RegisterResponse)(nil),                 // 11: deployPB.RegisterResponse
+	(*ExecuteBusinesRequest)(nil),            // 12: deployPB.ExecuteBusinesRequest
+	(*ExecuteBusinesResponse)(nil),           // 13: deployPB.ExecuteBusinesResponse
+	(*GetProviderResponse_Provider)(nil),     // 14: deployPB.GetProviderResponse.Provider
+	(*RegisterResponse_SystemInfo)(nil),      // 15: deployPB.RegisterResponse.SystemInfo
 }
 var file_deployPB_deploy_proto_depIdxs = []int32{
-	5, // 0: deployPB.RegisterClientRequest.systemInfo:type_name -> deployPB.RegisterClientRequest.SystemInfo
-	0, // 1: deployPB.NotifyResponse.type:type_name -> deployPB.Type
-	1, // 2: deployPB.DeployService.RegisterClient:input_type -> deployPB.RegisterClientRequest
-	3, // 3: deployPB.DeployService.Notify:input_type -> deployPB.NotifyRequest
-	2, // 4: deployPB.DeployService.RegisterClient:output_type -> deployPB.RegisterClientResponse
-	4, // 5: deployPB.DeployService.Notify:output_type -> deployPB.NotifyResponse
-	4, // [4:6] is the sub-list for method output_type
-	2, // [2:4] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	9,  // 0: deployPB.NotifyRequest.getProviderResponse:type_name -> deployPB.GetProviderResponse
+	11, // 1: deployPB.NotifyRequest.registerResponse:type_name -> deployPB.RegisterResponse
+	5,  // 2: deployPB.NotifyRequest.connectRequest:type_name -> deployPB.ConnectRequest
+	12, // 3: deployPB.NotifyRequest.executeBusinesRequest:type_name -> deployPB.ExecuteBusinesRequest
+	0,  // 4: deployPB.NotifyResponse.type:type_name -> deployPB.Type
+	9,  // 5: deployPB.NotifyResponse.getProviderResponse:type_name -> deployPB.GetProviderResponse
+	10, // 6: deployPB.NotifyResponse.registerRequest:type_name -> deployPB.RegisterRequest
+	5,  // 7: deployPB.NotifyResponse.connectRequest:type_name -> deployPB.ConnectRequest
+	13, // 8: deployPB.NotifyResponse.executeBusinesResponse:type_name -> deployPB.ExecuteBusinesResponse
+	14, // 9: deployPB.GetProviderResponse.providers:type_name -> deployPB.GetProviderResponse.Provider
+	15, // 10: deployPB.RegisterResponse.systemInfo:type_name -> deployPB.RegisterResponse.SystemInfo
+	2,  // 11: deployPB.ExecuteBusinesRequest.requestResult:type_name -> deployPB.ExecuteBusinesRequest.RequestResult
+	1,  // 12: deployPB.ExecuteBusinesResponse.executeBusinesType:type_name -> deployPB.ExecuteBusinesType
+	3,  // 13: deployPB.DeployService.Notify:input_type -> deployPB.NotifyRequest
+	4,  // 14: deployPB.DeployService.Notify:output_type -> deployPB.NotifyResponse
+	14, // [14:15] is the sub-list for method output_type
+	13, // [13:14] is the sub-list for method input_type
+	13, // [13:13] is the sub-list for extension type_name
+	13, // [13:13] is the sub-list for extension extendee
+	0,  // [0:13] is the sub-list for field type_name
 }
 
 func init() { file_deployPB_deploy_proto_init() }
@@ -455,13 +1171,25 @@ func file_deployPB_deploy_proto_init() {
 	if File_deployPB_deploy_proto != nil {
 		return
 	}
+	file_deployPB_deploy_proto_msgTypes[0].OneofWrappers = []any{
+		(*NotifyRequest_GetProviderResponse)(nil),
+		(*NotifyRequest_RegisterResponse)(nil),
+		(*NotifyRequest_ConnectRequest)(nil),
+		(*NotifyRequest_ExecuteBusinesRequest)(nil),
+	}
+	file_deployPB_deploy_proto_msgTypes[1].OneofWrappers = []any{
+		(*NotifyResponse_GetProviderResponse)(nil),
+		(*NotifyResponse_RegisterRequest)(nil),
+		(*NotifyResponse_ConnectRequest)(nil),
+		(*NotifyResponse_ExecuteBusinesResponse)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_deployPB_deploy_proto_rawDesc), len(file_deployPB_deploy_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   5,
+			NumEnums:      3,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

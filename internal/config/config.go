@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 
 	"github.com/spf13/viper"
 )
@@ -18,9 +19,10 @@ var (
 
 // Configuration 应用配置结构
 type Configuration struct {
-	Server ServerConfig `yaml:"server"`
-	SSL    SSLConfig    `yaml:"ssl"`
-	Update UpdateConfig `yaml:"update"`
+	Server   *ServerConfig `yaml:"server"`
+	SSL      *SSLConfig    `yaml:"ssl"`
+	Update   *UpdateConfig `yaml:"update"`
+	Provider []*Provider   `yaml:"provider"`
 }
 
 type (
@@ -40,6 +42,20 @@ type (
 		CustomURL string `yaml:"customUrl"`
 		// HTTP 代理地址
 		Proxy string `yaml:"proxy"`
+	}
+
+	Provider struct {
+		Name   string `yaml:"name"`
+		Remark string `yaml:"remark"`
+		// 阿里云
+		AccessKeyId     string `yaml:"accessKeyId"`
+		AccessKeySecret string `yaml:"accessKeySecret"`
+		// 腾讯云
+		SecretId  string `yaml:"secretId"`
+		SecretKey string `yaml:"secretKey"`
+		// 七牛云
+		AccessKey    string `yaml:"accessKey"`
+		AccessSecret string `yaml:"accessSecret"`
 	}
 )
 
@@ -85,13 +101,7 @@ func validateConfig() error {
 	// 验证更新配置
 	if Config.Update.Mirror != "" {
 		validMirrors := []string{"github", "ghproxy", "ghproxy2", "custom"}
-		isValid := false
-		for _, m := range validMirrors {
-			if Config.Update.Mirror == m {
-				isValid = true
-				break
-			}
-		}
+		isValid := slices.Contains(validMirrors, Config.Update.Mirror)
 		if !isValid {
 			return fmt.Errorf("不支持的镜像源类型: %s (支持: github, ghproxy, ghproxy2, custom)", Config.Update.Mirror)
 		}
@@ -108,4 +118,14 @@ func validateConfig() error {
 // GetConfig 获取配置
 func GetConfig() *Configuration {
 	return Config
+}
+
+// GetProvider 获取提供商配置
+func GetProvider(name string) *Provider {
+	for _, p := range Config.Provider {
+		if p.Name == name {
+			return p
+		}
+	}
+	return nil
 }

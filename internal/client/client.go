@@ -2,23 +2,21 @@ package client
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"os"
-	"path/filepath"
 	"sync/atomic"
 	"time"
 
 	"connectrpc.com/connect"
 	"github.com/orange-juzipi/cert-deploy/internal/config"
 	"github.com/orange-juzipi/cert-deploy/internal/system"
-	"github.com/orange-juzipi/cert-deploy/internal/updater"
 	"github.com/orange-juzipi/cert-deploy/pb/deployPB"
 	"github.com/orange-juzipi/cert-deploy/pb/deployPB/deployPBconnect"
 	"github.com/orange-juzipi/cert-deploy/pkg/logger"
-	"golang.org/x/net/http2"
 )
 
 const (
@@ -49,14 +47,16 @@ func NewClient(ctx context.Context) (*Client, error) {
 		return nil, err
 	}
 
-	httpClient := &http.Client{
-		Transport: &http2.Transport{
-			// 若连接在 30s 内无任何帧往来，自动发送 HTTP/2 PING
-			ReadIdleTimeout: 30 * time.Second,
-			// PING 发出后 15s 内没响应就视为断开
-			PingTimeout: 10 * time.Second,
-		},
-		Timeout: 0,
+	// 配置 HTTP 客户端
+	httpClient := &http.Client{}
+	if cfg.Server.Env == "local" {
+		p := new(http.Protocols)
+		p.SetUnencryptedHTTP2(true)
+		httpClient = &http.Client{
+			Transport: &http.Transport{
+				Protocols: p,
+			},
+		}
 	}
 
 	client := &Client{
@@ -69,48 +69,16 @@ func NewClient(ctx context.Context) (*Client, error) {
 
 	client.connectClient = deployPBconnect.NewDeployServiceClient(httpClient, config.URL)
 
-	// 注册客户端
-	if err := client.register(); err != nil {
-		return nil, err
-	}
+	// 启动连接通知
+	go client.StartConnectNotify()
 
 	return client, nil
-}
-
-// register 注册客户端到服务器
-func (c *Client) register() error {
-	// 获取系统信息
-	systemInfo, err := system.GetSystemInfo()
-	if err != nil {
-		return fmt.Errorf("获取系统信息失败: %w", err)
-	}
-
-	_, err = c.connectClient.RegisterClient(c.ctx, &deployPB.RegisterClientRequest{
-		ClientId:  c.clientID,
-		Version:   config.Version,
-		AccessKey: c.accessKey,
-		SystemInfo: &deployPB.RegisterClientRequest_SystemInfo{
-			Os:       systemInfo.OS,
-			Arch:     systemInfo.Arch,
-			Hostname: systemInfo.Hostname,
-			Ip:       systemInfo.IP,
-		},
-	})
-	if err != nil {
-		return fmt.Errorf("注册客户端失败: %w", err)
-	}
-
-	// 如果连接已断开，则重新建立连接通知
-	if !isConnected.Load() {
-		go c.StartConnectNotify()
-	}
-
-	return nil
 }
 
 // StartConnectNotify 启动连接通知
 func (c *Client) StartConnectNotify() {
 	reconnectDelay := time.Second
+	consecutiveFailures := 0
 
 	for {
 		select {
@@ -119,33 +87,76 @@ func (c *Client) StartConnectNotify() {
 		default:
 		}
 
-		stream, err := c.connectClient.Notify(c.ctx, &deployPB.NotifyRequest{
-			AccessKey: c.accessKey,
-			ClientId:  c.clientID,
-		})
+		// 建立双向流连接
+		stream, err := c.connectClient.Notify(c.ctx)
 		if err != nil {
-			// 只在状态变化时打印日志（从连接到断开）
-			if !c.lastDisconnectLogged.Load() {
-				c.lastDisconnectLogged.Store(true)
-			}
-			isConnected.Store(false)
+			consecutiveFailures++
 
-			// 等待后重连（静默）
+			// 只在状态变化时打印日志
+			if isConnected.Load() || consecutiveFailures == 1 {
+				logger.Error("连接失败", "error", err)
+			}
+
+			isConnected.Store(false)
+			c.lastDisconnectLogged.Store(true)
+
+			// 等待重连
 			time.Sleep(reconnectDelay)
 			reconnectDelay = min(reconnectDelay*2, maxReconnectDelay)
 			continue
 		}
 
-		reconnectDelay = time.Second // 重置延迟
+		// 连接成功，重置计数器
+		consecutiveFailures = 0
+		reconnectDelay = time.Second
 
-		// 处理消息
-		if err := c.handleNotifyStream(stream); err != nil {
-			// 只在状态变化时打印日志（从连接到断开）
-			if !c.lastDisconnectLogged.Load() {
-				c.lastDisconnectLogged.Store(true)
+		// 获取系统信息
+		systemInfo, err := system.GetSystemInfo()
+		if err != nil {
+			logger.Error("获取系统信息失败: %v", err)
+			stream.CloseRequest()
+			time.Sleep(reconnectDelay)
+			continue
+		}
+
+		// 构造注册请求
+		registerReq := &deployPB.NotifyRequest{
+			AccessKey: c.accessKey,
+			ClientId:  c.clientID,
+			Version:   config.Version,
+			Data: &deployPB.NotifyRequest_RegisterResponse{
+				RegisterResponse: &deployPB.RegisterResponse{
+					SystemInfo: &deployPB.RegisterResponse_SystemInfo{
+						Os:       systemInfo.OS,
+						Arch:     systemInfo.Arch,
+						Hostname: systemInfo.Hostname,
+						Ip:       systemInfo.IP,
+					},
+				},
+			},
+		}
+
+		// 注册客户端
+		if err := stream.Send(registerReq); err != nil {
+			// logger.Error("注册失败", "error", err)
+			stream.CloseRequest()
+			time.Sleep(reconnectDelay)
+			continue
+		}
+
+		// 处理消息流
+		err = c.handleNotifyStream(stream)
+
+		// 流断开
+		if err != nil {
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return
 			}
+
 			isConnected.Store(false)
-			// 等待尝试重连（静默）
+			c.lastDisconnectLogged.Store(true)
+
+			// 等待后重连
 			time.Sleep(reconnectDelay)
 			reconnectDelay = min(reconnectDelay*2, maxReconnectDelay)
 			continue
@@ -156,56 +167,92 @@ func (c *Client) StartConnectNotify() {
 }
 
 // handleNotifyStream 处理通知流
-func (c *Client) handleNotifyStream(stream *connect.ServerStreamForClient[deployPB.NotifyResponse]) error {
+func (c *Client) handleNotifyStream(stream *connect.BidiStreamForClientSimple[deployPB.NotifyRequest, deployPB.NotifyResponse]) error {
+	// 启动心跳 goroutine
+	heartbeatCtx, cancelHeartbeat := context.WithCancel(c.ctx)
+	defer cancelHeartbeat()
+
+	go c.sendHeartbeat(heartbeatCtx, stream)
+
+	receiveCount := 0
 	for {
 		select {
 		case <-c.ctx.Done():
-			return nil
+			return c.ctx.Err()
 		default:
 		}
 
-		if stream.Receive() {
-			response := stream.Msg()
+		// 阻塞接收消息
+		req, err := stream.Receive()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return fmt.Errorf("服务器关闭了连接")
+			}
+			return fmt.Errorf("接收消息失败: %w", err)
+		}
 
-			// 设置连接成功
-			wasDisconnected := !isConnected.Load()
+		receiveCount++
+
+		// 首次收到消息，标记连接成功
+		if !isConnected.Load() {
 			isConnected.Store(true)
 
-			// 只在状态变化时打印连接成功日志（从断开到连接）
-			if wasDisconnected && c.lastDisconnectLogged.Load() {
+			if c.lastDisconnectLogged.Load() {
 				c.lastDisconnectLogged.Store(false)
 			}
-
-			switch response.Type {
-			case deployPB.Type_UNKNOWN:
-				isConnected.Store(false)
-
-			case deployPB.Type_CONNECT:
-
-			case deployPB.Type_CERT:
-				go c.deployCertificate(response.Domain, response.Url)
-
-			case deployPB.Type_UPDATE_VERSION:
-				go c.handleUpdate()
-
-			}
-
-		} else {
-			// 检查是否有错误
-			if err := stream.Err(); err != nil {
-				return err
-			}
-			// 没有新消息，等待一段时间再检查
-			time.Sleep(1 * time.Second)
 		}
+
+		// 处理消息
+		c.handleMessage(stream, req)
 	}
 }
 
-// deployCertificate 部署证书
-func (c *Client) deployCertificate(domain, downloadURL string) {
-	deployer := NewCertDeployer(c)
-	if err := deployer.DeployCertificate(domain, downloadURL); err != nil {
-		logger.Error("证书部署失败", "error", err, "domain", domain)
+// handleMessage 处理单个消息
+func (c *Client) handleMessage(stream *connect.BidiStreamForClientSimple[deployPB.NotifyRequest, deployPB.NotifyResponse], req *deployPB.NotifyResponse) {
+	switch req.Type {
+	case deployPB.Type_UNKNOWN:
+		return
+
+	case deployPB.Type_CONNECT:
+		if connectReq, ok := req.Data.(*deployPB.NotifyResponse_ConnectRequest); ok {
+			go c.handleConnect(stream, req.RequestId, connectReq.ConnectRequest)
+		}
+
+	case deployPB.Type_EXECUTE_BUSINES:
+		if businesResp, ok := req.Data.(*deployPB.NotifyResponse_ExecuteBusinesResponse); ok {
+			go c.executeBusines(stream, req.RequestId, businesResp.ExecuteBusinesResponse)
+		}
+
+	case deployPB.Type_UPDATE_VERSION:
+		go c.handleUpdate()
+
+	case deployPB.Type_GET_PROVIDER:
+		go c.handleGetProvider(stream, req.RequestId)
+
+	}
+}
+
+// sendHeartbeat 定期发送心跳（保持连接活跃）
+func (c *Client) sendHeartbeat(ctx context.Context, stream *connect.BidiStreamForClientSimple[deployPB.NotifyRequest, deployPB.NotifyResponse]) {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			// 发送心跳消息
+			err := stream.Send(&deployPB.NotifyRequest{
+				AccessKey: c.accessKey,
+				ClientId:  c.clientID,
+				Version:   config.Version,
+			})
+			if err != nil {
+				logger.Error("发送心跳失败: %v", err)
+				return
+			}
+		}
 	}
 }
 
@@ -264,38 +311,4 @@ func min(a, b time.Duration) time.Duration {
 		return a
 	}
 	return b
-}
-
-// handleUpdate 处理版本更新
-func (c *Client) handleUpdate() {
-	logger.Info("收到更新通知")
-
-	updateInfo, err := updater.CheckUpdate(c.ctx)
-	if err != nil {
-		logger.Error("检查更新失败", err)
-		return
-	}
-
-	if !updateInfo.HasUpdate {
-		return
-	}
-
-	logger.Info("发现新版本", "current", updateInfo.CurrentVersion, "latest", updateInfo.LatestVersion)
-
-	if err := updater.PerformUpdate(c.ctx, updateInfo); err != nil {
-		logger.Error("更新失败", err)
-		return
-	}
-
-	logger.Info("更新完成，重启中...")
-
-	// 创建更新标记文件
-	execPath, _ := os.Executable()
-	execDir := filepath.Dir(execPath)
-	markerFile := filepath.Join(execDir, ".cert-deploy-updated")
-	content := fmt.Sprintf("%s\n%s\n", updateInfo.LatestVersion, time.Now().Format(time.RFC3339))
-	os.WriteFile(markerFile, []byte(content), 0644)
-
-	time.Sleep(1 * time.Second)
-	os.Exit(0)
 }
