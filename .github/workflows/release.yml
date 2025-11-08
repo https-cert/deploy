@@ -135,6 +135,14 @@ jobs:
           echo "checksums generated:"
           cat checksums.txt
 
+      - name: Create all-platforms archive
+        run: |
+          cd release
+          echo "Creating all-platforms archive..."
+          tar -czf cert-deploy-all-platforms.tar.gz cert-deploy-*
+          echo "Archive created:"
+          ls -lh cert-deploy-all-platforms.tar.gz
+
       # 生成详细的更新日志
       - name: Generate changelog
         id: changelog
@@ -200,6 +208,7 @@ jobs:
             release/cert-deploy-linux-arm64
             release/cert-deploy-windows.exe
             release/cert-deploy-windows-arm64.exe
+            release/cert-deploy-all-platforms.tar.gz
             release/checksums.txt
             release/CHANGELOG.md
           draft: false
@@ -219,6 +228,7 @@ jobs:
             release/cert-deploy-linux-arm64
             release/cert-deploy-windows.exe
             release/cert-deploy-windows-arm64.exe
+            release/cert-deploy-all-platforms.tar.gz
             release/checksums.txt
             release/CHANGELOG.md
           draft: false
