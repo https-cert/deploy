@@ -37,9 +37,8 @@ func (c *Client) executeBusines(stream *connect.BidiStreamForClientSimple[deploy
 
 	switch providerName {
 	case "ansslCli":
-		// ansslCli 是异步执行，不需要返回结果
-		go c.deployCertificate(domain, downloadURL)
-		return
+		// 部署证书到本地 nginx
+		result = c.handleCertificateDeploy(domain, downloadURL)
 
 	case "aliyun", "qiniu":
 		result = c.handleCertificateProvider(providerName, executeBusinesType, remark, cert, key)
@@ -51,6 +50,23 @@ func (c *Client) executeBusines(stream *connect.BidiStreamForClientSimple[deploy
 
 	// 发送执行业务响应给服务端
 	c.sendExecuteBusinesResponse(stream, requestId, result)
+}
+
+// handleCertificateDeploy 处理证书部署到本地 nginx
+func (c *Client) handleCertificateDeploy(domain, downloadURL string) deployPB.ExecuteBusinesRequest_RequestResult {
+	if domain == "" {
+		logger.Error("域名不能为空")
+		return deployPB.ExecuteBusinesRequest_REQUEST_RESULT_FAILED
+	}
+
+	deployer := NewCertDeployer(c)
+	if err := deployer.DeployCertificate(domain, downloadURL); err != nil {
+		logger.Error("证书部署失败", "error", err, "domain", domain)
+		return deployPB.ExecuteBusinesRequest_REQUEST_RESULT_FAILED
+	}
+
+	logger.Info("Nginx 证书部署成功", "domain", domain)
+	return deployPB.ExecuteBusinesRequest_REQUEST_RESULT_SUCCESS
 }
 
 // handleCertificateProvider 处理证书提供商的上传操作
@@ -118,18 +134,5 @@ func (c *Client) sendExecuteBusinesResponse(stream *connect.BidiStreamForClientS
 		},
 	}); err != nil {
 		logger.Error("发送执行业务响应给服务端失败", "error", err, "requestId", requestId)
-	}
-}
-
-// deployCertificate 部署证书
-func (c *Client) deployCertificate(domain, downloadURL string) {
-	if domain == "" {
-		logger.Error("域名不能为空")
-		return
-	}
-
-	deployer := NewCertDeployer(c)
-	if err := deployer.DeployCertificate(domain, downloadURL); err != nil {
-		logger.Error("证书部署失败", "error", err, "domain", domain)
 	}
 }
