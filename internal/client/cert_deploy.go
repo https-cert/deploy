@@ -18,6 +18,11 @@ const (
 	certsDir = "certs"
 )
 
+// sanitizeDomain 处理泛域名，将 * 转换为 _
+func sanitizeDomain(domain string) string {
+	return strings.ReplaceAll(domain, "*", "_")
+}
+
 // CertDeployer 证书部署器
 type CertDeployer struct {
 	client *Client
@@ -37,8 +42,11 @@ func (cd *CertDeployer) DeployCertificate(domain, url string) error {
 		return fmt.Errorf("创建证书目录失败: %w", err)
 	}
 
+	// 处理泛域名，将 * 转换为 _
+	safeDomain := sanitizeDomain(domain)
+
 	// 文件名格式为 {domain}_certificates.zip
-	fileName := fmt.Sprintf("%s_certificates.zip", domain)
+	fileName := fmt.Sprintf("%s_certificates.zip", safeDomain)
 	zipFile := filepath.Join(certsDir, fileName)
 
 	// 下载zip文件
@@ -63,8 +71,8 @@ func (cd *CertDeployer) DeployCertificate(domain, url string) error {
 		return nil
 	}
 
-	// 证书文件夹名
-	folderName := domain + "_certificates"
+	// 证书文件夹名（使用处理后的安全域名）
+	folderName := safeDomain + "_certificates"
 	extractDir := filepath.Join(certsDir, folderName)
 
 	// 1. 解压zip文件
