@@ -21,6 +21,11 @@ func (c *Client) handleConnect(stream *connect.BidiStreamForClientSimple[deployP
 		success = true
 	case "aliyun":
 		providerConfig := config.GetProvider("aliyun")
+		if providerConfig == nil {
+			logger.Error("未配置【阿里云】提供商配置")
+			break
+		}
+
 		provider, err := aliyun.New(providerConfig.AccessKeyId, providerConfig.AccessKeySecret)
 		if err != nil {
 			return err
@@ -35,6 +40,11 @@ func (c *Client) handleConnect(stream *connect.BidiStreamForClientSimple[deployP
 
 	case "qiniu":
 		providerConfig := config.GetProvider("qiniu")
+		if providerConfig == nil {
+			logger.Error("未配置【七牛云】提供商配置")
+			break
+		}
+
 		provider := qiniu.New(providerConfig.AccessKey, providerConfig.AccessSecret)
 
 		success, err = provider.TestConnection()
