@@ -3,12 +3,15 @@ package client
 import (
 	"archive/zip"
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/orange-juzipi/cert-deploy/internal/config"
@@ -201,9 +204,18 @@ func (cd *CertDeployer) moveCertificates(sourceDir, sslPath, folderName string) 
 		}
 	}
 
-	// 移动新证书到目标位置
+	// 移动新证书到目标位置（跨磁盘时回退到复制）
 	if err := os.Rename(sourceDir, targetDir); err != nil {
-		return fmt.Errorf("移动证书文件夹失败: %w", err)
+		if !isCrossDeviceError(err) {
+			return fmt.Errorf("移动证书文件夹失败: %w", err)
+		}
+
+		if err := copyDirectory(sourceDir, targetDir); err != nil {
+			return fmt.Errorf("复制证书文件夹失败: %w", err)
+		}
+		if err := os.RemoveAll(sourceDir); err != nil {
+			return fmt.Errorf("清理解压目录失败: %w", err)
+		}
 	}
 
 	fmt.Printf("证书文件夹已更新: %s\n", targetDir)
@@ -243,4 +255,64 @@ func (cd *CertDeployer) reloadNginx() error {
 
 	fmt.Println("nginx重新加载成功")
 	return nil
+}
+
+// isCrossDeviceError 检测是否为跨设备移动
+func isCrossDeviceError(err error) bool {
+	var linkErr *os.LinkError
+	if errors.As(err, &linkErr) {
+		return errors.Is(linkErr.Err, syscall.EXDEV)
+	}
+	return false
+}
+
+// copyDirectory 复制整个目录
+func copyDirectory(src, dst string) error {
+	return filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		relPath, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		targetPath := filepath.Join(dst, relPath)
+
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() {
+			return os.MkdirAll(targetPath, info.Mode())
+		}
+
+		if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+			return err
+		}
+
+		return copyFileWithMode(path, targetPath, info.Mode())
+	})
+}
+
+// copyFileWithMode 复制文件并保持权限
+func copyFileWithMode(src, dst string, mode fs.FileMode) error {
+	source, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer source.Close()
+
+	dest, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
+	if err != nil {
+		return err
+	}
+	defer dest.Close()
+
+	if _, err := io.Copy(dest, source); err != nil {
+		return err
+	}
+
+	return dest.Sync()
 }
