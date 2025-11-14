@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -284,7 +285,7 @@ func (c *Client) sendHeartbeat(ctx context.Context, stream *connect.BidiStreamFo
 }
 
 // downloadFile 下载文件
-func (c *Client) downloadFile(downloadURL, filepath string) error {
+func (c *Client) downloadFile(downloadURL, filePath string) error {
 	// 使用 net/url 安全地构建下载 URL
 	u, err := url.Parse(downloadURL)
 	if err != nil {
@@ -316,19 +317,49 @@ func (c *Client) downloadFile(downloadURL, filepath string) error {
 		return fmt.Errorf("下载失败，状态码: %d", resp.StatusCode)
 	}
 
-	// 创建文件
-	file, err := os.Create(filepath)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	// 复制数据到文件
-	_, err = io.Copy(file, resp.Body)
-	if err != nil {
+	// 确保目标目录存在
+	if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
 		return err
 	}
 
+	// 创建临时文件，确保部分下载不会污染最终文件
+	tmpFile, err := os.CreateTemp(filepath.Dir(filePath), ".cert-deploy-*")
+	if err != nil {
+		return err
+	}
+	tmpPath := tmpFile.Name()
+	completed := false
+	defer func() {
+		tmpFile.Close()
+		if !completed {
+			os.Remove(tmpPath)
+		}
+	}()
+
+	// 复制数据到临时文件
+	if _, err := io.Copy(tmpFile, resp.Body); err != nil {
+		return err
+	}
+
+	// 确保数据刷盘
+	if err := tmpFile.Sync(); err != nil {
+		return err
+	}
+
+	if err := tmpFile.Close(); err != nil {
+		return err
+	}
+
+	// Windows 下如果目标文件存在需要先删除
+	if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	if err := os.Rename(tmpPath, filePath); err != nil {
+		return err
+	}
+
+	completed = true
 	return nil
 }
 
