@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -288,12 +289,108 @@ func transformDownloadURL(originalURL string) string {
 
 // compareVersions 比较版本号，如果 latest > current 返回 true
 func compareVersions(current, latest string) bool {
-	// 简单的字符串比较，适用于 v1.2.3 格式
-	// 去掉 'v' 前缀
+	currentVer, errCurr := parseSemanticVersion(current)
+	latestVer, errLatest := parseSemanticVersion(latest)
+	if errCurr == nil && errLatest == nil {
+		return latestVer.compare(currentVer) > 0
+	}
+
+	// 解析失败时降级为简单比较
 	current = strings.TrimPrefix(current, "v")
 	latest = strings.TrimPrefix(latest, "v")
-
 	return latest != current
+}
+
+type semanticVersion struct {
+	major      int
+	minor      int
+	patch      int
+	prerelease string
+}
+
+func parseSemanticVersion(raw string) (semanticVersion, error) {
+	raw = strings.TrimSpace(raw)
+	raw = strings.TrimPrefix(raw, "v")
+	if raw == "" {
+		return semanticVersion{}, fmt.Errorf("empty version")
+	}
+
+	var prerelease string
+	if idx := strings.Index(raw, "-"); idx >= 0 {
+		prerelease = raw[idx+1:]
+		raw = raw[:idx]
+	}
+	if idx := strings.Index(raw, "+"); idx >= 0 {
+		raw = raw[:idx]
+	}
+
+	parts := strings.Split(raw, ".")
+	if len(parts) == 0 {
+		return semanticVersion{}, fmt.Errorf("invalid version: %s", raw)
+	}
+
+	parsePart := func(idx int) (int, error) {
+		if idx >= len(parts) || parts[idx] == "" {
+			return 0, nil
+		}
+		return strconv.Atoi(parts[idx])
+	}
+
+	major, err := parsePart(0)
+	if err != nil {
+		return semanticVersion{}, err
+	}
+	minor, err := parsePart(1)
+	if err != nil {
+		return semanticVersion{}, err
+	}
+	patch, err := parsePart(2)
+	if err != nil {
+		return semanticVersion{}, err
+	}
+
+	return semanticVersion{
+		major:      major,
+		minor:      minor,
+		patch:      patch,
+		prerelease: prerelease,
+	}, nil
+}
+
+func (v semanticVersion) compare(other semanticVersion) int {
+	if v.major != other.major {
+		if v.major > other.major {
+			return 1
+		}
+		return -1
+	}
+
+	if v.minor != other.minor {
+		if v.minor > other.minor {
+			return 1
+		}
+		return -1
+	}
+
+	if v.patch != other.patch {
+		if v.patch > other.patch {
+			return 1
+		}
+		return -1
+	}
+
+	if v.prerelease == other.prerelease {
+		return 0
+	}
+
+	if v.prerelease == "" {
+		return 1
+	}
+	if other.prerelease == "" {
+		return -1
+	}
+
+	return strings.Compare(v.prerelease, other.prerelease)
 }
 
 // getBinaryName 根据当前系统获取二进制文件名
