@@ -28,7 +28,6 @@ const (
 	githubRepo      = "https-cert/deploy"
 	githubAPIURL    = "https://api.github.com/repos/" + githubRepo + "/releases/latest"
 	downloadTimeout = 10 * time.Minute
-	checksumTimeout = 30 * time.Second
 )
 
 // 常见的 GitHub 镜像加速服务
@@ -75,7 +74,7 @@ type UpdateInfo struct {
 func CheckUpdate(ctx context.Context) (*UpdateInfo, error) {
 	currentVersion := config.Version
 	if currentVersion == "" {
-		currentVersion = "v0.0.1"
+		currentVersion = "v0.4.0"
 	}
 
 	release, err := fetchLatestRelease(ctx)
