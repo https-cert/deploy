@@ -17,14 +17,13 @@ func CreateCheckUpdateCmd() *cobra.Command {
 		Use:   "check-update",
 		Short: "检查是否有新版本",
 		Long:  "检查 GitHub 是否有新版本可用",
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := context.Background()
 
 			fmt.Println("正在检查更新...")
 			info, err := updater.CheckUpdate(ctx)
 			if err != nil {
-				fmt.Printf("检查失败: %v\n", err)
-				os.Exit(1)
+				return fmt.Errorf("检查更新失败: %w", err)
 			}
 
 			fmt.Printf("当前版本: %s\n", info.CurrentVersion)
@@ -36,6 +35,7 @@ func CreateCheckUpdateCmd() *cobra.Command {
 			} else {
 				fmt.Println("\n当前已是最新版本")
 			}
+			return nil
 		},
 	}
 }
@@ -46,20 +46,19 @@ func CreateUpdateCmd() *cobra.Command {
 		Use:   "update",
 		Short: "更新到最新版本",
 		Long:  "从 GitHub Release 下载并更新到最新版本，如果守护进程正在运行则自动重启",
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := context.Background()
 
 			fmt.Println("正在检查更新...")
 			info, err := updater.CheckUpdate(ctx)
 			if err != nil {
-				fmt.Printf("检查失败: %v\n", err)
-				os.Exit(1)
+				return fmt.Errorf("检查更新失败: %w", err)
 			}
 
-			if !info.HasUpdate {
-				fmt.Println("当前已是最新版本")
-				return
-			}
+				if !info.HasUpdate {
+					fmt.Println("当前已是最新版本")
+					return nil
+				}
 
 			fmt.Printf("发现新版本: %s -> %s\n", info.CurrentVersion, info.LatestVersion)
 
@@ -67,16 +66,13 @@ func CreateUpdateCmd() *cobra.Command {
 			if wasRunning {
 				fmt.Println("正在停止守护进程...")
 				if err := StopDaemon(); err != nil {
-					fmt.Printf("停止失败: %v\n", err)
-					fmt.Println("请手动停止后再更新")
-					os.Exit(1)
+					return fmt.Errorf("停止守护进程失败，请手动停止后再更新: %w", err)
 				}
 				time.Sleep(2 * time.Second)
 			}
 
 			if err := updater.PerformUpdate(ctx, info); err != nil {
-				fmt.Printf("更新失败: %v\n", err)
-				os.Exit(1)
+				return fmt.Errorf("更新失败: %w", err)
 			}
 
 			fmt.Println("\n更新成功！")
@@ -86,26 +82,22 @@ func CreateUpdateCmd() *cobra.Command {
 
 				execPath, err := os.Executable()
 				if err != nil {
-					fmt.Printf("获取可执行文件路径失败: %v\n", err)
-					fmt.Println("请手动启动: cert-deploy daemon")
-					os.Exit(1)
+					return fmt.Errorf("获取可执行文件路径失败，请手动启动: cert-deploy daemon: %w", err)
 				}
 
 				restartCmd := exec.Command(execPath, "daemon", "-c", ConfigFile)
 				if err := restartCmd.Start(); err != nil {
-					fmt.Printf("启动失败: %v\n", err)
-					fmt.Println("请手动启动: cert-deploy daemon")
-					os.Exit(1)
+					return fmt.Errorf("守护进程启动失败，请手动启动: cert-deploy daemon: %w", err)
 				}
 
 				time.Sleep(1 * time.Second)
 
 				if !IsRunning() {
-					fmt.Println("启动失败，请手动启动: cert-deploy daemon")
-					os.Exit(1)
+					return fmt.Errorf("守护进程启动失败，请手动启动: cert-deploy daemon")
 				}
 				fmt.Println("守护进程已重启")
 			}
+			return nil
 		},
 	}
 }

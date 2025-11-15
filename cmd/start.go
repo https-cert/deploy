@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -19,12 +20,12 @@ func CreateStartCmd() *cobra.Command {
 		Use:   "start",
 		Short: "启动守护进程（前台运行）",
 		Long:  "在前台启动证书部署守护进程，用于调试",
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := config.Init(ConfigFile); err != nil {
-				logger.Fatal("初始化配置失败", "error", err)
-			}
-
+		RunE: func(cmd *cobra.Command, args []string) error {
 			logger.Init()
+
+			if err := config.Init(ConfigFile); err != nil {
+				return fmt.Errorf("初始化配置失败: %w", err)
+			}
 
 			// 检查更新标记并清理（程序同级目录）
 			execPath, _ := os.Executable()
@@ -49,6 +50,7 @@ func CreateStartCmd() *cobra.Command {
 			logger.Info("停止中...")
 			cancel()
 			logger.Info("已停止")
+			return nil
 		},
 	}
 }

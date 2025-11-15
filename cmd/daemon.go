@@ -21,34 +21,30 @@ func CreateDaemonCmd() *cobra.Command {
 		Use:   "daemon",
 		Short: "启动守护进程（后台运行）",
 		Long:  "在后台启动证书部署守护进程，进程崩溃或更新后将自动重启",
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			// 检查是否已经在运行，如果是则先停止
 			if IsRunning() {
 				fmt.Println("守护进程已在运行，正在重启...")
 				if err := StopDaemon(); err != nil {
-					fmt.Printf("停止失败: %v\n", err)
-					os.Exit(1)
+					return fmt.Errorf("停止守护进程失败: %w", err)
 				}
 				time.Sleep(2 * time.Second)
 			}
 
 			execPath, err := os.Executable()
 			if err != nil {
-				fmt.Printf("获取可执行文件路径失败: %v\n", err)
-				os.Exit(1)
+				return fmt.Errorf("获取可执行文件路径失败: %w", err)
 			}
 
 			supervisorCmd := exec.Command(execPath, "_supervisor", "-c", ConfigFile)
 			if err := supervisorCmd.Start(); err != nil {
-				fmt.Printf("启动失败: %v\n", err)
-				os.Exit(1)
+				return fmt.Errorf("启动守护进程失败: %w", err)
 			}
 
 			time.Sleep(500 * time.Millisecond)
 
 			if !IsRunning() {
-				fmt.Println("启动失败")
-				os.Exit(1)
+				return fmt.Errorf("守护进程启动失败")
 			}
 
 			fmt.Println("守护进程已启动")
@@ -67,6 +63,7 @@ func CreateDaemonCmd() *cobra.Command {
 			}()
 
 			time.Sleep(100 * time.Millisecond)
+			return nil
 		},
 	}
 }

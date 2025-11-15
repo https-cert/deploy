@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 )
@@ -13,18 +12,18 @@ func CreateStopCmd() *cobra.Command {
 		Use:   "stop",
 		Short: "停止守护进程",
 		Long:  "停止正在运行的证书部署守护进程",
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			if !IsRunning() {
 				fmt.Println("守护进程未运行")
-				return
+				return nil
 			}
 
 			if err := StopDaemon(); err != nil {
-				fmt.Printf("停止失败: %v\n", err)
-				os.Exit(1)
+				return fmt.Errorf("停止守护进程失败: %w", err)
 			}
 
 			fmt.Println("守护进程已停止")
+			return nil
 		},
 	}
 }

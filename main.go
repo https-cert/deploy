@@ -5,9 +5,12 @@ import (
 	"os"
 
 	"github.com/orange-juzipi/cert-deploy/cmd"
+	"github.com/orange-juzipi/cert-deploy/pkg/logger"
 )
 
 func main() {
+	logger.Init()
+
 	rootCmd := cmd.CreateRootCmd()
 
 	if err := rootCmd.Execute(); err != nil {
