@@ -2,11 +2,11 @@ package client
 
 import (
 	"connectrpc.com/connect"
-	"github.com/orange-juzipi/cert-deploy/internal/client/providers/aliyun"
-	"github.com/orange-juzipi/cert-deploy/internal/client/providers/qiniu"
-	"github.com/orange-juzipi/cert-deploy/internal/config"
-	"github.com/orange-juzipi/cert-deploy/pb/deployPB"
-	"github.com/orange-juzipi/cert-deploy/pkg/logger"
+	"github.com/https-cert/deploy/internal/client/providers/aliyun"
+	"github.com/https-cert/deploy/internal/client/providers/qiniu"
+	"github.com/https-cert/deploy/internal/config"
+	"github.com/https-cert/deploy/pb/deployPB"
+	"github.com/https-cert/deploy/pkg/logger"
 )
 
 // handleConnect 处理测试连接

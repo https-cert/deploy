@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"github.com/orange-juzipi/cert-deploy/internal/config"
-	"github.com/orange-juzipi/cert-deploy/internal/scheduler"
-	"github.com/orange-juzipi/cert-deploy/pkg/logger"
+	"github.com/https-cert/deploy/internal/config"
+	"github.com/https-cert/deploy/internal/scheduler"
+	"github.com/https-cert/deploy/pkg/logger"
 	"github.com/spf13/cobra"
 )
 

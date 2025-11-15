@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/orange-juzipi/cert-deploy/internal/updater"
-	"github.com/orange-juzipi/cert-deploy/pkg/logger"
+	"github.com/https-cert/deploy/internal/updater"
+	"github.com/https-cert/deploy/pkg/logger"
 )
 
 // handleUpdate 处理版本更新

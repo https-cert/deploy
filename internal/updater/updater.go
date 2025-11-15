@@ -1,6 +1,8 @@
 package updater
 
 import (
+	"archive/zip"
+	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -16,8 +18,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/orange-juzipi/cert-deploy/internal/config"
-	"github.com/orange-juzipi/cert-deploy/pkg/logger"
+	"archive/tar"
+
+	"github.com/https-cert/deploy/internal/config"
+	"github.com/https-cert/deploy/pkg/logger"
 )
 
 const (
@@ -143,25 +147,31 @@ func PerformUpdate(ctx context.Context, info *UpdateInfo) error {
 	}
 
 	// 创建临时目录
-	tempDir, err := os.MkdirTemp("", "cert-deploy-update-*")
+	tempDir, err := os.MkdirTemp("", "anssl-update-*")
 	if err != nil {
 		return fmt.Errorf("创建临时目录失败: %w", err)
 	}
 	defer os.RemoveAll(tempDir)
 
-	// 下载新版本
-	newBinaryPath := filepath.Join(tempDir, info.BinaryName)
-	if err := downloadFile(ctx, info.DownloadURL, newBinaryPath); err != nil {
+	// 下载新版本（可能是压缩包）
+	downloadPath := filepath.Join(tempDir, info.BinaryName)
+	if err := downloadFile(ctx, info.DownloadURL, downloadPath); err != nil {
 		return fmt.Errorf("下载新版本失败: %w", err)
 	}
 
-	// 下载并验证 checksum
+	// 解包获取可执行文件路径
+	newBinaryPath, err := extractBinary(downloadPath, tempDir)
+	if err != nil {
+		return fmt.Errorf("解压新版本失败: %w", err)
+	}
+
+	// 下载并验证 checksum（针对下载的压缩包/文件本身进行校验）
 	if info.ChecksumURL != "" {
 		checksumPath := filepath.Join(tempDir, "checksums.txt")
 		if err := downloadFile(ctx, info.ChecksumURL, checksumPath); err != nil {
 			return fmt.Errorf("下载校验文件失败: %w", err)
 		} else {
-			if err := verifyChecksum(newBinaryPath, checksumPath, info.BinaryName); err != nil {
+			if err := verifyChecksum(downloadPath, checksumPath, info.BinaryName); err != nil {
 				return fmt.Errorf("文件校验失败: %w", err)
 			}
 		}
@@ -206,7 +216,7 @@ func fetchLatestRelease(ctx context.Context) (*GitHubRelease, error) {
 	}
 
 	// 设置 User-Agent，GitHub API 要求
-	req.Header.Set("User-Agent", "cert-deploy-updater")
+	req.Header.Set("User-Agent", "anssl-updater")
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
 
 	client := getHTTPClient()
@@ -402,24 +412,24 @@ func getBinaryName() string {
 	switch goos {
 	case "darwin":
 		if goarch == "arm64" {
-			name = "cert-deploy-mac-arm64"
+			name = "anssl-darwin-arm64.tar.gz"
 		} else {
-			name = "cert-deploy-mac"
+			name = "anssl-darwin-amd64.tar.gz"
 		}
 	case "linux":
 		if goarch == "arm64" {
-			name = "cert-deploy-linux-arm64"
+			name = "anssl-linux-arm64.tar.gz"
 		} else {
-			name = "cert-deploy-linux"
+			name = "anssl-linux-amd64.tar.gz"
 		}
 	case "windows":
 		if goarch == "arm64" {
-			name = "cert-deploy-windows-arm64.exe"
+			name = "anssl-windows-arm64.zip"
 		} else {
-			name = "cert-deploy-windows.exe"
+			name = "anssl-windows-amd64.zip"
 		}
 	default:
-		name = fmt.Sprintf("cert-deploy-%s-%s", goos, goarch)
+		name = fmt.Sprintf("anssl-%s-%s.tar.gz", goos, goarch)
 	}
 
 	return name
@@ -458,6 +468,100 @@ func downloadFile(ctx context.Context, downloadURL, filepath string) error {
 	}
 
 	return nil
+}
+
+// extractBinary 从下载的文件中提取可执行文件。
+// 支持 .tar.gz、.zip，如果是普通文件则直接返回原路径。
+func extractBinary(downloadPath, tempDir string) (string, error) {
+	name := filepath.Base(downloadPath)
+
+	// tar.gz 压缩包
+	if strings.HasSuffix(name, ".tar.gz") {
+		f, err := os.Open(downloadPath)
+		if err != nil {
+			return "", err
+		}
+		defer f.Close()
+
+		gzr, err := gzip.NewReader(f)
+		if err != nil {
+			return "", err
+		}
+		defer gzr.Close()
+
+		tr := tar.NewReader(gzr)
+
+		for {
+			hdr, err := tr.Next()
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				return "", err
+			}
+
+			if hdr.Typeflag != tar.TypeReg {
+				continue
+			}
+
+			dstPath := filepath.Join(tempDir, filepath.Base(hdr.Name))
+			out, err := os.Create(dstPath)
+			if err != nil {
+				return "", err
+			}
+
+			if _, err := io.Copy(out, tr); err != nil {
+				out.Close()
+				return "", err
+			}
+			out.Close()
+			return dstPath, nil
+		}
+
+		return "", fmt.Errorf("压缩包中未找到可执行文件")
+	}
+
+	// zip 压缩包
+	if strings.HasSuffix(name, ".zip") {
+		r, err := zip.OpenReader(downloadPath)
+		if err != nil {
+			return "", err
+		}
+		defer r.Close()
+
+		for _, f := range r.File {
+			if f.FileInfo().IsDir() {
+				continue
+			}
+
+			rc, err := f.Open()
+			if err != nil {
+				return "", err
+			}
+
+			dstPath := filepath.Join(tempDir, filepath.Base(f.Name))
+			out, err := os.Create(dstPath)
+			if err != nil {
+				rc.Close()
+				return "", err
+			}
+
+			if _, err := io.Copy(out, rc); err != nil {
+				rc.Close()
+				out.Close()
+				return "", err
+			}
+
+			rc.Close()
+			out.Close()
+			return dstPath, nil
+		}
+
+		return "", fmt.Errorf("压缩包中未找到可执行文件")
+	}
+
+	// 普通文件，直接返回
+	return downloadPath, nil
 }
 
 // verifyChecksum 验证文件的 SHA256 校验和

@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/orange-juzipi/cert-deploy/internal/config"
+	"github.com/https-cert/deploy/internal/config"
 )
 
 // 共享的 HTTP Client，避免重复创建
@@ -89,7 +89,7 @@ func getIPFromService(ctx context.Context, serviceURL string) string {
 	}
 
 	// 使用配置的版本号
-	req.Header.Set("User-Agent", "cert-deploy-client/"+config.Version)
+	req.Header.Set("User-Agent", "anssl-client/"+config.Version)
 
 	resp, err := publicIPClient.Do(req)
 	if err != nil {

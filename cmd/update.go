@@ -7,7 +7,7 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/orange-juzipi/cert-deploy/internal/updater"
+	"github.com/https-cert/deploy/internal/updater"
 	"github.com/spf13/cobra"
 )
 
@@ -31,7 +31,7 @@ func CreateCheckUpdateCmd() *cobra.Command {
 
 			if info.HasUpdate {
 				fmt.Println("\n发现新版本！")
-				fmt.Println("执行 './cert-deploy update' 进行更新")
+				fmt.Println("执行 './anssl update' 进行更新")
 			} else {
 				fmt.Println("\n当前已是最新版本")
 			}
@@ -82,18 +82,18 @@ func CreateUpdateCmd() *cobra.Command {
 
 				execPath, err := os.Executable()
 				if err != nil {
-					return fmt.Errorf("获取可执行文件路径失败，请手动启动: cert-deploy daemon: %w", err)
+					return fmt.Errorf("获取可执行文件路径失败，请手动启动: anssl daemon: %w", err)
 				}
 
 				restartCmd := exec.Command(execPath, "daemon", "-c", ConfigFile)
 				if err := restartCmd.Start(); err != nil {
-					return fmt.Errorf("守护进程启动失败，请手动启动: cert-deploy daemon: %w", err)
+					return fmt.Errorf("守护进程启动失败，请手动启动: anssl daemon: %w", err)
 				}
 
 				time.Sleep(1 * time.Second)
 
 				if !IsRunning() {
-					return fmt.Errorf("守护进程启动失败，请手动启动: cert-deploy daemon")
+					return fmt.Errorf("守护进程启动失败，请手动启动: anssl daemon")
 				}
 				fmt.Println("守护进程已重启")
 			}

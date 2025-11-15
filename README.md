@@ -19,34 +19,40 @@
 
 ### 从 Release 下载（推荐）
 
-从 [GitHub Releases](https://github.com/https-cert/deploy/releases) 下载适合你系统的二进制文件：
+从 [GitHub Releases](https://github.com/https-cert/deploy/releases) 下载适合你系统的压缩包，解压后得到应用程序 `anssl`：
 
 ```bash
 # Linux (amd64)
-wget https://github.com/https-cert/deploy/releases/latest/download/cert-deploy-linux
-chmod +x cert-deploy-linux
-sudo mv cert-deploy-linux /usr/local/bin/cert-deploy
+wget https://github.com/https-cert/deploy/releases/latest/download/anssl-linux-amd64.tar.gz
+tar -xzf anssl-linux-amd64.tar.gz
+chmod +x anssl
+sudo mv anssl /usr/local/bin/anssl
 
 # Linux (arm64)
-wget https://github.com/https-cert/deploy/releases/latest/download/cert-deploy-linux-arm64
-chmod +x cert-deploy-linux-arm64
-sudo mv cert-deploy-linux-arm64 /usr/local/bin/cert-deploy
+wget https://github.com/https-cert/deploy/releases/latest/download/anssl-linux-arm64.tar.gz
+tar -xzf anssl-linux-arm64.tar.gz
+chmod +x anssl
+sudo mv anssl /usr/local/bin/anssl
 
 # macOS (Intel)
-wget https://github.com/https-cert/deploy/releases/latest/download/cert-deploy-mac
-chmod +x cert-deploy-mac
+wget https://github.com/https-cert/deploy/releases/latest/download/anssl-darwin-amd64.tar.gz
+tar -xzf anssl-darwin-amd64.tar.gz
+chmod +x anssl
+sudo mv anssl /usr/local/bin/anssl
 
 # macOS (Apple Silicon)
-wget https://github.com/https-cert/deploy/releases/latest/download/cert-deploy-mac-arm64
-chmod +x cert-deploy-mac-arm64
+wget https://github.com/https-cert/deploy/releases/latest/download/anssl-darwin-arm64.tar.gz
+tar -xzf anssl-darwin-arm64.tar.gz
+chmod +x anssl
+sudo mv anssl /usr/local/bin/anssl
 
 # Windows (amd64)
-wget https://github.com/https-cert/deploy/releases/latest/download/cert-deploy-windows-arm64.exe
-chmod +x cert-deploy-windows-arm64.exe
+wget https://github.com/https-cert/deploy/releases/latest/download/anssl-windows-amd64.zip
+unzip anssl-windows-amd64.zip
 
 # Windows (arm64)
-wget https://github.com/https-cert/deploy/releases/download/latest/cert-deploy-windows-arm64.exe
-chmod +x cert-deploy-windows-arm64.exe
+wget https://github.com/https-cert/deploy/releases/latest/download/anssl-windows-arm64.zip
+unzip anssl-windows-arm64.zip
 ```
 
 ### 从源码构建
@@ -55,11 +61,11 @@ chmod +x cert-deploy-windows-arm64.exe
 
 ```bash
 # 克隆仓库
-git clone https://github.com/orange-juzipi/cert-deploy.git
-cd cert-deploy
+git clone https://github.com/https-cert/deploy.git
+cd deploy
 
 # 构建当前平台
-go build -o cert-deploy main.go
+go build -o anssl main.go
 
 # 或使用 Make 构建所有平台
 make build
@@ -160,34 +166,34 @@ provider:
 
 ```bash
 # 显示帮助信息
-./cert-deploy --help
+./anssl --help
 
 # 启动守护进程（后台运行，推荐）
-./cert-deploy daemon -c config.yaml
+./anssl daemon -c config.yaml
 
 # 前台运行（用于调试）
-./cert-deploy start -c config.yaml
+./anssl start -c config.yaml
 
 # 查看守护进程状态
-./cert-deploy status
+./anssl status
 
 # 查看日志
-./cert-deploy log
+./anssl log
 
 # 实时跟踪日志输出（类似 tail -f）
-./cert-deploy log -f
+./anssl log -f
 
 # 重启守护进程
-./cert-deploy restart -c config.yaml
+./anssl restart -c config.yaml
 
 # 停止守护进程
-./cert-deploy stop
+./anssl stop
 
 # 检查更新
-./cert-deploy check-update
+./anssl check-update
 
 # 手动触发更新检查
-./cert-deploy update
+./anssl update
 ```
 
 ### 运行方式
@@ -200,10 +206,10 @@ provider:
 
 ```bash
 # 授予执行权限
-chmod +x cert-deploy
+chmod +x anssl
 
 # 使用 sudo 启动
-sudo ./cert-deploy daemon -c config.yaml
+sudo ./anssl daemon -c config.yaml
 ```
 
 #### 方式 2：配置为用户目录
@@ -218,7 +224,7 @@ ssl:
 然后正常运行：
 
 ```bash
-./cert-deploy daemon -c config.yaml
+./anssl daemon -c config.yaml
 ```
 
 #### 方式 3：配置目录权限
@@ -235,7 +241,7 @@ sudo chmod 775 /etc/nginx/ssl
 
 # 重新登录以使组权限生效
 # 然后运行
-./cert-deploy daemon -c config.yaml
+./anssl daemon -c config.yaml
 ```
 
 ## 📋 系统要求
@@ -258,14 +264,14 @@ sudo chmod 775 /etc/nginx/ssl
 ### 启动守护进程
 
 ```bash
-$ ./cert-deploy daemon -c config.yaml
+$ ./anssl daemon -c config.yaml
 证书部署守护进程已启动
 ```
 
 ### 查看状态
 
 ```bash
-$ ./cert-deploy status
+$ ./anssl status
 PID文件路径: /Users/username/.cert-deploy.pid
 证书部署守护进程正在运行 (PID: 12345)
 ```
@@ -273,7 +279,7 @@ PID文件路径: /Users/username/.cert-deploy.pid
 ### 查看日志
 
 ```bash
-$ ./cert-deploy log -f
+$ ./anssl log -f
 === 实时日志跟踪 (按 Ctrl+C 退出) ===
 2024/01/15 10:30:00 [INFO] 启动证书部署守护进程
 2024/01/15 10:30:01 [INFO] 建立连接通知成功，开始监听通知
@@ -295,7 +301,7 @@ go mod download
 go test -v ./...
 
 # 构建当前平台
-go build -o cert-deploy main.go
+go build -o anssl main.go
 
 # 构建所有平台（输出到 bin/ 目录）
 make build
@@ -344,7 +350,7 @@ make build-compress
 
 1. 检查网络连接是否正常
 2. 确认 `accessKey` 配置正确
-3. 查看日志文件获取详细错误信息：`./cert-deploy log`
+3. 查看日志文件获取详细错误信息：`./anssl log`
 
 ### 权限错误
 
@@ -352,7 +358,7 @@ make build-compress
 
 **解决方案**：
 
-1. 使用 `sudo` 运行：`sudo ./cert-deploy daemon -c config.yaml`
+1. 使用 `sudo` 运行：`sudo ./anssl daemon -c config.yaml`
 2. 或参考"运行方式"章节配置目录权限
 3. 或将 `ssl.path` 改为用户有权限的目录
 
@@ -365,7 +371,7 @@ make build-compress
 1. 确认 Nginx 已安装：`nginx -v`
 2. 手动测试 Nginx 配置：`sudo nginx -t`
 3. 检查 Nginx 配置中的证书路径是否与部署路径一致
-4. 查看日志获取详细错误：`./cert-deploy log`
+4. 查看日志获取详细错误：`./anssl log`
 
 ### 守护进程无法启动
 
@@ -374,7 +380,7 @@ make build-compress
 **解决方案**：
 
 1. 检查配置文件是否正确：`cat config.yaml`
-2. 使用前台模式查看错误：`./cert-deploy start -c config.yaml`
+2. 使用前台模式查看错误：`./anssl start -c config.yaml`
 3. 检查 PID 文件是否被占用：`cat ~/.cert-deploy.pid`
 4. 如果进程异常退出，删除 PID 文件后重试：`rm ~/.cert-deploy.pid`
 
@@ -397,7 +403,7 @@ make build-compress
 
 1. **检查配置**：确认 `config.yaml` 中的云服务凭证是否正确
 2. **检查权限**：确保 AccessKey 具有 SSL 证书管理权限
-3. **查看日志**：使用 `./cert-deploy log` 查看详细错误信息
+3. **查看日志**：使用 `./anssl log` 查看详细错误信息
 4. **测试连接**：可以运行测试用例验证云服务连接（需要配置测试凭证）
 
 **常见错误**：
@@ -467,7 +473,7 @@ After=network.target
 [Service]
 Type=simple
 User=root
-ExecStart=/usr/local/bin/cert-deploy start -c /etc/cert-deploy/config.yaml
+ExecStart=/usr/local/bin/anssl start -c /etc/cert-deploy/config.yaml
 Restart=always
 RestartSec=10
 
@@ -494,5 +500,5 @@ ls -la /etc/nginx/ssl/yourdomain.com_certificates/
 sudo nginx -t
 
 # 查看部署日志
-./cert-deploy log
+./anssl log
 ```

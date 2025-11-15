@@ -14,11 +14,11 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"github.com/orange-juzipi/cert-deploy/internal/config"
-	"github.com/orange-juzipi/cert-deploy/internal/system"
-	"github.com/orange-juzipi/cert-deploy/pb/deployPB"
-	"github.com/orange-juzipi/cert-deploy/pb/deployPB/deployPBconnect"
-	"github.com/orange-juzipi/cert-deploy/pkg/logger"
+	"github.com/https-cert/deploy/internal/config"
+	"github.com/https-cert/deploy/internal/system"
+	"github.com/https-cert/deploy/pb/deployPB"
+	"github.com/https-cert/deploy/pb/deployPB/deployPBconnect"
+	"github.com/https-cert/deploy/pkg/logger"
 )
 
 const (

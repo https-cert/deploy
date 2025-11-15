@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/orange-juzipi/cert-deploy/internal/client"
-	"github.com/orange-juzipi/cert-deploy/pkg/logger"
+	"github.com/https-cert/deploy/internal/client"
+	"github.com/https-cert/deploy/pkg/logger"
 )
 
 // Scheduler 定时任务调度器

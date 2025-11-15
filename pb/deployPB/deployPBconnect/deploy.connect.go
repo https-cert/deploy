@@ -8,7 +8,7 @@ import (
 	connect "connectrpc.com/connect"
 	context "context"
 	errors "errors"
-	deployPB "github.com/orange-juzipi/cert-deploy/pb/deployPB"
+	deployPB "github.com/https-cert/deploy/pb/deployPB"
 	http "net/http"
 	strings "strings"
 )

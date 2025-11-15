@@ -13,7 +13,7 @@ import (
 	"github.com/alibabacloud-go/darabonba-openapi/v2/models"
 	util "github.com/alibabacloud-go/tea-utils/v2/service"
 	"github.com/alibabacloud-go/tea/tea"
-	"github.com/orange-juzipi/cert-deploy/internal/client/providers"
+	"github.com/https-cert/deploy/internal/client/providers"
 )
 
 var _ providers.ProviderHandler = (*Provider)(nil)

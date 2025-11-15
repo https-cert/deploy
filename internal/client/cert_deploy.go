@@ -14,7 +14,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/orange-juzipi/cert-deploy/internal/config"
+	"github.com/https-cert/deploy/internal/config"
 )
 
 const (

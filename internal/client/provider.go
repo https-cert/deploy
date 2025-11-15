@@ -2,9 +2,9 @@ package client
 
 import (
 	"connectrpc.com/connect"
-	"github.com/orange-juzipi/cert-deploy/internal/config"
-	"github.com/orange-juzipi/cert-deploy/pb/deployPB"
-	"github.com/orange-juzipi/cert-deploy/pkg/logger"
+	"github.com/https-cert/deploy/internal/config"
+	"github.com/https-cert/deploy/pb/deployPB"
+	"github.com/https-cert/deploy/pkg/logger"
 )
 
 // handleGetProvider 处理获取提供商信息请求

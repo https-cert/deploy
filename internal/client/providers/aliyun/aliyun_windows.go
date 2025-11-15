@@ -5,7 +5,7 @@ package aliyun
 import (
 	"fmt"
 
-	"github.com/orange-juzipi/cert-deploy/internal/client/providers"
+	"github.com/https-cert/deploy/internal/client/providers"
 )
 
 var _ providers.ProviderHandler = (*Provider)(nil)

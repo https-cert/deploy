@@ -5,9 +5,9 @@ package aliyun_test
 import (
 	"testing"
 
-	"github.com/orange-juzipi/cert-deploy/internal/client/providers/aliyun"
-	"github.com/orange-juzipi/cert-deploy/internal/config"
-	"github.com/orange-juzipi/cert-deploy/pkg/logger"
+	"github.com/https-cert/deploy/internal/client/providers/aliyun"
+	"github.com/https-cert/deploy/internal/config"
+	"github.com/https-cert/deploy/pkg/logger"
 )
 
 var provider *aliyun.Provider

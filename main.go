@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/orange-juzipi/cert-deploy/cmd"
-	"github.com/orange-juzipi/cert-deploy/pkg/logger"
+	"github.com/https-cert/deploy/cmd"
+	"github.com/https-cert/deploy/pkg/logger"
 )
 
 func main() {

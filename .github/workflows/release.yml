@@ -38,11 +38,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
 
-      - name: Install UPX
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y upx
-
       # 取得版本号：
       # - workflow_dispatch：若未填写则自动 vX.Y.(Z+1)，并创建/推送该 tag
       # - push tag：使用该 tag
@@ -87,51 +82,57 @@ jobs:
       - name: Verify dependencies
         run: go mod verify
 
+      - name: Install UPX
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y upx
+
       - name: Build for multiple platforms
         env:
           CGO_ENABLED: 0
         run: |
-          mkdir -p release
-          LDFLAGS="-s -w -X 'main.version=${{ steps.version.outputs.VERSION }}'"
+          set -e
+          mkdir -p release build
+          # 将版本号写入 internal/config.Version，供更新逻辑使用
+          LDFLAGS="-s -w -X 'github.com/https-cert/deploy/internal/config.Version=${{ steps.version.outputs.VERSION }}'"
 
           echo "Build macOS..."
-          GOOS=darwin  GOARCH=amd64  go build -ldflags="${LDFLAGS}" -trimpath -o release/cert-deploy-mac main.go
-          GOOS=darwin  GOARCH=arm64  go build -ldflags="${LDFLAGS}" -trimpath -o release/cert-deploy-mac-arm64 main.go
+          mkdir -p build/darwin-amd64 build/darwin-arm64
+          GOOS=darwin  GOARCH=amd64  go build -ldflags="${LDFLAGS}" -trimpath -o build/darwin-amd64/anssl main.go
+          tar -C build/darwin-amd64 -czf release/anssl-darwin-amd64.tar.gz anssl
+          GOOS=darwin  GOARCH=arm64  go build -ldflags="${LDFLAGS}" -trimpath -o build/darwin-arm64/anssl main.go
+          tar -C build/darwin-arm64 -czf release/anssl-darwin-arm64.tar.gz anssl
 
           echo "Build Linux..."
-          GOOS=linux   GOARCH=amd64  go build -ldflags="${LDFLAGS}" -trimpath -o release/cert-deploy-linux main.go
-          GOOS=linux   GOARCH=arm64  go build -ldflags="${LDFLAGS}" -trimpath -o release/cert-deploy-linux-arm64 main.go
+          mkdir -p build/linux-amd64 build/linux-arm64
+          GOOS=linux   GOARCH=amd64  go build -ldflags="${LDFLAGS}" -trimpath -o build/linux-amd64/anssl main.go
+          echo "UPX compress linux-amd64..."
+          upx --best build/linux-amd64/anssl || echo "⚠️ ignore UPX failure: linux-amd64"
+          tar -C build/linux-amd64 -czf release/anssl-linux-amd64.tar.gz anssl
+          GOOS=linux   GOARCH=arm64  go build -ldflags="${LDFLAGS}" -trimpath -o build/linux-arm64/anssl main.go
+          echo "UPX compress linux-arm64..."
+          upx --best build/linux-arm64/anssl || echo "⚠️ ignore UPX failure: linux-arm64"
+          tar -C build/linux-arm64 -czf release/anssl-linux-arm64.tar.gz anssl
 
           echo "Build Windows..."
-          GOOS=windows GOARCH=amd64  go build -ldflags="${LDFLAGS}" -trimpath -o release/cert-deploy-windows.exe main.go
-          GOOS=windows GOARCH=arm64  go build -ldflags="${LDFLAGS}" -trimpath -o release/cert-deploy-windows-arm64.exe main.go
+          mkdir -p build/windows-amd64 build/windows-arm64
+          GOOS=windows GOARCH=amd64  go build -ldflags="${LDFLAGS}" -trimpath -o build/windows-amd64/anssl.exe main.go
+          (cd build/windows-amd64 && zip -q ../../release/anssl-windows-amd64.zip anssl.exe)
+          GOOS=windows GOARCH=arm64  go build -ldflags="${LDFLAGS}" -trimpath -o build/windows-arm64/anssl.exe main.go
+          (cd build/windows-arm64 && zip -q ../../release/anssl-windows-arm64.zip anssl.exe)
 
       - name: Show build info
         run: |
           echo "=== Build Info ==="
           echo "Version: ${{ steps.version.outputs.VERSION }}"
           echo "Go: $(go version)"
-          echo "UPX: $(upx --version)"
           echo "Files:"
           ls -lh release/
 
-      - name: Compress Linux binaries with UPX
-        run: |
-          echo "UPX Linux binaries..."
-          for f in release/cert-deploy-linux release/cert-deploy-linux-arm64; do
-            if [ -f "$f" ]; then
-              echo "UPX -> $f"
-              upx --best "$f" || echo "⚠️ ignore UPX failure: $f"
-            fi
-          done
-          echo "Done."
-          ls -lh release/cert-deploy-linux*
-
-      # 不再打包 zip/tar.gz；直接上传可执行文件
       - name: Generate checksums
         run: |
           cd release
-          sha256sum cert-deploy-* > checksums.txt
+          sha256sum anssl-* > checksums.txt
           echo "checksums generated:"
           cat checksums.txt
 
@@ -139,9 +140,9 @@ jobs:
         run: |
           cd release
           echo "Creating all-platforms archive..."
-          tar -czf cert-deploy-all-platforms.tar.gz cert-deploy-*
+          tar -czf anssl-all-platforms.tar.gz anssl-*
           echo "Archive created:"
-          ls -lh cert-deploy-all-platforms.tar.gz
+          ls -lh anssl-all-platforms.tar.gz
 
       # 生成详细的更新日志
       - name: Generate changelog
@@ -202,13 +203,13 @@ jobs:
         with:
           body: ${{ steps.changelog.outputs.CHANGELOG_CONTENT }}
           files: |
-            release/cert-deploy-mac
-            release/cert-deploy-mac-arm64
-            release/cert-deploy-linux
-            release/cert-deploy-linux-arm64
-            release/cert-deploy-windows.exe
-            release/cert-deploy-windows-arm64.exe
-            release/cert-deploy-all-platforms.tar.gz
+            release/anssl-darwin-amd64.tar.gz
+            release/anssl-darwin-arm64.tar.gz
+            release/anssl-linux-amd64.tar.gz
+            release/anssl-linux-arm64.tar.gz
+            release/anssl-windows-amd64.zip
+            release/anssl-windows-arm64.zip
+            release/anssl-all-platforms.tar.gz
             release/checksums.txt
             release/CHANGELOG.md
           draft: false
@@ -222,13 +223,13 @@ jobs:
           name: Release ${{ steps.version.outputs.VERSION }}
           body: ${{ steps.changelog.outputs.CHANGELOG_CONTENT }}
           files: |
-            release/cert-deploy-mac
-            release/cert-deploy-mac-arm64
-            release/cert-deploy-linux
-            release/cert-deploy-linux-arm64
-            release/cert-deploy-windows.exe
-            release/cert-deploy-windows-arm64.exe
-            release/cert-deploy-all-platforms.tar.gz
+            release/anssl-darwin-amd64.tar.gz
+            release/anssl-darwin-arm64.tar.gz
+            release/anssl-linux-amd64.tar.gz
+            release/anssl-linux-arm64.tar.gz
+            release/anssl-windows-amd64.zip
+            release/anssl-windows-arm64.zip
+            release/anssl-all-platforms.tar.gz
             release/checksums.txt
             release/CHANGELOG.md
           draft: false

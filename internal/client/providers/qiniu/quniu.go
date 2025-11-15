@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/orange-juzipi/cert-deploy/internal/client/providers"
+	"github.com/https-cert/deploy/internal/client/providers"
 	"github.com/qiniu/go-sdk/v7/auth"
 	"github.com/qiniu/go-sdk/v7/cdn"
 )

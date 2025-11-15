@@ -17,7 +17,7 @@ var (
 // CreateRootCmd 创建根命令
 func CreateRootCmd() *cobra.Command {
 	rootCmd := &cobra.Command{
-		Use:   "cert-deploy",
+		Use:   "anssl",
 		Short: "证书自动部署工具",
 		Long:  "一个用于自动部署证书并重载nginx的工具",
 	}

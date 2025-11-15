@@ -1108,8 +1108,8 @@ const file_deployPB_deploy_proto_rawDesc = "" +
 	"\x14EXECUTE_BUSINES_DCDN\x10\x04\x12\x17\n" +
 	"\x13EXECUTE_BUSINES_OSS\x10\x052P\n" +
 	"\rDeployService\x12?\n" +
-	"\x06Notify\x12\x17.deployPB.NotifyRequest\x1a\x18.deployPB.NotifyResponse(\x010\x01B\x8d\x01\n" +
-	"\fcom.deployPBB\vDeployProtoP\x01Z0github.com/orange-juzipi/cert-deploy/pb/deployPB\xa2\x02\x03DXX\xaa\x02\bDeployPB\xca\x02\bDeployPB\xe2\x02\x14DeployPB\\GPBMetadata\xea\x02\bDeployPBb\x06proto3"
+	"\x06Notify\x12\x17.deployPB.NotifyRequest\x1a\x18.deployPB.NotifyResponse(\x010\x01B\x85\x01\n" +
+	"\fcom.deployPBB\vDeployProtoP\x01Z(github.com/https-cert/deploy/pb/deployPB\xa2\x02\x03DXX\xaa\x02\bDeployPB\xca\x02\bDeployPB\xe2\x02\x14DeployPB\\GPBMetadata\xea\x02\bDeployPBb\x06proto3"
 
 var (
 	file_deployPB_deploy_proto_rawDescOnce sync.Once

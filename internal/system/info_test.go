@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/orange-juzipi/cert-deploy/internal/system"
+	"github.com/https-cert/deploy/internal/system"
 )
 
 func TestGetSystemInfo(t *testing.T) {
