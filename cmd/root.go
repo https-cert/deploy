@@ -48,13 +48,13 @@ func GetPIDFile() string {
 		// 如果无法获取用户主目录，使用当前目录
 		homeDir = "."
 	}
-	return filepath.Join(homeDir, ".cert-deploy.pid")
+	return filepath.Join(homeDir, ".anssl.pid")
 }
 
 // GetLogFile 获取日志文件路径（与配置文件同一目录）
 func GetLogFile() string {
 	configDir := filepath.Dir(ConfigFile)
-	return filepath.Join(configDir, "cert-deploy.log")
+	return filepath.Join(configDir, "anssl.log")
 }
 
 // IsRunning 检查守护进程是否在运行

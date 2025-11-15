@@ -40,7 +40,7 @@ func (c *Client) handleUpdate() {
 		return
 	}
 	execDir := filepath.Dir(execPath)
-	markerFile := filepath.Join(execDir, ".cert-deploy-updated")
+	markerFile := filepath.Join(execDir, ".anssl-updated")
 	content := fmt.Sprintf("%s\n%s\n", updateInfo.LatestVersion, time.Now().Format(time.RFC3339))
 	if err := os.WriteFile(markerFile, []byte(content), 0600); err != nil {
 		logger.Error("创建更新标记文件失败", "error", err)

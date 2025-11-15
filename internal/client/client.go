@@ -323,7 +323,7 @@ func (c *Client) downloadFile(downloadURL, filePath string) error {
 	}
 
 	// 创建临时文件，确保部分下载不会污染最终文件
-	tmpFile, err := os.CreateTemp(filepath.Dir(filePath), ".cert-deploy-*")
+	tmpFile, err := os.CreateTemp(filepath.Dir(filePath), ".anssl-*")
 	if err != nil {
 		return err
 	}

@@ -32,12 +32,12 @@ go.work.sum
 # .vscode/
 
 bin
-cert-deploy
+anssl
 certs
 ssl
 install.sh
 config.yaml
-cert-deploy.log
+anssl.log
 release.sh
 .DS_Store
 CLAUDE.md

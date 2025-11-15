@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-const cacheRelPath = "cert-deploy/client-id"
+const cacheRelPath = "anssl/client-id"
 
 // SystemInfo 系统信息结构
 type SystemInfo struct {

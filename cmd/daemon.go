@@ -163,7 +163,7 @@ func runSupervisor() {
 		} else {
 			// 检查更新标记（程序同级目录）
 			execDir := filepath.Dir(execPath)
-			updateMarker := filepath.Join(execDir, ".cert-deploy-updated")
+			updateMarker := filepath.Join(execDir, ".anssl-updated")
 			if _, err := os.Stat(updateMarker); err == nil {
 				logSupervisor("应用更新，重启中...")
 				os.Remove(updateMarker)
@@ -185,7 +185,7 @@ func shouldStopSupervisor() bool {
 		// 如果无法获取用户主目录，使用当前目录
 		homeDir = "."
 	}
-	stopMarker := filepath.Join(homeDir, ".cert-deploy-stop")
+	stopMarker := filepath.Join(homeDir, ".anssl-stop")
 	if _, err := os.Stat(stopMarker); err == nil {
 		os.Remove(stopMarker)
 		return true
@@ -200,7 +200,7 @@ func StopDaemon() error {
 		// 如果无法获取用户主目录，使用当前目录
 		homeDir = "."
 	}
-	stopMarker := filepath.Join(homeDir, ".cert-deploy-stop")
+	stopMarker := filepath.Join(homeDir, ".anssl-stop")
 	if err := os.WriteFile(stopMarker, []byte("stop"), 0600); err != nil {
 		return fmt.Errorf("创建停止标记失败: %w", err)
 	}

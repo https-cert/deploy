@@ -253,8 +253,8 @@ sudo chmod 775 /etc/nginx/ssl
 
 ## 📁 文件位置
 
-- **PID 文件**：`~/.cert-deploy.pid`（用户主目录）
-- **日志文件**：与 `config.yaml` 同目录下的 `cert-deploy.log`
+- **PID 文件**：`~/.anssl.pid`（用户主目录）
+- **日志文件**：与 `config.yaml` 同目录下的 `anssl.log`
 - **证书文件**：
   - 下载的 zip 文件：`./certs/{domain}_certificates.zip`
   - 解压后的证书：`{ssl.path}/{domain}_certificates/`
@@ -272,7 +272,7 @@ $ ./anssl daemon -c config.yaml
 
 ```bash
 $ ./anssl status
-PID文件路径: /Users/username/.cert-deploy.pid
+PID文件路径: /Users/username/.anssl.pid
 证书部署守护进程正在运行 (PID: 12345)
 ```
 
@@ -381,8 +381,8 @@ make build-compress
 
 1. 检查配置文件是否正确：`cat config.yaml`
 2. 使用前台模式查看错误：`./anssl start -c config.yaml`
-3. 检查 PID 文件是否被占用：`cat ~/.cert-deploy.pid`
-4. 如果进程异常退出，删除 PID 文件后重试：`rm ~/.cert-deploy.pid`
+3. 检查 PID 文件是否被占用：`cat ~/.anssl.pid`
+4. 如果进程异常退出，删除 PID 文件后重试：`rm ~/.anssl.pid`
 
 ### Nginx 未安装
 
@@ -465,7 +465,7 @@ MIT License
 
 ```bash
 # 创建 systemd 服务文件
-sudo tee /etc/systemd/system/cert-deploy.service > /dev/null <<EOF
+sudo tee /etc/systemd/system/anssl.service > /dev/null <<EOF
 [Unit]
 Description=Certificate Deploy Service
 After=network.target
@@ -473,7 +473,7 @@ After=network.target
 [Service]
 Type=simple
 User=root
-ExecStart=/usr/local/bin/anssl start -c /etc/cert-deploy/config.yaml
+ExecStart=/usr/local/bin/anssl start -c /etc/anssl/config.yaml
 Restart=always
 RestartSec=10
 
@@ -483,11 +483,11 @@ EOF
 
 # 启用并启动服务
 sudo systemctl daemon-reload
-sudo systemctl enable cert-deploy
-sudo systemctl start cert-deploy
+sudo systemctl enable anssl
+sudo systemctl start anssl
 
 # 查看服务状态
-sudo systemctl status cert-deploy
+sudo systemctl status anssl
 ```
 
 ### 5. 如何验证证书部署成功？

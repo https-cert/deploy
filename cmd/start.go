@@ -30,7 +30,7 @@ func CreateStartCmd() *cobra.Command {
 			// 检查更新标记并清理（程序同级目录）
 			execPath, _ := os.Executable()
 			execDir := filepath.Dir(execPath)
-			markerFile := filepath.Join(execDir, ".cert-deploy-updated")
+			markerFile := filepath.Join(execDir, ".anssl-updated")
 			if _, err := os.Stat(markerFile); err == nil {
 				logger.Info("更新成功")
 				os.Remove(markerFile)
