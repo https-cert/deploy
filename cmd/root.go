@@ -32,6 +32,7 @@ func CreateRootCmd() *cobra.Command {
 	rootCmd.AddCommand(CreateLogCmd())
 	rootCmd.AddCommand(CreateCheckUpdateCmd())
 	rootCmd.AddCommand(CreateUpdateCmd())
+	rootCmd.AddCommand(CreateVersionCmd())
 
 	// 全局标志
 	rootCmd.PersistentFlags().StringVarP(&ConfigFile, "config", "c", "config.yaml", "配置文件路径")
