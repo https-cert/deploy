@@ -45,9 +45,9 @@ build-linux:
 build-windows:
 	@echo "构建 Windows 版本..."
 	@mkdir -p bin bin/windows-amd64 bin/windows-arm64
-	@GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -trimpath -o bin/windows-amd64/anssl.exe main.go
+	@GOOS=windows GOARCH=amd64 go build -trimpath -o bin/windows-amd64/anssl.exe main.go
 	@cd bin/windows-amd64 && zip -q ../../bin/anssl-windows-amd64.zip anssl.exe
-	@GOOS=windows GOARCH=arm64 go build -ldflags="-s -w" -trimpath -o bin/windows-arm64/anssl.exe main.go
+	@GOOS=windows GOARCH=arm64 go build -trimpath -o bin/windows-arm64/anssl.exe main.go
 	@cd bin/windows-arm64 && zip -q ../../bin/anssl-windows-arm64.zip anssl.exe
 	@rm -rf bin/windows-amd64 bin/windows-arm64
 	@echo "Windows 版本构建完成"

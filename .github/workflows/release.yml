@@ -94,31 +94,32 @@ jobs:
           set -e
           mkdir -p release build
           # 将版本号写入 internal/config.Version，供更新逻辑使用
-          LDFLAGS="-s -w -X 'github.com/https-cert/deploy/internal/config.Version=${{ steps.version.outputs.VERSION }}'"
+          BASE_LDFLAGS="-X 'github.com/https-cert/deploy/internal/config.Version=${{ steps.version.outputs.VERSION }}'"
+          STRIP_LDFLAGS="-s -w ${BASE_LDFLAGS}"
 
           echo "Build macOS..."
           mkdir -p build/darwin-amd64 build/darwin-arm64
-          GOOS=darwin  GOARCH=amd64  go build -ldflags="${LDFLAGS}" -trimpath -o build/darwin-amd64/anssl main.go
+          GOOS=darwin  GOARCH=amd64  go build -ldflags="${STRIP_LDFLAGS}" -trimpath -o build/darwin-amd64/anssl main.go
           tar -C build/darwin-amd64 -czf release/anssl-darwin-amd64.tar.gz anssl
-          GOOS=darwin  GOARCH=arm64  go build -ldflags="${LDFLAGS}" -trimpath -o build/darwin-arm64/anssl main.go
+          GOOS=darwin  GOARCH=arm64  go build -ldflags="${STRIP_LDFLAGS}" -trimpath -o build/darwin-arm64/anssl main.go
           tar -C build/darwin-arm64 -czf release/anssl-darwin-arm64.tar.gz anssl
 
           echo "Build Linux..."
           mkdir -p build/linux-amd64 build/linux-arm64
-          GOOS=linux   GOARCH=amd64  go build -ldflags="${LDFLAGS}" -trimpath -o build/linux-amd64/anssl main.go
+          GOOS=linux   GOARCH=amd64  go build -ldflags="${STRIP_LDFLAGS}" -trimpath -o build/linux-amd64/anssl main.go
           echo "UPX compress linux-amd64..."
           upx --best build/linux-amd64/anssl || echo "⚠️ ignore UPX failure: linux-amd64"
           tar -C build/linux-amd64 -czf release/anssl-linux-amd64.tar.gz anssl
-          GOOS=linux   GOARCH=arm64  go build -ldflags="${LDFLAGS}" -trimpath -o build/linux-arm64/anssl main.go
+          GOOS=linux   GOARCH=arm64  go build -ldflags="${STRIP_LDFLAGS}" -trimpath -o build/linux-arm64/anssl main.go
           echo "UPX compress linux-arm64..."
           upx --best build/linux-arm64/anssl || echo "⚠️ ignore UPX failure: linux-arm64"
           tar -C build/linux-arm64 -czf release/anssl-linux-arm64.tar.gz anssl
 
           echo "Build Windows..."
           mkdir -p build/windows-amd64 build/windows-arm64
-          GOOS=windows GOARCH=amd64  go build -ldflags="${LDFLAGS}" -trimpath -o build/windows-amd64/anssl.exe main.go
+          GOOS=windows GOARCH=amd64  go build -ldflags="${BASE_LDFLAGS}" -trimpath -o build/windows-amd64/anssl.exe main.go
           (cd build/windows-amd64 && zip -q ../../release/anssl-windows-amd64.zip anssl.exe)
-          GOOS=windows GOARCH=arm64  go build -ldflags="${LDFLAGS}" -trimpath -o build/windows-arm64/anssl.exe main.go
+          GOOS=windows GOARCH=arm64  go build -ldflags="${BASE_LDFLAGS}" -trimpath -o build/windows-arm64/anssl.exe main.go
           (cd build/windows-arm64 && zip -q ../../release/anssl-windows-arm64.zip anssl.exe)
 
       - name: Show build info
