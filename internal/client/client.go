@@ -15,6 +15,7 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/https-cert/deploy/internal/config"
+	"github.com/https-cert/deploy/internal/server"
 	"github.com/https-cert/deploy/internal/system"
 	"github.com/https-cert/deploy/pb/deployPB"
 	"github.com/https-cert/deploy/pb/deployPB/deployPBconnect"
@@ -40,6 +41,7 @@ type Client struct {
 	lastDisconnectLogged atomic.Bool        // 记录是否已打印断开连接日志
 	systemInfo           *system.SystemInfo // 缓存的系统信息
 	systemInfoOnce       sync.Once          // 确保系统信息只获取一次
+	httpServer           *server.HTTPServer // HTTP-01 验证服务器
 }
 
 func NewClient(ctx context.Context) (*Client, error) {
@@ -98,6 +100,11 @@ func (c *Client) getSystemInfo() (*system.SystemInfo, error) {
 		c.systemInfo, err = system.GetSystemInfo()
 	})
 	return c.systemInfo, err
+}
+
+// SetHTTPServer 设置 HTTP 服务器（由 scheduler 调用）
+func (c *Client) SetHTTPServer(httpServer *server.HTTPServer) {
+	c.httpServer = httpServer
 }
 
 // StartConnectNotify 启动连接通知
@@ -246,6 +253,11 @@ func (c *Client) handleMessage(stream *connect.BidiStreamForClientSimple[deployP
 			go c.handleConnect(stream, req.RequestId, connectReq.ConnectRequest)
 		}
 
+	case deployPB.Type_CHALLENGE:
+		if businesResp, ok := req.Data.(*deployPB.NotifyResponse_ExecuteBusinesResponse); ok {
+			go c.handleChallenge(businesResp.ExecuteBusinesResponse)
+		}
+
 	case deployPB.Type_EXECUTE_BUSINES:
 		if businesResp, ok := req.Data.(*deployPB.NotifyResponse_ExecuteBusinesResponse); ok {
 			go c.executeBusines(stream, req.RequestId, businesResp.ExecuteBusinesResponse)
@@ -361,6 +373,32 @@ func (c *Client) downloadFile(downloadURL, filePath string) error {
 
 	completed = true
 	return nil
+}
+
+// handleChallenge 处理 ACME HTTP-01 challenge 通知
+func (c *Client) handleChallenge(resp *deployPB.ExecuteBusinesResponse) {
+	token := resp.ChallengeToken
+	challengeResp := resp.ChallengeResponse
+	domain := resp.Domain
+
+	if c.httpServer == nil {
+		logger.Error("HTTP 服务器未初始化，无法处理 ACME challenge")
+		return
+	}
+
+	// 如果 token 为空，忽略
+	if token == "" {
+		return
+	}
+
+	// 如果 challengeResp 为空，表示后端要求删除此 challenge（过期/取消）
+	if challengeResp == "" {
+		c.httpServer.RemoveChallenge(token)
+		return
+	}
+
+	// 正常情况：缓存新的 challenge
+	c.httpServer.SetChallenge(token, challengeResp, domain)
 }
 
 // min 返回两个 time.Duration 中的较小值

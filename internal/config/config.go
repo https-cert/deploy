@@ -29,6 +29,7 @@ type (
 	ServerConfig struct {
 		AccessKey string `yaml:"accessKey"`
 		Env       string `yaml:"env"`
+		Port      int    `yaml:"port"` // HTTP-01 challenge 服务端口，默认 19000
 	}
 
 	SSLConfig struct {
@@ -85,6 +86,11 @@ func Init(configFile string) error {
 func validateConfig() error {
 	if Config.Server.AccessKey == "" {
 		return errors.New("accessKey不能为空")
+	}
+
+	// 设置 HTTP-01 challenge 服务端口默认值
+	if Config.Server.Port == 0 {
+		Config.Server.Port = 19000
 	}
 
 	if Config.SSL.Path != "" {

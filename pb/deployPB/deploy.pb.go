@@ -27,10 +27,11 @@ type Type int32
 const (
 	Type_UNKNOWN         Type = 0 // 未知
 	Type_CONNECT         Type = 1 // 连接成功
-	Type_UPDATE_VERSION  Type = 3 // 更新版本
-	Type_GET_PROVIDER    Type = 4 // 获取提供商信息
-	Type_REGISTER        Type = 5 // 注册客户端
-	Type_EXECUTE_BUSINES Type = 6 // 执行业务
+	Type_UPDATE_VERSION  Type = 2 // 更新版本
+	Type_GET_PROVIDER    Type = 3 // 获取提供商信息
+	Type_REGISTER        Type = 4 // 注册客户端
+	Type_EXECUTE_BUSINES Type = 5 // 执行业务
+	Type_CHALLENGE       Type = 6 // ACME HTTP-01 验证
 )
 
 // Enum value maps for Type.
@@ -38,18 +39,20 @@ var (
 	Type_name = map[int32]string{
 		0: "UNKNOWN",
 		1: "CONNECT",
-		3: "UPDATE_VERSION",
-		4: "GET_PROVIDER",
-		5: "REGISTER",
-		6: "EXECUTE_BUSINES",
+		2: "UPDATE_VERSION",
+		3: "GET_PROVIDER",
+		4: "REGISTER",
+		5: "EXECUTE_BUSINES",
+		6: "CHALLENGE",
 	}
 	Type_value = map[string]int32{
 		"UNKNOWN":         0,
 		"CONNECT":         1,
-		"UPDATE_VERSION":  3,
-		"GET_PROVIDER":    4,
-		"REGISTER":        5,
-		"EXECUTE_BUSINES": 6,
+		"UPDATE_VERSION":  2,
+		"GET_PROVIDER":    3,
+		"REGISTER":        4,
+		"EXECUTE_BUSINES": 5,
+		"CHALLENGE":       6,
 	}
 )
 
@@ -834,6 +837,8 @@ type ExecuteBusinesResponse struct {
 	Url                string                 `protobuf:"bytes,4,opt,name=url,proto3" json:"url,omitempty"`                                                                 // 证书下载URL
 	Cert               string                 `protobuf:"bytes,5,opt,name=cert,proto3" json:"cert,omitempty"`                                                               // 证书
 	Key                string                 `protobuf:"bytes,6,opt,name=key,proto3" json:"key,omitempty"`                                                                 // 私钥
+	ChallengeToken     string                 `protobuf:"bytes,7,opt,name=challengeToken,proto3" json:"challengeToken,omitempty"`                                           // ACME challenge token
+	ChallengeResponse  string                 `protobuf:"bytes,8,opt,name=challengeResponse,proto3" json:"challengeResponse,omitempty"`                                     // ACME challenge response
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
@@ -906,6 +911,20 @@ func (x *ExecuteBusinesResponse) GetCert() string {
 func (x *ExecuteBusinesResponse) GetKey() string {
 	if x != nil {
 		return x.Key
+	}
+	return ""
+}
+
+func (x *ExecuteBusinesResponse) GetChallengeToken() string {
+	if x != nil {
+		return x.ChallengeToken
+	}
+	return ""
+}
+
+func (x *ExecuteBusinesResponse) GetChallengeResponse() string {
+	if x != nil {
+		return x.ChallengeResponse
 	}
 	return ""
 }
@@ -1085,21 +1104,24 @@ const file_deployPB_deploy_proto_rawDesc = "" +
 	"\x16REQUEST_RESULT_UNKNOWN\x10\x00\x12\x1a\n" +
 	"\x16REQUEST_RESULT_SUCCESS\x10\x01\x12\x19\n" +
 	"\x15REQUEST_RESULT_FAILED\x10\x02\x12 \n" +
-	"\x1cREQUEST_RESULT_NOT_SUPPORTED\x10\x03\"\xd2\x01\n" +
+	"\x1cREQUEST_RESULT_NOT_SUPPORTED\x10\x03\"\xa8\x02\n" +
 	"\x16ExecuteBusinesResponse\x12\x1a\n" +
 	"\bprovider\x18\x01 \x01(\tR\bprovider\x12L\n" +
 	"\x12executeBusinesType\x18\x02 \x01(\x0e2\x1c.deployPB.ExecuteBusinesTypeR\x12executeBusinesType\x12\x16\n" +
 	"\x06domain\x18\x03 \x01(\tR\x06domain\x12\x10\n" +
 	"\x03url\x18\x04 \x01(\tR\x03url\x12\x12\n" +
 	"\x04cert\x18\x05 \x01(\tR\x04cert\x12\x10\n" +
-	"\x03key\x18\x06 \x01(\tR\x03key*i\n" +
+	"\x03key\x18\x06 \x01(\tR\x03key\x12&\n" +
+	"\x0echallengeToken\x18\a \x01(\tR\x0echallengeToken\x12,\n" +
+	"\x11challengeResponse\x18\b \x01(\tR\x11challengeResponse*x\n" +
 	"\x04Type\x12\v\n" +
 	"\aUNKNOWN\x10\x00\x12\v\n" +
 	"\aCONNECT\x10\x01\x12\x12\n" +
-	"\x0eUPDATE_VERSION\x10\x03\x12\x10\n" +
-	"\fGET_PROVIDER\x10\x04\x12\f\n" +
-	"\bREGISTER\x10\x05\x12\x13\n" +
-	"\x0fEXECUTE_BUSINES\x10\x06*\xc2\x01\n" +
+	"\x0eUPDATE_VERSION\x10\x02\x12\x10\n" +
+	"\fGET_PROVIDER\x10\x03\x12\f\n" +
+	"\bREGISTER\x10\x04\x12\x13\n" +
+	"\x0fEXECUTE_BUSINES\x10\x05\x12\r\n" +
+	"\tCHALLENGE\x10\x06*\xc2\x01\n" +
 	"\x12ExecuteBusinesType\x12\x1b\n" +
 	"\x17EXECUTE_BUSINES_UNKNOWN\x10\x00\x12\"\n" +
 	"\x1eEXECUTE_BUSINES_ANSSL_CLI_CERT\x10\x01\x12\x1f\n" +
