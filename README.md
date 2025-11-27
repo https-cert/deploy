@@ -46,12 +46,12 @@ provider:
     accessKeySecret: "your_secret"
 ```
 > #### 已支持的CDN服务商
-> 
+> 关于`provide.name`值请看下表
 | 配置项参数 | 英文 | 说明 |
 |--------|------|------|
-| `provider` | `aliyun` | 阿里云 |
-| `provider` | `qiniu` | 七牛云 |
-| `provider` | 更多 | 敬请期待 |
+| `name` | `aliyun` | 阿里云 |
+| `name` | `qiniu` | 七牛云 |
+| `name` | 更多 | 敬请期待 |
 
 
 ### 3. 配置 Nginx
