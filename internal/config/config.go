@@ -105,6 +105,9 @@ func validateConfig() error {
 	}
 
 	// 验证更新配置
+	if Config.Update == nil {
+		Config.Update = &UpdateConfig{}
+	}
 	if Config.Update.Mirror != "" {
 		validMirrors := []string{"github", "ghproxy", "ghproxy2", "custom"}
 		isValid := slices.Contains(validMirrors, Config.Update.Mirror)
@@ -116,6 +119,8 @@ func validateConfig() error {
 		if Config.Update.Mirror == "custom" && Config.Update.CustomURL == "" {
 			return errors.New("使用 custom 镜像源时，customUrl 不能为空")
 		}
+	} else {
+		Config.Update.Mirror = "ghproxy"
 	}
 
 	return nil
