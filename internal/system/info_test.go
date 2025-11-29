@@ -22,7 +22,7 @@ func TestGetSystemInfo(t *testing.T) {
 }
 
 func TestGetClientID(t *testing.T) {
-	clientID, err := system.GetUniqueClientID(t.Context())
+	clientID, err := system.GetUniqueClientId(t.Context())
 	if err != nil {
 		t.Fatalf("获取客户端 ID2失败: %v", err)
 	}

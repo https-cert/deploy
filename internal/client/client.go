@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -23,8 +24,12 @@ import (
 )
 
 const (
-	downloadTimeout   = 5 * time.Minute
-	maxReconnectDelay = 5 * time.Minute
+	downloadTimeout      = 30 * time.Second
+	minReconnectDelay    = 1 * time.Second  // 最小重连延迟
+	maxReconnectDelay    = 30 * time.Second // 最大重连延迟
+	fastReconnectAttempt = 3                // 快速重连尝试次数
+	tcpKeepaliveInterval = 30 * time.Second // TCP keepalive 间隔
+	heartbeatInterval    = 30 * time.Second // 应用层心跳间隔 - 保持连接活跃
 )
 
 var (
@@ -32,7 +37,7 @@ var (
 )
 
 type Client struct {
-	clientID             string
+	clientId             string
 	serverURL            string
 	httpClient           *http.Client
 	connectClient        deployPBconnect.DeployServiceClient
@@ -42,49 +47,70 @@ type Client struct {
 	systemInfo           *system.SystemInfo // 缓存的系统信息
 	systemInfoOnce       sync.Once          // 确保系统信息只获取一次
 	httpServer           *server.HTTPServer // HTTP-01 验证服务器
+	busyOperations       atomic.Int32       // 正在执行的业务操作数量
 }
 
 func NewClient(ctx context.Context) (*Client, error) {
 	cfg := config.GetConfig()
 
 	// 生成客户端ID
-	clientID, err := system.GetUniqueClientID(ctx)
+	clientId, err := system.GetUniqueClientId(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	// 配置 HTTP 客户端
-	httpClient := &http.Client{
-		Timeout: 30 * time.Second,
-	}
+	// 配置 HTTP Transport
+	var transport http.RoundTripper
+
 	if cfg.Server.Env == "local" {
 		p := new(http.Protocols)
 		p.SetUnencryptedHTTP2(true)
-		httpClient = &http.Client{
-			Timeout: 30 * time.Second,
-			Transport: &http.Transport{
-				Protocols:           p,
-				MaxIdleConns:        100,
-				MaxIdleConnsPerHost: 10,
-				IdleConnTimeout:     90 * time.Second,
-			},
+		transport = &http.Transport{
+			Protocols:             p,
+			MaxIdleConns:          100,
+			MaxIdleConnsPerHost:   10,
+			IdleConnTimeout:       90 * time.Second,
+			DisableKeepAlives:     false,
+			ForceAttemptHTTP2:     true,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ResponseHeaderTimeout: 30 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+			DialContext: (&net.Dialer{
+				Timeout:   10 * time.Second,
+				KeepAlive: tcpKeepaliveInterval,
+			}).DialContext,
 		}
 	} else {
-		httpClient.Transport = &http.Transport{
-			MaxIdleConns:        100,
-			MaxIdleConnsPerHost: 10,
-			IdleConnTimeout:     90 * time.Second,
+		transport = &http.Transport{
+			MaxIdleConns:          100,
+			MaxIdleConnsPerHost:   10,
+			IdleConnTimeout:       90 * time.Second,
+			DisableKeepAlives:     false,
+			ForceAttemptHTTP2:     true,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ResponseHeaderTimeout: 30 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+			DialContext: (&net.Dialer{
+				Timeout:   10 * time.Second,
+				KeepAlive: tcpKeepaliveInterval,
+			}).DialContext,
 		}
 	}
 
+	httpClient := &http.Client{
+		Timeout:   0,
+		Transport: transport,
+	}
+
 	client := &Client{
-		clientID:   clientID,
+		clientId:   clientId,
 		serverURL:  config.URL,
 		httpClient: httpClient,
 		ctx:        ctx,
 		accessKey:  cfg.Server.AccessKey,
 	}
 
+	// 创建 connect client
 	client.connectClient = deployPBconnect.NewDeployServiceClient(httpClient, config.URL)
 
 	// 启动连接通知
@@ -107,9 +133,9 @@ func (c *Client) SetHTTPServer(httpServer *server.HTTPServer) {
 	c.httpServer = httpServer
 }
 
-// StartConnectNotify 启动连接通知
+// StartConnectNotify 启动连接通知 - 建立持久连接并通过心跳保持
 func (c *Client) StartConnectNotify() {
-	reconnectDelay := time.Second
+	reconnectDelay := minReconnectDelay
 	consecutiveFailures := 0
 
 	for {
@@ -123,24 +149,27 @@ func (c *Client) StartConnectNotify() {
 		stream, err := c.connectClient.Notify(c.ctx)
 		if err != nil {
 			consecutiveFailures++
-
-			// 只在状态变化时打印日志
 			if isConnected.Load() || consecutiveFailures == 1 {
-				logger.Error("连接失败", "error", err)
+				logger.Error("连接失败", "error", err, "attempt", consecutiveFailures)
 			}
 
 			isConnected.Store(false)
 			c.lastDisconnectLogged.Store(true)
 
-			// 等待重连
+			// 指数退避重连
+			if consecutiveFailures <= fastReconnectAttempt {
+				reconnectDelay = minReconnectDelay
+			} else {
+				reconnectDelay = min(reconnectDelay*2, maxReconnectDelay)
+			}
+
 			time.Sleep(reconnectDelay)
-			reconnectDelay = min(reconnectDelay*2, maxReconnectDelay)
 			continue
 		}
 
-		// 连接成功，重置计数器
+		// 连接成功，重置失败计数
 		consecutiveFailures = 0
-		reconnectDelay = time.Second
+		reconnectDelay = minReconnectDelay
 
 		// 获取系统信息（使用缓存）
 		systemInfo, err := c.getSystemInfo()
@@ -151,10 +180,10 @@ func (c *Client) StartConnectNotify() {
 			continue
 		}
 
-		// 构造注册请求
+		// 构造并发送注册请求
 		registerReq := &deployPB.NotifyRequest{
 			AccessKey: c.accessKey,
-			ClientId:  c.clientID,
+			ClientId:  c.clientId,
 			Version:   config.Version,
 			Data: &deployPB.NotifyRequest_RegisterResponse{
 				RegisterResponse: &deployPB.RegisterResponse{
@@ -168,46 +197,45 @@ func (c *Client) StartConnectNotify() {
 			},
 		}
 
-		// 注册客户端
 		if err := stream.Send(registerReq); err != nil {
+			logger.Error("注册失败", "error", err)
 			stream.CloseRequest()
 			time.Sleep(reconnectDelay)
 			continue
 		}
 
-		// 流断开，先检查主 context 是否被取消（而不是检查错误类型）
-		// 因为错误链中可能包含 context.Canceled，但实际是连接断开导致的
-		select {
-		case <-c.ctx.Done():
-			logger.Info("主 context 已取消，退出连接循环")
-			return
-		default:
+		logger.Info("连接已建立，开始处理消息")
+
+		// 处理消息流 - 正常情况下会因为心跳保持而永不返回
+		streamErr := c.handleNotifyStream(stream)
+
+		// 只有在异常情况下才会到这里（网络故障、服务端主动断开等）
+		stream.CloseRequest()
+
+		busyOps := c.busyOperations.Load()
+		if busyOps > 0 {
+			logger.Warn("连接意外断开(有业务正在执行)", "error", streamErr, "busyOps", busyOps)
+		} else {
+			logger.Info("连接断开，准备重连", "error", streamErr)
 		}
 
-		// 处理消息流
-		if err := c.handleNotifyStream(stream); err != nil {
-			// logger.Error("连接断开", "error", err)
-		}
-
-		// 标记断开连接
 		isConnected.Store(false)
 		c.lastDisconnectLogged.Store(true)
 
-		// 等待后重连
+		// 短暂延迟后重连
 		time.Sleep(reconnectDelay)
-		reconnectDelay = min(reconnectDelay*2, maxReconnectDelay)
 	}
 }
 
 // handleNotifyStream 处理通知流
 func (c *Client) handleNotifyStream(stream *connect.BidiStreamForClientSimple[deployPB.NotifyRequest, deployPB.NotifyResponse]) error {
-	// 启动心跳 goroutine
+	// 启动心跳 goroutine - 持续发送心跳保持连接活跃
 	heartbeatCtx, cancelHeartbeat := context.WithCancel(c.ctx)
 	defer cancelHeartbeat()
 
 	go c.sendHeartbeat(heartbeatCtx, stream)
 
-	receiveCount := 0
+	// 简单的消息接收循环
 	for {
 		select {
 		case <-c.ctx.Done():
@@ -215,7 +243,7 @@ func (c *Client) handleNotifyStream(stream *connect.BidiStreamForClientSimple[de
 		default:
 		}
 
-		// 阻塞接收消息
+		// 阻塞接收消息 (无超时限制，依赖 TCP keepalive 和心跳保持连接)
 		req, err := stream.Receive()
 		if err != nil {
 			if errors.Is(err, io.EOF) {
@@ -224,15 +252,11 @@ func (c *Client) handleNotifyStream(stream *connect.BidiStreamForClientSimple[de
 			return fmt.Errorf("接收消息失败: %w", err)
 		}
 
-		receiveCount++
-
 		// 首次收到消息，标记连接成功
 		if !isConnected.Load() {
 			isConnected.Store(true)
-
-			// 如果之前断开过连接，打印重连成功日志
 			if c.lastDisconnectLogged.Load() {
-				// logger.Info("重新连接成功")
+				logger.Info("重新连接成功")
 				c.lastDisconnectLogged.Store(false)
 			}
 		}
@@ -274,7 +298,7 @@ func (c *Client) handleMessage(stream *connect.BidiStreamForClientSimple[deployP
 
 // sendHeartbeat 定期发送心跳（保持连接活跃）
 func (c *Client) sendHeartbeat(ctx context.Context, stream *connect.BidiStreamForClientSimple[deployPB.NotifyRequest, deployPB.NotifyResponse]) {
-	ticker := time.NewTicker(30 * time.Second)
+	ticker := time.NewTicker(heartbeatInterval)
 	defer ticker.Stop()
 
 	for {
@@ -285,11 +309,11 @@ func (c *Client) sendHeartbeat(ctx context.Context, stream *connect.BidiStreamFo
 			// 发送心跳消息
 			err := stream.Send(&deployPB.NotifyRequest{
 				AccessKey: c.accessKey,
-				ClientId:  c.clientID,
+				ClientId:  c.clientId,
 				Version:   config.Version,
 			})
 			if err != nil {
-				// logger.Error("发送心跳失败", "error", err)
+				logger.Debug("发送心跳失败", "error", err)
 				return
 			}
 		}

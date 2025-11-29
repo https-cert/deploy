@@ -67,7 +67,7 @@ func ValidateSystemRequirements() error {
 
 // GetUniqueClientID 获取唯一客户端ID
 // 确保同一台机器每次启动都获得相同的ID
-func GetUniqueClientID(ctx context.Context) (string, error) {
+func GetUniqueClientId(ctx context.Context) (string, error) {
 	// 先尝试读取缓存
 	if id := readCachedID(); id != "" {
 		return id, nil

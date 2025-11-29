@@ -23,7 +23,7 @@ func (c *Client) handleGetProvider(stream *connect.BidiStreamForClientSimple[dep
 
 	err := stream.Send(&deployPB.NotifyRequest{
 		AccessKey: c.accessKey,
-		ClientId:  c.clientID,
+		ClientId:  c.clientId,
 		RequestId: requestID,
 		Data: &deployPB.NotifyRequest_GetProviderResponse{
 			GetProviderResponse: &deployPB.GetProviderResponse{

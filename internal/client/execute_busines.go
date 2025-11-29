@@ -15,6 +15,10 @@ import (
 
 // executeBusines 执行业务
 func (c *Client) executeBusines(stream *connect.BidiStreamForClientSimple[deployPB.NotifyRequest, deployPB.NotifyResponse], requestId string, resp *deployPB.ExecuteBusinesResponse) {
+	// 标记开始执行业务操作
+	c.busyOperations.Add(1)
+	defer c.busyOperations.Add(-1)
+
 	providerName := resp.Provider
 	executeBusinesType := resp.ExecuteBusinesType
 	domain := resp.Domain
@@ -124,15 +128,16 @@ func (c *Client) sendExecuteBusinesResponse(stream *connect.BidiStreamForClientS
 		RequestResult: result,
 	}
 
+	// 使用传入的 stream 发送
 	if err := stream.Send(&deployPB.NotifyRequest{
 		AccessKey: c.accessKey,
-		ClientId:  c.clientID,
+		ClientId:  c.clientId,
 		Version:   config.Version,
 		RequestId: requestId,
 		Data: &deployPB.NotifyRequest_ExecuteBusinesRequest{
 			ExecuteBusinesRequest: req,
 		},
 	}); err != nil {
-		logger.Error("发送执行业务响应给服务端失败", "error", err, "requestId", requestId)
+		logger.Error("发送执行业务响应失败", "error", err, "requestId", requestId)
 	}
 }
