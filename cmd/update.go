@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"time"
 
 	"github.com/https-cert/deploy/internal/updater"
@@ -49,16 +50,27 @@ func CreateUpdateCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := context.Background()
 
+			// 获取当前可执行文件的真实路径
+			execPath, err := os.Executable()
+			if err != nil {
+				return fmt.Errorf("获取可执行文件路径失败: %w", err)
+			}
+			// 解析符号链接，获取真实文件系统路径
+			execPath, err = filepath.EvalSymlinks(execPath)
+			if err != nil {
+				return fmt.Errorf("解析可执行文件路径失败: %w", err)
+			}
+
 			fmt.Println("正在检查更新...")
 			info, err := updater.CheckUpdate(ctx)
 			if err != nil {
 				return fmt.Errorf("检查更新失败: %w", err)
 			}
 
-				if !info.HasUpdate {
-					fmt.Println("当前已是最新版本")
-					return nil
-				}
+			if !info.HasUpdate {
+				fmt.Println("当前已是最新版本")
+				return nil
+			}
 
 			fmt.Printf("发现新版本: %s -> %s\n", info.CurrentVersion, info.LatestVersion)
 
@@ -79,11 +91,6 @@ func CreateUpdateCmd() *cobra.Command {
 
 			if wasRunning {
 				fmt.Println("正在重启守护进程...")
-
-				execPath, err := os.Executable()
-				if err != nil {
-					return fmt.Errorf("获取可执行文件路径失败，请手动启动: anssl daemon: %w", err)
-				}
 
 				restartCmd := exec.Command(execPath, "daemon", "-c", ConfigFile)
 				if err := restartCmd.Start(); err != nil {
