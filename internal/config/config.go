@@ -33,7 +33,9 @@ type (
 	}
 
 	SSLConfig struct {
-		Path string `yaml:"path"`
+		Path       string `yaml:"path"`       // 旧配置，保持兼容
+		NginxPath  string `yaml:"nginxPath"`  // Nginx SSL 证书目录
+		ApachePath string `yaml:"apachePath"` // Apache SSL 证书目录
 	}
 
 	UpdateConfig struct {
@@ -93,10 +95,24 @@ func validateConfig() error {
 		Config.Server.Port = 19000
 	}
 
-	if Config.SSL.Path != "" {
-		// 检查证书存储目录是否存在，不存在则创建
-		if err := os.MkdirAll(Config.SSL.Path, 0755); err != nil {
-			return fmt.Errorf("创建证书存储目录失败: %w", err)
+	// 处理 SSL 配置
+	if Config.SSL == nil {
+		Config.SSL = &SSLConfig{}
+	}
+	// 兼容旧配置：如果只配置了 path，同时应用到 nginxPath
+	if Config.SSL.Path != "" && Config.SSL.NginxPath == "" {
+		Config.SSL.NginxPath = Config.SSL.Path
+	}
+
+	// 创建证书目录
+	if Config.SSL.NginxPath != "" {
+		if err := os.MkdirAll(Config.SSL.NginxPath, 0755); err != nil {
+			return fmt.Errorf("创建Nginx证书目录失败: %w", err)
+		}
+	}
+	if Config.SSL.ApachePath != "" {
+		if err := os.MkdirAll(Config.SSL.ApachePath, 0755); err != nil {
+			return fmt.Errorf("创建Apache证书目录失败: %w", err)
 		}
 	}
 

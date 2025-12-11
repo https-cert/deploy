@@ -87,12 +87,13 @@ func (Type) EnumDescriptor() ([]byte, []int) {
 type ExecuteBusinesType int32
 
 const (
-	ExecuteBusinesType_EXECUTE_BUSINES_UNKNOWN        ExecuteBusinesType = 0 // 未知
-	ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_CERT ExecuteBusinesType = 1 // anssl自动部署客户端 cli
-	ExecuteBusinesType_EXECUTE_BUSINES_UPLOAD_CERT    ExecuteBusinesType = 2 // 上传证书
-	ExecuteBusinesType_EXECUTE_BUSINES_CDN            ExecuteBusinesType = 3 // CDN
-	ExecuteBusinesType_EXECUTE_BUSINES_DCDN           ExecuteBusinesType = 4 // DCDN
-	ExecuteBusinesType_EXECUTE_BUSINES_OSS            ExecuteBusinesType = 5 // OSS
+	ExecuteBusinesType_EXECUTE_BUSINES_UNKNOWN               ExecuteBusinesType = 0 // 未知
+	ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_CERT        ExecuteBusinesType = 1 // Nginx 证书部署
+	ExecuteBusinesType_EXECUTE_BUSINES_UPLOAD_CERT           ExecuteBusinesType = 2 // 上传证书
+	ExecuteBusinesType_EXECUTE_BUSINES_CDN                   ExecuteBusinesType = 3 // CDN
+	ExecuteBusinesType_EXECUTE_BUSINES_DCDN                  ExecuteBusinesType = 4 // DCDN
+	ExecuteBusinesType_EXECUTE_BUSINES_OSS                   ExecuteBusinesType = 5 // OSS
+	ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_APACHE_CERT ExecuteBusinesType = 6 // Apache 证书部署
 )
 
 // Enum value maps for ExecuteBusinesType.
@@ -104,14 +105,16 @@ var (
 		3: "EXECUTE_BUSINES_CDN",
 		4: "EXECUTE_BUSINES_DCDN",
 		5: "EXECUTE_BUSINES_OSS",
+		6: "EXECUTE_BUSINES_ANSSL_CLI_APACHE_CERT",
 	}
 	ExecuteBusinesType_value = map[string]int32{
-		"EXECUTE_BUSINES_UNKNOWN":        0,
-		"EXECUTE_BUSINES_ANSSL_CLI_CERT": 1,
-		"EXECUTE_BUSINES_UPLOAD_CERT":    2,
-		"EXECUTE_BUSINES_CDN":            3,
-		"EXECUTE_BUSINES_DCDN":           4,
-		"EXECUTE_BUSINES_OSS":            5,
+		"EXECUTE_BUSINES_UNKNOWN":               0,
+		"EXECUTE_BUSINES_ANSSL_CLI_CERT":        1,
+		"EXECUTE_BUSINES_UPLOAD_CERT":           2,
+		"EXECUTE_BUSINES_CDN":                   3,
+		"EXECUTE_BUSINES_DCDN":                  4,
+		"EXECUTE_BUSINES_OSS":                   5,
+		"EXECUTE_BUSINES_ANSSL_CLI_APACHE_CERT": 6,
 	}
 )
 
@@ -1121,14 +1124,15 @@ const file_deployPB_deploy_proto_rawDesc = "" +
 	"\fGET_PROVIDER\x10\x03\x12\f\n" +
 	"\bREGISTER\x10\x04\x12\x13\n" +
 	"\x0fEXECUTE_BUSINES\x10\x05\x12\r\n" +
-	"\tCHALLENGE\x10\x06*\xc2\x01\n" +
+	"\tCHALLENGE\x10\x06*\xed\x01\n" +
 	"\x12ExecuteBusinesType\x12\x1b\n" +
 	"\x17EXECUTE_BUSINES_UNKNOWN\x10\x00\x12\"\n" +
 	"\x1eEXECUTE_BUSINES_ANSSL_CLI_CERT\x10\x01\x12\x1f\n" +
 	"\x1bEXECUTE_BUSINES_UPLOAD_CERT\x10\x02\x12\x17\n" +
 	"\x13EXECUTE_BUSINES_CDN\x10\x03\x12\x18\n" +
 	"\x14EXECUTE_BUSINES_DCDN\x10\x04\x12\x17\n" +
-	"\x13EXECUTE_BUSINES_OSS\x10\x052P\n" +
+	"\x13EXECUTE_BUSINES_OSS\x10\x05\x12)\n" +
+	"%EXECUTE_BUSINES_ANSSL_CLI_APACHE_CERT\x10\x062P\n" +
 	"\rDeployService\x12?\n" +
 	"\x06Notify\x12\x17.deployPB.NotifyRequest\x1a\x18.deployPB.NotifyResponse(\x010\x01B\x85\x01\n" +
 	"\fcom.deployPBB\vDeployProtoP\x01Z(github.com/https-cert/deploy/pb/deployPB\xa2\x02\x03DXX\xaa\x02\bDeployPB\xca\x02\bDeployPB\xe2\x02\x14DeployPB\\GPBMetadata\xea\x02\bDeployPBb\x06proto3"

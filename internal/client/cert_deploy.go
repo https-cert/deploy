@@ -38,7 +38,7 @@ func NewCertDeployer(client *Client) *CertDeployer {
 	}
 }
 
-// DeployCertificate 部署证书
+// DeployCertificate 部署证书（同时部署到 Nginx 和 Apache，根据配置）
 func (cd *CertDeployer) DeployCertificate(domain, url string) error {
 	// 创建certs目录
 	if err := os.MkdirAll(certsDir, 0755); err != nil {
@@ -68,8 +68,11 @@ func (cd *CertDeployer) DeployCertificate(domain, url string) error {
 	}()
 
 	// 检查是否配置了SSL目录
-	sslPath := config.GetConfig().SSL.Path
-	if sslPath == "" {
+	sslConfig := config.GetConfig().SSL
+	nginxPath := sslConfig.NginxPath
+	apachePath := sslConfig.ApachePath
+
+	if nginxPath == "" && apachePath == "" {
 		fmt.Println("未配置SSL目录，证书已下载到: ", zipFile)
 		return nil
 	}
@@ -85,29 +88,308 @@ func (cd *CertDeployer) DeployCertificate(domain, url string) error {
 		return fmt.Errorf("解压证书失败: %w", err)
 	}
 
-	// 2. 移动到配置的SSL目录
-	if err := cd.moveCertificates(extractDir, sslPath, folderName); err != nil {
-		// 清理失败的解压文件
-		os.RemoveAll(extractDir)
-		return fmt.Errorf("移动证书失败: %w", err)
+	// 确保解压目录在部署完成后被清理
+	defer os.RemoveAll(extractDir)
+
+	// 2. 部署到 Nginx 目录
+	if nginxPath != "" {
+		if err := cd.deployToNginx(extractDir, nginxPath, folderName, safeDomain); err != nil {
+			return fmt.Errorf("部署到Nginx失败: %w", err)
+		}
 	}
 
-	// 3. 检查nginx是否存在，如果存在则测试配置和重新加载
-	if cd.isNginxAvailable() {
+	// 3. 部署到 Apache 目录
+	if apachePath != "" {
+		if err := cd.deployToApache(extractDir, apachePath, folderName, safeDomain); err != nil {
+			return fmt.Errorf("部署到Apache失败: %w", err)
+		}
+	}
+
+	// 4. 检查nginx是否存在，如果存在则测试配置和重新加载
+	if nginxPath != "" && cd.isNginxAvailable() {
 		// 测试nginx配置
 		if err := cd.testNginxConfig(); err != nil {
-			return fmt.Errorf("nginx配置测试失败: %w", err)
+			fmt.Printf("警告: nginx配置测试失败: %v\n", err)
+		} else {
+			// 配置测试通过才尝试重新加载
+			if err := cd.reloadNginx(); err != nil {
+				fmt.Printf("警告: nginx重新加载失败: %v (证书已部署成功，请手动重启nginx)\n", err)
+			}
 		}
+	} else if nginxPath != "" {
+		fmt.Println("nginx未安装或不在PATH中，跳过nginx相关操作")
+	}
 
-		// 重新加载nginx
-		if err := cd.reloadNginx(); err != nil {
-			return fmt.Errorf("nginx重新加载失败: %w", err)
+	// 5. 检查apache是否存在，如果存在则测试配置和重新加载
+	if apachePath != "" && cd.isApacheAvailable() {
+		// 测试apache配置
+		if err := cd.testApacheConfig(); err != nil {
+			fmt.Printf("警告: apache配置测试失败: %v\n", err)
+		} else {
+			// 配置测试通过才尝试重新加载
+			if err := cd.reloadApache(); err != nil {
+				fmt.Printf("警告: apache重新加载失败: %v (证书已部署成功，请手动重启apache)\n", err)
+			}
+		}
+	} else if apachePath != "" {
+		fmt.Println("apache未安装或不在PATH中，跳过apache相关操作")
+	}
+
+	fmt.Printf("自动部署流程完成: %s\n", domain)
+	return nil
+}
+
+// DeployCertificateToNginx 仅部署证书到 Nginx
+func (cd *CertDeployer) DeployCertificateToNginx(domain, url string) error {
+	sslConfig := config.GetConfig().SSL
+	nginxPath := sslConfig.NginxPath
+
+	if nginxPath == "" {
+		return fmt.Errorf("未配置 Nginx SSL 目录 (ssl.nginxPath)")
+	}
+
+	// 创建certs目录
+	if err := os.MkdirAll(certsDir, 0755); err != nil {
+		return fmt.Errorf("创建证书目录失败: %w", err)
+	}
+
+	safeDomain := sanitizeDomain(domain)
+	fileName := fmt.Sprintf("%s_certificates.zip", safeDomain)
+	zipFile := filepath.Join(certsDir, fileName)
+
+	// 下载zip文件
+	if err := cd.client.downloadFile(url, zipFile); err != nil {
+		return fmt.Errorf("下载证书失败: %w", err)
+	}
+
+	fmt.Printf("证书下载完成: %s\n", zipFile)
+
+	defer func() {
+		if _, err := os.Stat(zipFile); err == nil {
+			os.Remove(zipFile)
+		}
+	}()
+
+	folderName := safeDomain + "_certificates"
+	extractDir := filepath.Join(certsDir, folderName)
+
+	if err := cd.extractZip(zipFile, extractDir); err != nil {
+		os.RemoveAll(extractDir)
+		return fmt.Errorf("解压证书失败: %w", err)
+	}
+	defer os.RemoveAll(extractDir)
+
+	// 部署到 Nginx 目录
+	if err := cd.deployToNginx(extractDir, nginxPath, folderName, safeDomain); err != nil {
+		return fmt.Errorf("部署到Nginx失败: %w", err)
+	}
+
+	// 重新加载 nginx
+	if cd.isNginxAvailable() {
+		if err := cd.testNginxConfig(); err != nil {
+			fmt.Printf("警告: nginx配置测试失败: %v\n", err)
+		} else {
+			if err := cd.reloadNginx(); err != nil {
+				fmt.Printf("警告: nginx重新加载失败: %v (证书已部署成功，请手动重启nginx)\n", err)
+			}
 		}
 	} else {
 		fmt.Println("nginx未安装或不在PATH中，跳过nginx相关操作")
 	}
 
-	fmt.Printf("自动部署流程完成: %s\n", domain)
+	fmt.Printf("Nginx证书部署完成: %s\n", domain)
+	return nil
+}
+
+// DeployCertificateToApache 仅部署证书到 Apache
+func (cd *CertDeployer) DeployCertificateToApache(domain, url string) error {
+	sslConfig := config.GetConfig().SSL
+	apachePath := sslConfig.ApachePath
+
+	if apachePath == "" {
+		return fmt.Errorf("未配置 Apache SSL 目录 (ssl.apachePath)")
+	}
+
+	// 创建certs目录
+	if err := os.MkdirAll(certsDir, 0755); err != nil {
+		return fmt.Errorf("创建证书目录失败: %w", err)
+	}
+
+	safeDomain := sanitizeDomain(domain)
+	fileName := fmt.Sprintf("%s_certificates.zip", safeDomain)
+	zipFile := filepath.Join(certsDir, fileName)
+
+	// 下载zip文件
+	if err := cd.client.downloadFile(url, zipFile); err != nil {
+		return fmt.Errorf("下载证书失败: %w", err)
+	}
+
+	fmt.Printf("证书下载完成: %s\n", zipFile)
+
+	defer func() {
+		if _, err := os.Stat(zipFile); err == nil {
+			os.Remove(zipFile)
+		}
+	}()
+
+	folderName := safeDomain + "_certificates"
+	extractDir := filepath.Join(certsDir, folderName)
+
+	if err := cd.extractZip(zipFile, extractDir); err != nil {
+		os.RemoveAll(extractDir)
+		return fmt.Errorf("解压证书失败: %w", err)
+	}
+	defer os.RemoveAll(extractDir)
+
+	// 部署到 Apache 目录
+	if err := cd.deployToApache(extractDir, apachePath, folderName, safeDomain); err != nil {
+		return fmt.Errorf("部署到Apache失败: %w", err)
+	}
+
+	// 重新加载 apache
+	if cd.isApacheAvailable() {
+		// 测试apache配置
+		if err := cd.testApacheConfig(); err != nil {
+			fmt.Printf("警告: apache配置测试失败: %v\n", err)
+		} else {
+			// 配置测试通过才尝试重新加载
+			if err := cd.reloadApache(); err != nil {
+				fmt.Printf("警告: apache重新加载失败: %v (证书已部署成功，请手动重启apache)\n", err)
+			}
+		}
+	} else {
+		fmt.Println("apache未安装或不在PATH中，跳过apache相关操作")
+	}
+
+	fmt.Printf("Apache证书部署完成: %s\n", domain)
+	return nil
+}
+
+// deployToNginx 部署证书到 Nginx 目录并生成配置文件
+func (cd *CertDeployer) deployToNginx(sourceDir, nginxPath, folderName, safeDomain string) error {
+	// 移动证书文件
+	if err := cd.moveCertificates(sourceDir, nginxPath, folderName); err != nil {
+		return err
+	}
+
+	// 生成 Nginx SSL 配置文件
+	if err := cd.generateNginxSSLConfig(nginxPath, folderName, safeDomain); err != nil {
+		return fmt.Errorf("生成Nginx SSL配置失败: %w", err)
+	}
+
+	return nil
+}
+
+// deployToApache 部署证书到 Apache 目录
+func (cd *CertDeployer) deployToApache(sourceDir, apachePath, folderName, safeDomain string) error {
+	// 复制证书文件到 Apache 目录
+	targetDir := filepath.Join(apachePath, folderName)
+
+	// 如果目标目录已存在，先删除
+	if _, err := os.Stat(targetDir); err == nil {
+		if err := os.RemoveAll(targetDir); err != nil {
+			return fmt.Errorf("删除现有Apache证书目录失败: %w", err)
+		}
+	}
+
+	// 复制证书文件
+	if err := copyDirectory(sourceDir, targetDir); err != nil {
+		return fmt.Errorf("复制证书到Apache目录失败: %w", err)
+	}
+
+	fmt.Printf("证书已部署到Apache目录: %s\n", targetDir)
+
+	// 生成 Apache SSL 配置文件
+	if err := cd.generateApacheSSLConfig(apachePath, folderName, safeDomain); err != nil {
+		return fmt.Errorf("生成Apache SSL配置失败: %w", err)
+	}
+
+	return nil
+}
+
+// generateNginxSSLConfig 生成 Nginx SSL 配置文件
+func (cd *CertDeployer) generateNginxSSLConfig(nginxPath, folderName, safeDomain string) error {
+	certDir := filepath.Join(nginxPath, folderName)
+	// 配置文件名包含域名，避免多域名冲突
+	configFileName := fmt.Sprintf("%s.ssl.conf", safeDomain)
+	configFile := filepath.Join(certDir, configFileName)
+
+	// 证书文件路径
+	certPath := filepath.Join(certDir, "fullchain.pem")
+	keyPath := filepath.Join(certDir, "privkey.pem")
+
+	// 生成配置内容
+	configContent := fmt.Sprintf(`# SSL 证书配置 - %s
+# 在 server 块中使用 include 引入此文件
+# 示例: include %s;
+
+ssl_certificate %s;
+ssl_certificate_key %s;
+
+# SSL 协议和加密套件（推荐配置）
+ssl_protocols TLSv1.2 TLSv1.3;
+ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384;
+ssl_prefer_server_ciphers off;
+
+# SSL 会话缓存
+ssl_session_cache shared:SSL:10m;
+ssl_session_timeout 1d;
+ssl_session_tickets off;
+`, safeDomain, configFile, certPath, keyPath)
+
+	// 写入配置文件
+	if err := os.WriteFile(configFile, []byte(configContent), 0644); err != nil {
+		return fmt.Errorf("写入SSL配置文件失败: %w", err)
+	}
+
+	fmt.Printf("Nginx SSL配置文件已生成: %s\n", configFile)
+	fmt.Printf("使用方法: 在nginx server块中添加 include %s;\n", configFile)
+	return nil
+}
+
+// generateApacheSSLConfig 生成 Apache SSL 配置文件
+func (cd *CertDeployer) generateApacheSSLConfig(apachePath, folderName, safeDomain string) error {
+	certDir := filepath.Join(apachePath, folderName)
+	// 配置文件名包含域名，避免多域名冲突
+	configFileName := fmt.Sprintf("%s.ssl.conf", safeDomain)
+	configFile := filepath.Join(certDir, configFileName)
+
+	// 证书文件路径（使用用户配置的实际路径）
+	certPath := filepath.Join(certDir, "fullchain.pem")
+	keyPath := filepath.Join(certDir, "privkey.pem")
+
+	// 生成配置内容
+	configContent := fmt.Sprintf(`# Apache SSL 证书配置 - %s
+# 在 VirtualHost 块中使用 Include 引入此文件
+# 示例:
+# <VirtualHost *:443>
+#     ServerName example.com
+#     Include %s
+#     # ... 其他配置
+# </VirtualHost>
+
+SSLEngine on
+SSLCertificateFile %s
+SSLCertificateKeyFile %s
+
+# SSL 协议配置（推荐配置）
+SSLProtocol all -SSLv3 -TLSv1 -TLSv1.1
+
+# SSL 加密套件（推荐配置）
+SSLCipherSuite ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384
+SSLHonorCipherOrder off
+
+# SSL 会话配置
+SSLSessionTickets off
+`, safeDomain, configFile, certPath, keyPath)
+
+	// 写入配置文件
+	if err := os.WriteFile(configFile, []byte(configContent), 0644); err != nil {
+		return fmt.Errorf("写入Apache SSL配置文件失败: %w", err)
+	}
+
+	fmt.Printf("Apache SSL配置文件已生成: %s\n", configFile)
+	fmt.Printf("使用方法: 在Apache VirtualHost块中添加 Include %s\n", configFile)
 	return nil
 }
 
@@ -236,7 +518,7 @@ func (cd *CertDeployer) testNginxConfig() error {
 	cmd := exec.CommandContext(ctx, "nginx", "-t")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("nginx配置测试失败: %w, 输出: %s", err, string(output))
+		return fmt.Errorf("%w\n%s", err, string(output))
 	}
 
 	return nil
@@ -250,10 +532,77 @@ func (cd *CertDeployer) reloadNginx() error {
 	cmd := exec.CommandContext(ctx, "nginx", "-s", "reload")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("nginx重新加载失败: %w, 输出: %s", err, string(output))
+		return fmt.Errorf("%w\n%s", err, string(output))
 	}
 
 	fmt.Println("nginx重新加载成功")
+	return nil
+}
+
+// testApacheConfig 测试apache配置
+func (cd *CertDeployer) testApacheConfig() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	apacheCmd := cd.getApacheCommand()
+	if apacheCmd == "" {
+		return fmt.Errorf("未找到Apache控制命令")
+	}
+
+	cmd := exec.CommandContext(ctx, apacheCmd, "-t")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%w\n%s", err, string(output))
+	}
+
+	return nil
+}
+
+// isApacheAvailable 检查apache是否可用
+func (cd *CertDeployer) isApacheAvailable() bool {
+	// 检查常见的 Apache 命令名
+	apacheCommands := []string{"apachectl", "apache2ctl", "httpd"}
+	for _, cmd := range apacheCommands {
+		if _, err := exec.LookPath(cmd); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
+// getApacheCommand 获取可用的 Apache 控制命令
+func (cd *CertDeployer) getApacheCommand() string {
+	apacheCommands := []string{"apachectl", "apache2ctl", "httpd"}
+	for _, cmd := range apacheCommands {
+		if _, err := exec.LookPath(cmd); err == nil {
+			return cmd
+		}
+	}
+	return ""
+}
+
+// reloadApache 重新加载apache
+func (cd *CertDeployer) reloadApache() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	apacheCmd := cd.getApacheCommand()
+	if apacheCmd == "" {
+		return fmt.Errorf("未找到Apache控制命令")
+	}
+
+	cmd := exec.CommandContext(ctx, apacheCmd, "graceful")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		// 某些系统可能使用 reload 而不是 graceful
+		cmd = exec.CommandContext(ctx, apacheCmd, "-k", "graceful")
+		output, err = cmd.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("%w\n%s", err, string(output))
+		}
+	}
+
+	fmt.Println("apache重新加载成功")
 	return nil
 }
 

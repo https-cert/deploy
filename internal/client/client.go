@@ -167,10 +167,6 @@ func (c *Client) StartConnectNotify() {
 			continue
 		}
 
-		// 连接成功，重置失败计数
-		consecutiveFailures = 0
-		reconnectDelay = minReconnectDelay
-
 		// 获取系统信息（使用缓存）
 		systemInfo, err := c.getSystemInfo()
 		if err != nil {
@@ -198,11 +194,29 @@ func (c *Client) StartConnectNotify() {
 		}
 
 		if err := stream.Send(registerReq); err != nil {
-			logger.Error("注册失败", "error", err)
+			consecutiveFailures++
+			if isConnected.Load() || consecutiveFailures == 1 {
+				logger.Error("注册失败", "error", err, "attempt", consecutiveFailures)
+			}
+
+			isConnected.Store(false)
+			c.lastDisconnectLogged.Store(true)
+
+			// 指数退避重连
+			if consecutiveFailures <= fastReconnectAttempt {
+				reconnectDelay = minReconnectDelay
+			} else {
+				reconnectDelay = min(reconnectDelay*2, maxReconnectDelay)
+			}
+
 			stream.CloseRequest()
 			time.Sleep(reconnectDelay)
 			continue
 		}
+
+		// 注册成功，重置失败计数
+		consecutiveFailures = 0
+		reconnectDelay = minReconnectDelay
 
 		logger.Info("连接已建立，开始处理消息")
 

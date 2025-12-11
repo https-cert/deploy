@@ -41,8 +41,18 @@ func (c *Client) executeBusines(stream *connect.BidiStreamForClientSimple[deploy
 
 	switch providerName {
 	case "ansslCli":
-		// 部署证书到本地 nginx
-		result = c.handleCertificateDeploy(domain, downloadURL)
+		// 根据业务类型选择部署方式
+		switch executeBusinesType {
+		case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_CERT:
+			// 部署证书到本地 nginx
+			result = c.handleNginxCertificateDeploy(domain, downloadURL)
+		case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_APACHE_CERT:
+			// 部署证书到本地 apache
+			result = c.handleApacheCertificateDeploy(domain, downloadURL)
+		default:
+			result = deployPB.ExecuteBusinesRequest_REQUEST_RESULT_NOT_SUPPORTED
+			logger.Warn("不支持的业务类型", "executeBusinesType", executeBusinesType)
+		}
 
 	case "aliyun", "qiniu":
 		result = c.handleCertificateProvider(providerName, executeBusinesType, remark, cert, key)
@@ -56,20 +66,37 @@ func (c *Client) executeBusines(stream *connect.BidiStreamForClientSimple[deploy
 	c.sendExecuteBusinesResponse(stream, requestId, result)
 }
 
-// handleCertificateDeploy 处理证书部署到本地 nginx
-func (c *Client) handleCertificateDeploy(domain, downloadURL string) deployPB.ExecuteBusinesRequest_RequestResult {
+// handleNginxCertificateDeploy 处理证书部署到本地 nginx
+func (c *Client) handleNginxCertificateDeploy(domain, downloadURL string) deployPB.ExecuteBusinesRequest_RequestResult {
 	if domain == "" {
 		logger.Error("域名不能为空")
 		return deployPB.ExecuteBusinesRequest_REQUEST_RESULT_FAILED
 	}
 
 	deployer := NewCertDeployer(c)
-	if err := deployer.DeployCertificate(domain, downloadURL); err != nil {
-		logger.Error("证书部署失败", "error", err, "domain", domain)
+	if err := deployer.DeployCertificateToNginx(domain, downloadURL); err != nil {
+		logger.Error("Nginx证书部署失败", "error", err, "domain", domain)
 		return deployPB.ExecuteBusinesRequest_REQUEST_RESULT_FAILED
 	}
 
 	logger.Info("Nginx 证书部署成功", "domain", domain)
+	return deployPB.ExecuteBusinesRequest_REQUEST_RESULT_SUCCESS
+}
+
+// handleApacheCertificateDeploy 处理证书部署到本地 apache
+func (c *Client) handleApacheCertificateDeploy(domain, downloadURL string) deployPB.ExecuteBusinesRequest_RequestResult {
+	if domain == "" {
+		logger.Error("域名不能为空")
+		return deployPB.ExecuteBusinesRequest_REQUEST_RESULT_FAILED
+	}
+
+	deployer := NewCertDeployer(c)
+	if err := deployer.DeployCertificateToApache(domain, downloadURL); err != nil {
+		logger.Error("Apache证书部署失败", "error", err, "domain", domain)
+		return deployPB.ExecuteBusinesRequest_REQUEST_RESULT_FAILED
+	}
+
+	logger.Info("Apache 证书部署成功", "domain", domain)
 	return deployPB.ExecuteBusinesRequest_REQUEST_RESULT_SUCCESS
 }
 
