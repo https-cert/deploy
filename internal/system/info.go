@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"time"
+
+	"github.com/https-cert/deploy/pkg/logger"
 )
 
 const cacheRelPath = "anssl/client-id"
@@ -48,7 +50,7 @@ func GetSystemInfo() (*SystemInfo, error) {
 func ValidateSystemRequirements() error {
 	// 检查nginx是否安装（可选）
 	if _, err := exec.LookPath("nginx"); err != nil {
-		fmt.Println("警告: nginx未安装或不在PATH中，将跳过nginx相关操作")
+		logger.Warn("nginx未安装或不在PATH中，将跳过nginx相关操作")
 		return nil
 	}
 
@@ -58,7 +60,7 @@ func ValidateSystemRequirements() error {
 
 	cmd := exec.CommandContext(ctx, "nginx", "-t")
 	if err := cmd.Run(); err != nil {
-		fmt.Printf("警告: 无法执行nginx命令，请检查权限: %v\n", err)
+		logger.Warn("无法执行nginx命令，请检查权限", "error", err)
 		return nil
 	}
 
@@ -88,7 +90,7 @@ func GetUniqueClientId(ctx context.Context) (string, error) {
 	// 缓存结果，确保下次启动时使用相同的ID
 	if err := writeCachedID(id); err != nil {
 		// 缓存失败不影响主流程，仅记录错误
-		fmt.Fprintf(os.Stderr, "警告: 缓存客户端ID失败: %v\n", err)
+		logger.Warn("缓存客户端ID失败", "error", err)
 	}
 
 	return id, nil

@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/https-cert/deploy/internal/client"
@@ -23,6 +24,19 @@ func NewScheduler(ctx context.Context) (*Scheduler, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// 设置日志上报器
+	// 日志接口在 /api/logs，需要使用基础 URL（去掉 /deploy 后缀）
+	serverURL := client.GetServerURL()
+	baseURL := strings.TrimSuffix(serverURL, "/deploy")
+	logger.SetReporter(&logger.LogReporter{
+		ServerURL: baseURL,
+		ClientID:  client.GetClientID(),
+		AccessKey: client.GetAccessKey(),
+	})
+
+	// 启动客户端连接
+	client.Start()
 
 	// 创建 HTTP-01 验证服务器
 	httpServer := server.NewHTTPServer()

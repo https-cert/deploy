@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/https-cert/deploy/internal/config"
+	"github.com/https-cert/deploy/pkg/logger"
 )
 
 const (
@@ -57,7 +58,7 @@ func (cd *CertDeployer) DeployCertificate(domain, url string) error {
 		return fmt.Errorf("下载证书失败: %w", err)
 	}
 
-	fmt.Printf("证书下载完成: %s\n", zipFile)
+	logger.Info("证书下载完成", "file", zipFile)
 
 	// 确保下载失败时清理
 	defer func() {
@@ -73,7 +74,7 @@ func (cd *CertDeployer) DeployCertificate(domain, url string) error {
 	apachePath := sslConfig.ApachePath
 
 	if nginxPath == "" && apachePath == "" {
-		fmt.Println("未配置SSL目录，证书已下载到: ", zipFile)
+		logger.Info("未配置SSL目录，证书已下载", "file", zipFile)
 		return nil
 	}
 
@@ -109,33 +110,33 @@ func (cd *CertDeployer) DeployCertificate(domain, url string) error {
 	if nginxPath != "" && cd.isNginxAvailable() {
 		// 测试nginx配置
 		if err := cd.testNginxConfig(); err != nil {
-			fmt.Printf("警告: nginx配置测试失败: %v\n", err)
+			logger.Warn("nginx配置测试失败", "error", err)
 		} else {
 			// 配置测试通过才尝试重新加载
 			if err := cd.reloadNginx(); err != nil {
-				fmt.Printf("警告: nginx重新加载失败: %v (证书已部署成功，请手动重启nginx)\n", err)
+				logger.Warn("nginx重新加载失败，请手动重启nginx", "error", err)
 			}
 		}
 	} else if nginxPath != "" {
-		fmt.Println("nginx未安装或不在PATH中，跳过nginx相关操作")
+		logger.Info("nginx未安装或不在PATH中，跳过nginx相关操作")
 	}
 
 	// 5. 检查apache是否存在，如果存在则测试配置和重新加载
 	if apachePath != "" && cd.isApacheAvailable() {
 		// 测试apache配置
 		if err := cd.testApacheConfig(); err != nil {
-			fmt.Printf("警告: apache配置测试失败: %v\n", err)
+			logger.Warn("apache配置测试失败", "error", err)
 		} else {
 			// 配置测试通过才尝试重新加载
 			if err := cd.reloadApache(); err != nil {
-				fmt.Printf("警告: apache重新加载失败: %v (证书已部署成功，请手动重启apache)\n", err)
+				logger.Warn("apache重新加载失败，请手动重启apache", "error", err)
 			}
 		}
 	} else if apachePath != "" {
-		fmt.Println("apache未安装或不在PATH中，跳过apache相关操作")
+		logger.Info("apache未安装或不在PATH中，跳过apache相关操作")
 	}
 
-	fmt.Printf("自动部署流程完成: %s\n", domain)
+	logger.Info("自动部署流程完成", "domain", domain)
 	return nil
 }
 
@@ -162,7 +163,7 @@ func (cd *CertDeployer) DeployCertificateToNginx(domain, url string) error {
 		return fmt.Errorf("下载证书失败: %w", err)
 	}
 
-	fmt.Printf("证书下载完成: %s\n", zipFile)
+	logger.Info("证书下载完成", "file", zipFile)
 
 	defer func() {
 		if _, err := os.Stat(zipFile); err == nil {
@@ -187,17 +188,17 @@ func (cd *CertDeployer) DeployCertificateToNginx(domain, url string) error {
 	// 重新加载 nginx
 	if cd.isNginxAvailable() {
 		if err := cd.testNginxConfig(); err != nil {
-			fmt.Printf("警告: nginx配置测试失败: %v\n", err)
+			logger.Warn("nginx配置测试失败", "error", err)
 		} else {
 			if err := cd.reloadNginx(); err != nil {
-				fmt.Printf("警告: nginx重新加载失败: %v (证书已部署成功，请手动重启nginx)\n", err)
+				logger.Warn("nginx重新加载失败，请手动重启nginx", "error", err)
 			}
 		}
 	} else {
-		fmt.Println("nginx未安装或不在PATH中，跳过nginx相关操作")
+		logger.Info("nginx未安装或不在PATH中，跳过nginx相关操作")
 	}
 
-	fmt.Printf("Nginx证书部署完成: %s\n", domain)
+	logger.Info("Nginx证书部署完成", "domain", domain)
 	return nil
 }
 
@@ -224,7 +225,7 @@ func (cd *CertDeployer) DeployCertificateToApache(domain, url string) error {
 		return fmt.Errorf("下载证书失败: %w", err)
 	}
 
-	fmt.Printf("证书下载完成: %s\n", zipFile)
+	logger.Info("证书下载完成", "file", zipFile)
 
 	defer func() {
 		if _, err := os.Stat(zipFile); err == nil {
@@ -250,18 +251,18 @@ func (cd *CertDeployer) DeployCertificateToApache(domain, url string) error {
 	if cd.isApacheAvailable() {
 		// 测试apache配置
 		if err := cd.testApacheConfig(); err != nil {
-			fmt.Printf("警告: apache配置测试失败: %v\n", err)
+			logger.Warn("apache配置测试失败", "error", err)
 		} else {
 			// 配置测试通过才尝试重新加载
 			if err := cd.reloadApache(); err != nil {
-				fmt.Printf("警告: apache重新加载失败: %v (证书已部署成功，请手动重启apache)\n", err)
+				logger.Warn("apache重新加载失败，请手动重启apache", "error", err)
 			}
 		}
 	} else {
-		fmt.Println("apache未安装或不在PATH中，跳过apache相关操作")
+		logger.Info("apache未安装或不在PATH中，跳过apache相关操作")
 	}
 
-	fmt.Printf("Apache证书部署完成: %s\n", domain)
+	logger.Info("Apache证书部署完成", "domain", domain)
 	return nil
 }
 
@@ -297,7 +298,7 @@ func (cd *CertDeployer) deployToApache(sourceDir, apachePath, folderName, safeDo
 		return fmt.Errorf("复制证书到Apache目录失败: %w", err)
 	}
 
-	fmt.Printf("证书已部署到Apache目录: %s\n", targetDir)
+	logger.Info("证书已部署到Apache目录", "path", targetDir)
 
 	// 生成 Apache SSL 配置文件
 	if err := cd.generateApacheSSLConfig(apachePath, folderName, safeDomain); err != nil {
@@ -342,8 +343,8 @@ ssl_session_tickets off;
 		return fmt.Errorf("写入SSL配置文件失败: %w", err)
 	}
 
-	fmt.Printf("Nginx SSL配置文件已生成: %s\n", configFile)
-	fmt.Printf("使用方法: 在nginx server块中添加 include %s;\n", configFile)
+	logger.Info("Nginx SSL配置文件已生成", "file", configFile)
+	logger.Info("使用方法: 在nginx server块中添加 include", "path", configFile)
 	return nil
 }
 
@@ -388,8 +389,8 @@ SSLSessionTickets off
 		return fmt.Errorf("写入Apache SSL配置文件失败: %w", err)
 	}
 
-	fmt.Printf("Apache SSL配置文件已生成: %s\n", configFile)
-	fmt.Printf("使用方法: 在Apache VirtualHost块中添加 Include %s\n", configFile)
+	logger.Info("Apache SSL配置文件已生成", "file", configFile)
+	logger.Info("使用方法: 在Apache VirtualHost块中添加 Include", "path", configFile)
 	return nil
 }
 
@@ -500,7 +501,7 @@ func (cd *CertDeployer) moveCertificates(sourceDir, sslPath, folderName string) 
 		}
 	}
 
-	fmt.Printf("证书文件夹已更新: %s\n", targetDir)
+	logger.Info("证书文件夹已更新", "path", targetDir)
 	return nil
 }
 
@@ -535,7 +536,7 @@ func (cd *CertDeployer) reloadNginx() error {
 		return fmt.Errorf("%w\n%s", err, string(output))
 	}
 
-	fmt.Println("nginx重新加载成功")
+	logger.Info("nginx重新加载成功")
 	return nil
 }
 
@@ -602,7 +603,7 @@ func (cd *CertDeployer) reloadApache() error {
 		}
 	}
 
-	fmt.Println("apache重新加载成功")
+	logger.Info("apache重新加载成功")
 	return nil
 }
 

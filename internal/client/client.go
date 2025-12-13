@@ -113,10 +113,12 @@ func NewClient(ctx context.Context) (*Client, error) {
 	// 创建 connect client
 	client.connectClient = deployPBconnect.NewDeployServiceClient(httpClient, config.URL)
 
-	// 启动连接通知
-	go client.StartConnectNotify()
-
 	return client, nil
+}
+
+// Start 启动客户端连接
+func (c *Client) Start() {
+	go c.StartConnectNotify()
 }
 
 // getSystemInfo 获取系统信息（带缓存）
@@ -131,6 +133,21 @@ func (c *Client) getSystemInfo() (*system.SystemInfo, error) {
 // SetHTTPServer 设置 HTTP 服务器（由 scheduler 调用）
 func (c *Client) SetHTTPServer(httpServer *server.HTTPServer) {
 	c.httpServer = httpServer
+}
+
+// GetServerURL 获取服务器URL
+func (c *Client) GetServerURL() string {
+	return c.serverURL
+}
+
+// GetClientID 获取客户端ID
+func (c *Client) GetClientID() string {
+	return c.clientId
+}
+
+// GetAccessKey 获取访问密钥
+func (c *Client) GetAccessKey() string {
+	return c.accessKey
 }
 
 // StartConnectNotify 启动连接通知 - 建立持久连接并通过心跳保持
