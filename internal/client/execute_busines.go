@@ -49,6 +49,9 @@ func (c *Client) executeBusines(stream *connect.BidiStreamForClientSimple[deploy
 		case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_APACHE_CERT:
 			// 部署证书到本地 apache
 			result = c.handleApacheCertificateDeploy(domain, downloadURL)
+		case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_RUSTFS_CERT:
+			// 部署证书到本地 RustFS
+			result = c.handleRustFSCertificateDeploy(domain, downloadURL)
 		default:
 			result = deployPB.ExecuteBusinesRequest_REQUEST_RESULT_NOT_SUPPORTED
 			logger.Warn("不支持的业务类型", "executeBusinesType", executeBusinesType)
@@ -100,6 +103,23 @@ func (c *Client) handleApacheCertificateDeploy(domain, downloadURL string) deplo
 	return deployPB.ExecuteBusinesRequest_REQUEST_RESULT_SUCCESS
 }
 
+// handleRustFSCertificateDeploy 处理证书部署到本地 RustFS
+func (c *Client) handleRustFSCertificateDeploy(domain, downloadURL string) deployPB.ExecuteBusinesRequest_RequestResult {
+	if domain == "" {
+		logger.Error("域名不能为空")
+		return deployPB.ExecuteBusinesRequest_REQUEST_RESULT_FAILED
+	}
+
+	deployer := NewCertDeployer(c)
+	if err := deployer.DeployCertificateToRustFS(domain, downloadURL); err != nil {
+		logger.Error("RustFS证书部署失败", "error", err, "domain", domain)
+		return deployPB.ExecuteBusinesRequest_REQUEST_RESULT_FAILED
+	}
+
+	logger.Info("RustFS 证书部署成功", "domain", domain)
+	return deployPB.ExecuteBusinesRequest_REQUEST_RESULT_SUCCESS
+}
+
 // handleCertificateProvider 处理证书提供商的上传操作
 func (c *Client) handleCertificateProvider(providerName string, executeBusinesType deployPB.ExecuteBusinesType, remark, cert, key string) deployPB.ExecuteBusinesRequest_RequestResult {
 	// 只支持上传证书操作
@@ -133,16 +153,20 @@ func (c *Client) getProviderHandler(providerName string) (providers.ProviderHand
 
 	switch providerName {
 	case "aliyun":
-		if providerConfig.AccessKeyId == "" || providerConfig.AccessKeySecret == "" {
+		accessKeyId := providerConfig.GetAccessKeyId()
+		accessKeySecret := providerConfig.GetAccessKeySecret()
+		if accessKeyId == "" || accessKeySecret == "" {
 			return nil, fmt.Errorf("阿里云配置不完整: accessKeyId 或 accessKeySecret 为空")
 		}
-		return aliyun.New(providerConfig.AccessKeyId, providerConfig.AccessKeySecret)
+		return aliyun.New(accessKeyId, accessKeySecret)
 
 	case "qiniu":
-		if providerConfig.AccessKey == "" || providerConfig.AccessSecret == "" {
+		accessKey := providerConfig.GetAccessKey()
+		accessSecret := providerConfig.GetAccessSecret()
+		if accessKey == "" || accessSecret == "" {
 			return nil, fmt.Errorf("七牛云配置不完整: accessKey 或 accessSecret 为空")
 		}
-		return qiniu.New(providerConfig.AccessKey, providerConfig.AccessSecret), nil
+		return qiniu.New(accessKey, accessSecret), nil
 
 	default:
 		return nil, fmt.Errorf("不支持的提供商: %s", providerName)

@@ -20,7 +20,7 @@ var (
 // Configuration 应用配置结构
 type Configuration struct {
 	Server   *ServerConfig `yaml:"server"`
-	SSL      *SSLConfig    `yaml:"ssl"`
+	SSL      *DeployConfig `yaml:"ssl"`
 	Update   *UpdateConfig `yaml:"update"`
 	Provider []*Provider   `yaml:"provider"`
 }
@@ -32,10 +32,10 @@ type (
 		Port      int    `yaml:"port"` // HTTP-01 challenge 服务端口，默认 19000
 	}
 
-	SSLConfig struct {
-		Path       string `yaml:"path"`       // 旧配置，保持兼容
+	DeployConfig struct {
 		NginxPath  string `yaml:"nginxPath"`  // Nginx SSL 证书目录
 		ApachePath string `yaml:"apachePath"` // Apache SSL 证书目录
+		RustFSPath string `yaml:"rustFSPath"` // RustFS TLS 证书目录
 	}
 
 	UpdateConfig struct {
@@ -47,18 +47,22 @@ type (
 		Proxy string `yaml:"proxy"`
 	}
 
+	ProviderAuth struct {
+		// 阿里云认证字段
+		AccessKeyId     string `yaml:"accessKeyId,omitempty"`
+		AccessKeySecret string `yaml:"accessKeySecret,omitempty"`
+		// 腾讯云认证字段
+		SecretId  string `yaml:"secretId,omitempty"`
+		SecretKey string `yaml:"secretKey,omitempty"`
+		// 七牛云认证字段
+		AccessKey    string `yaml:"accessKey,omitempty"`
+		AccessSecret string `yaml:"accessSecret,omitempty"`
+	}
+
 	Provider struct {
-		Name   string `yaml:"name"`
-		Remark string `yaml:"remark"`
-		// 阿里云
-		AccessKeyId     string `yaml:"accessKeyId"`
-		AccessKeySecret string `yaml:"accessKeySecret"`
-		// 腾讯云
-		SecretId  string `yaml:"secretId"`
-		SecretKey string `yaml:"secretKey"`
-		// 七牛云
-		AccessKey    string `yaml:"accessKey"`
-		AccessSecret string `yaml:"accessSecret"`
+		Name   string        `yaml:"name"`
+		Remark string        `yaml:"remark"`
+		Auth   *ProviderAuth `yaml:"auth"`
 	}
 )
 
@@ -97,11 +101,7 @@ func validateConfig() error {
 
 	// 处理 SSL 配置
 	if Config.SSL == nil {
-		Config.SSL = &SSLConfig{}
-	}
-	// 兼容旧配置：如果只配置了 path，同时应用到 nginxPath
-	if Config.SSL.Path != "" && Config.SSL.NginxPath == "" {
-		Config.SSL.NginxPath = Config.SSL.Path
+		Config.SSL = &DeployConfig{}
 	}
 
 	// 创建证书目录
@@ -113,6 +113,11 @@ func validateConfig() error {
 	if Config.SSL.ApachePath != "" {
 		if err := os.MkdirAll(Config.SSL.ApachePath, 0755); err != nil {
 			return fmt.Errorf("创建Apache证书目录失败: %w", err)
+		}
+	}
+	if Config.SSL.RustFSPath != "" {
+		if err := os.MkdirAll(Config.SSL.RustFSPath, 0755); err != nil {
+			return fmt.Errorf("创建RustFS证书目录失败: %w", err)
 		}
 	}
 
@@ -155,4 +160,55 @@ func GetProvider(name string) *Provider {
 		}
 	}
 	return nil
+}
+
+// Provider Getter 方法
+// 提供便捷访问 Auth 嵌套字段的方法
+
+// GetAccessKeyId 获取阿里云 AccessKeyId
+func (p *Provider) GetAccessKeyId() string {
+	if p.Auth != nil {
+		return p.Auth.AccessKeyId
+	}
+	return ""
+}
+
+// GetAccessKeySecret 获取阿里云 AccessKeySecret
+func (p *Provider) GetAccessKeySecret() string {
+	if p.Auth != nil {
+		return p.Auth.AccessKeySecret
+	}
+	return ""
+}
+
+// GetSecretId 获取腾讯云 SecretId
+func (p *Provider) GetSecretId() string {
+	if p.Auth != nil {
+		return p.Auth.SecretId
+	}
+	return ""
+}
+
+// GetSecretKey 获取腾讯云 SecretKey
+func (p *Provider) GetSecretKey() string {
+	if p.Auth != nil {
+		return p.Auth.SecretKey
+	}
+	return ""
+}
+
+// GetAccessKey 获取七牛云 AccessKey
+func (p *Provider) GetAccessKey() string {
+	if p.Auth != nil {
+		return p.Auth.AccessKey
+	}
+	return ""
+}
+
+// GetAccessSecret 获取七牛云 AccessSecret
+func (p *Provider) GetAccessSecret() string {
+	if p.Auth != nil {
+		return p.Auth.AccessSecret
+	}
+	return ""
 }

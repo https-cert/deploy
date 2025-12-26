@@ -21,9 +21,11 @@ func TestMain(m *testing.M) {
 
 	for _, p := range cfg.Provider {
 		if p.Name == "aliyun" {
-			logger.Info("测试提供商上传证书", "provider", p.Name, "accessKeyId", p.AccessKeyId, "accessKeySecret", p.AccessKeySecret)
+			accessKeyId := p.GetAccessKeyId()
+			accessKeySecret := p.GetAccessKeySecret()
+			logger.Info("测试提供商上传证书", "provider", p.Name, "accessKeyId", accessKeyId, "accessKeySecret", accessKeySecret)
 			// 创建实例
-			provider, err = aliyun.New(p.AccessKeyId, p.AccessKeySecret)
+			provider, err = aliyun.New(accessKeyId, accessKeySecret)
 			if err != nil {
 				logger.Error("创建提供商实例失败", "error", err)
 				return

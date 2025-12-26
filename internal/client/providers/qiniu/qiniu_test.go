@@ -18,9 +18,11 @@ func TestMain(m *testing.M) {
 
 	for _, p := range cfg.Provider {
 		if p.Name == "qiniu" {
-			logger.Info("测试提供商上传证书", "provider", p.Name, "accessKey", p.AccessKey, "accessSecret", p.AccessSecret)
+			accessKey := p.GetAccessKey()
+			accessSecret := p.GetAccessSecret()
+			logger.Info("测试提供商上传证书", "provider", p.Name, "accessKey", accessKey, "accessSecret", accessSecret)
 			// 创建实例
-			provider = qiniu.New(p.AccessKey, p.AccessSecret)
+			provider = qiniu.New(accessKey, accessSecret)
 		}
 	}
 

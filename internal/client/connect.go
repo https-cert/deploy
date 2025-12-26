@@ -30,7 +30,7 @@ func (c *Client) handleConnect(stream *connect.BidiStreamForClientSimple[deployP
 			break
 		}
 
-		provider, err := aliyun.New(providerConfig.AccessKeyId, providerConfig.AccessKeySecret)
+		provider, err := aliyun.New(providerConfig.GetAccessKeyId(), providerConfig.GetAccessKeySecret())
 		if err != nil {
 			return err
 		}
@@ -49,7 +49,7 @@ func (c *Client) handleConnect(stream *connect.BidiStreamForClientSimple[deployP
 			break
 		}
 
-		provider := qiniu.New(providerConfig.AccessKey, providerConfig.AccessSecret)
+		provider := qiniu.New(providerConfig.GetAccessKey(), providerConfig.GetAccessSecret())
 
 		success, err = provider.TestConnection()
 		if err != nil {

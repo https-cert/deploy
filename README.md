@@ -4,7 +4,7 @@
 
 ## 特性
 
-- 🚀 自动化部署证书并重载 Nginx
+- 🚀 自动化部署证书到 Nginx、Apache、RustFS 并自动重载服务
 - ✅ 内置 HTTP-01 验证服务，自动响应 ACME challenge
 - ☁️ 支持自动上传证书到云服务（阿里云、七牛云）
 - 🔧 守护进程模式，支持后台运行
@@ -36,24 +36,41 @@ server:
   port: 19000
 
 ssl:
-  # 证书存储目录（留空则使用 ./certs）
-  path: "/etc/nginx/ssl"
+  # Nginx 证书目录（可选）
+  nginxPath: "/etc/nginx/ssl"
+  # Apache 证书目录（可选）
+  apachePath: "/etc/apache2/ssl"
+  # RustFS TLS 证书目录（可选）
+  rustFSPath: "/etc/rustfs/tls"
 
 # 云服务配置（可选）
 provider:
   - name: "aliyun"
-    accessKeyId: "your_key"
-    accessKeySecret: "your_secret"
+    remark: "阿里云"
+    auth:
+      accessKeyId: "your-aliyun-access-key-id"
+      accessKeySecret: "your-aliyun-access-key-secret"
+
+  - name: "qiniu"
+    remark: "七牛云"
+    auth:
+      accessKey: "your-qiniu-access-key"
+      accessSecret: "your-qiniu-access-secret"
+
+  - name: "cloudTencent"
+    remark: "腾讯云"
+    auth:
+      secretId: "your-tencent-secret-id"
+      secretKey: "your-tencent-secret-key"
 ```
-> #### 已支持的CDN服务商
-> 关于`provider:`的`- name:`的值请看下表：
 
-| 配置项参数 | 英文 | 说明 |
-|:--------:|:------:|:------:|
-| `name` | `aliyun` | 阿里云 |
-| `name` | `qiniu` | 七牛云 |
-| `name` | 更多 | 敬请期待 |
-
+> #### 已支持的云服务商
+>
+> | 服务商 |    name 值     |           认证字段           |
+> | :----: | :------------: | :--------------------------: |
+> | 阿里云 |    `aliyun`    | accessKeyId, accessKeySecret |
+> | 七牛云 |    `qiniu`     |   accessKey, accessSecret    |
+> | 腾讯云 | `cloudTencent` |     secretId, secretKey      |
 
 ### 3. 配置 Nginx
 
@@ -92,8 +109,8 @@ sudo ./anssl daemon -c config.yaml
 2. 后端推送 ACME challenge token 到 CLI
 3. CLI 自动缓存并响应 Let's Encrypt 验证请求
 4. 验证成功，证书签发
-5. 自动下载并部署证书
-6. 自动重载 Nginx
+5. 自动下载并部署证书到配置的服务（Nginx/Apache/RustFS）
+6. 自动重载 Nginx 和 Apache 服务
 
 **全程自动化，无需手动操作。**
 
@@ -117,12 +134,14 @@ sudo ./anssl daemon -c config.yaml
 
 ## 配置说明
 
-| 配置项 | 必填 | 说明 |
-|--------|------|------|
-| `server.accessKey` | ✅ | 从 anssl.cn 获取的访问密钥 |
-| `server.port` | ❌ | HTTP-01 验证端口，默认 19000 |
-| `ssl.path` | ❌ | 证书存储目录，默认 `./certs` |
-| `provider` | ❌ | 云服务配置（阿里云/七牛云） |
+| 配置项             | 必填 | 说明                                         |
+| ------------------ | ---- | -------------------------------------------- |
+| `server.accessKey` | ✅   | 从 anssl.cn 获取的访问密钥                   |
+| `server.port`      | ❌   | HTTP-01 验证端口，默认 19000                 |
+| `ssl.nginxPath`    | ❌   | Nginx 证书目录，配置后自动部署并重载 Nginx   |
+| `ssl.apachePath`   | ❌   | Apache 证书目录，配置后自动部署并重载 Apache |
+| `ssl.rustFSPath`   | ❌   | RustFS TLS 证书目录，配置后自动部署证书      |
+| `provider`         | ❌   | 云服务配置（阿里云/七牛云）                  |
 
 ## 故障排除
 
@@ -184,10 +203,13 @@ sudo systemctl start anssl
 A: 登录 [anssl.cn](https://anssl.cn) → 设置 → 个人资料
 
 **Q: 支持哪些 Web 服务器？**
-A: 目前仅支持 Nginx 自动重载，其他服务器可使用本工具下载证书后手动配置
+A: 支持 Nginx、Apache 和 RustFS TLS 自动部署。只需在 `config.yaml` 中配置对应的证书目录，即可实现自动部署和服务重载（Nginx 和 Apache）
+
+**Q: 可以同时部署到多个服务吗？**
+A: 可以。在 `config.yaml` 中同时配置 `nginxPath`、`apachePath` 和 `rustFSPath`，证书更新时会自动部署到所有配置的服务
 
 **Q: 证书会同时部署到本地和云服务吗？**
-A: 不会。如果配置了云服务，会优先上传到云服务；否则部署到本地
+A: 在 [anssl.cn](https://anssl.cn) 控制台配置部署目标时，可以选择部署到本地 CLI（Nginx/Apache/RustFS）或云服务（阿里云/七牛云）。每个证书可以配置多个部署目标，实现同时部署
 
 **Q: HTTP-01 验证需要手动操作吗？**
 A: 不需要。配置好 Nginx 反向代理后，验证全程自动完成
