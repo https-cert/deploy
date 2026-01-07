@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"github.com/https-cert/deploy/internal/client/deploys"
 	"github.com/https-cert/deploy/internal/client/providers"
 	"github.com/https-cert/deploy/internal/client/providers/aliyun"
 	"github.com/https-cert/deploy/internal/client/providers/qiniu"
@@ -52,6 +53,9 @@ func (c *Client) executeBusines(stream *connect.BidiStreamForClientSimple[deploy
 		case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_RUSTFS_CERT:
 			// 部署证书到本地 RustFS
 			result = c.handleRustFSCertificateDeploy(domain, downloadURL)
+		case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_FEINIU_CERT:
+			// 部署证书到本地 Feiniu
+			result = c.handleFeiniuCertificateDeploy(domain, downloadURL)
 		default:
 			result = deployPB.ExecuteBusinesRequest_REQUEST_RESULT_NOT_SUPPORTED
 			logger.Warn("不支持的业务类型", "executeBusinesType", executeBusinesType)
@@ -76,7 +80,7 @@ func (c *Client) handleNginxCertificateDeploy(domain, downloadURL string) deploy
 		return deployPB.ExecuteBusinesRequest_REQUEST_RESULT_FAILED
 	}
 
-	deployer := NewCertDeployer(c)
+	deployer := deploys.NewCertDeployer(c.downloadFile)
 	if err := deployer.DeployCertificateToNginx(domain, downloadURL); err != nil {
 		logger.Error("Nginx证书部署失败", "error", err, "domain", domain)
 		return deployPB.ExecuteBusinesRequest_REQUEST_RESULT_FAILED
@@ -93,7 +97,7 @@ func (c *Client) handleApacheCertificateDeploy(domain, downloadURL string) deplo
 		return deployPB.ExecuteBusinesRequest_REQUEST_RESULT_FAILED
 	}
 
-	deployer := NewCertDeployer(c)
+	deployer := deploys.NewCertDeployer(c.downloadFile)
 	if err := deployer.DeployCertificateToApache(domain, downloadURL); err != nil {
 		logger.Error("Apache证书部署失败", "error", err, "domain", domain)
 		return deployPB.ExecuteBusinesRequest_REQUEST_RESULT_FAILED
@@ -110,13 +114,30 @@ func (c *Client) handleRustFSCertificateDeploy(domain, downloadURL string) deplo
 		return deployPB.ExecuteBusinesRequest_REQUEST_RESULT_FAILED
 	}
 
-	deployer := NewCertDeployer(c)
+	deployer := deploys.NewCertDeployer(c.downloadFile)
 	if err := deployer.DeployCertificateToRustFS(domain, downloadURL); err != nil {
 		logger.Error("RustFS证书部署失败", "error", err, "domain", domain)
 		return deployPB.ExecuteBusinesRequest_REQUEST_RESULT_FAILED
 	}
 
 	logger.Info("RustFS 证书部署成功", "domain", domain)
+	return deployPB.ExecuteBusinesRequest_REQUEST_RESULT_SUCCESS
+}
+
+// handleFeiniuCertificateDeploy 处理证书部署到本地飞牛
+func (c *Client) handleFeiniuCertificateDeploy(domain, downloadURL string) deployPB.ExecuteBusinesRequest_RequestResult {
+	if domain == "" {
+		logger.Error("域名不能为空")
+		return deployPB.ExecuteBusinesRequest_REQUEST_RESULT_FAILED
+	}
+
+	deployer := deploys.NewCertDeployer(c.downloadFile)
+	if err := deployer.DeployCertificateToFeiNiu(domain, downloadURL); err != nil {
+		logger.Error("飞牛证书部署失败", "error", err, "domain", domain)
+		return deployPB.ExecuteBusinesRequest_REQUEST_RESULT_FAILED
+	}
+
+	logger.Info("飞牛证书部署成功", "domain", domain)
 	return deployPB.ExecuteBusinesRequest_REQUEST_RESULT_SUCCESS
 }
 

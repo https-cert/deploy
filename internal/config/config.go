@@ -33,9 +33,10 @@ type (
 	}
 
 	DeployConfig struct {
-		NginxPath  string `yaml:"nginxPath"`  // Nginx SSL 证书目录
-		ApachePath string `yaml:"apachePath"` // Apache SSL 证书目录
-		RustFSPath string `yaml:"rustFSPath"` // RustFS TLS 证书目录
+		NginxPath     string `yaml:"nginxPath"`     // Nginx SSL 证书目录
+		ApachePath    string `yaml:"apachePath"`    // Apache SSL 证书目录
+		RustFSPath    string `yaml:"rustFSPath"`    // RustFS TLS 证书目录
+		FeiNiuEnabled bool   `yaml:"feiNiuEnabled"` // 飞牛 TLS 证书部署开关
 	}
 
 	UpdateConfig struct {
@@ -90,6 +91,11 @@ func Init(configFile string) error {
 
 // validateConfig 验证配置
 func validateConfig() error {
+	// 检查 Server 配置是否存在
+	if Config.Server == nil {
+		return errors.New("server 配置不能为空")
+	}
+
 	if Config.Server.AccessKey == "" {
 		return errors.New("accessKey不能为空")
 	}

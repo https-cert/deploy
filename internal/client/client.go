@@ -60,41 +60,25 @@ func NewClient(ctx context.Context) (*Client, error) {
 	}
 
 	// 配置 HTTP Transport
-	var transport http.RoundTripper
+	transport := &http.Transport{
+		MaxIdleConns:          100,
+		MaxIdleConnsPerHost:   10,
+		IdleConnTimeout:       90 * time.Second,
+		DisableKeepAlives:     false,
+		ForceAttemptHTTP2:     true,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ResponseHeaderTimeout: 30 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		DialContext: (&net.Dialer{
+			Timeout:   10 * time.Second,
+			KeepAlive: tcpKeepaliveInterval,
+		}).DialContext,
+	}
 
 	if cfg.Server.Env == "local" {
 		p := new(http.Protocols)
 		p.SetUnencryptedHTTP2(true)
-		transport = &http.Transport{
-			Protocols:             p,
-			MaxIdleConns:          100,
-			MaxIdleConnsPerHost:   10,
-			IdleConnTimeout:       90 * time.Second,
-			DisableKeepAlives:     false,
-			ForceAttemptHTTP2:     true,
-			TLSHandshakeTimeout:   10 * time.Second,
-			ResponseHeaderTimeout: 30 * time.Second,
-			ExpectContinueTimeout: 1 * time.Second,
-			DialContext: (&net.Dialer{
-				Timeout:   10 * time.Second,
-				KeepAlive: tcpKeepaliveInterval,
-			}).DialContext,
-		}
-	} else {
-		transport = &http.Transport{
-			MaxIdleConns:          100,
-			MaxIdleConnsPerHost:   10,
-			IdleConnTimeout:       90 * time.Second,
-			DisableKeepAlives:     false,
-			ForceAttemptHTTP2:     true,
-			TLSHandshakeTimeout:   10 * time.Second,
-			ResponseHeaderTimeout: 30 * time.Second,
-			ExpectContinueTimeout: 1 * time.Second,
-			DialContext: (&net.Dialer{
-				Timeout:   10 * time.Second,
-				KeepAlive: tcpKeepaliveInterval,
-			}).DialContext,
-		}
+		transport.Protocols = p
 	}
 
 	httpClient := &http.Client{
@@ -454,12 +438,4 @@ func (c *Client) handleChallenge(resp *deployPB.ExecuteBusinesResponse) {
 
 	// 正常情况：缓存新的 challenge
 	c.httpServer.SetChallenge(token, challengeResp, domain)
-}
-
-// min 返回两个 time.Duration 中的较小值
-func min(a, b time.Duration) time.Duration {
-	if a < b {
-		return a
-	}
-	return b
 }

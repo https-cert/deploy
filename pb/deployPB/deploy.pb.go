@@ -95,6 +95,7 @@ const (
 	ExecuteBusinesType_EXECUTE_BUSINES_OSS                   ExecuteBusinesType = 5 // OSS
 	ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_APACHE_CERT ExecuteBusinesType = 6 // Apache 证书部署
 	ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_RUSTFS_CERT ExecuteBusinesType = 7 // RustFS 证书部署
+	ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_FEINIU_CERT ExecuteBusinesType = 8 // 飞牛 证书部署
 )
 
 // Enum value maps for ExecuteBusinesType.
@@ -108,6 +109,7 @@ var (
 		5: "EXECUTE_BUSINES_OSS",
 		6: "EXECUTE_BUSINES_ANSSL_CLI_APACHE_CERT",
 		7: "EXECUTE_BUSINES_ANSSL_CLI_RUSTFS_CERT",
+		8: "EXECUTE_BUSINES_ANSSL_CLI_FEINIU_CERT",
 	}
 	ExecuteBusinesType_value = map[string]int32{
 		"EXECUTE_BUSINES_UNKNOWN":               0,
@@ -118,6 +120,7 @@ var (
 		"EXECUTE_BUSINES_OSS":                   5,
 		"EXECUTE_BUSINES_ANSSL_CLI_APACHE_CERT": 6,
 		"EXECUTE_BUSINES_ANSSL_CLI_RUSTFS_CERT": 7,
+		"EXECUTE_BUSINES_ANSSL_CLI_FEINIU_CERT": 8,
 	}
 )
 
@@ -1127,7 +1130,7 @@ const file_deployPB_deploy_proto_rawDesc = "" +
 	"\fGET_PROVIDER\x10\x03\x12\f\n" +
 	"\bREGISTER\x10\x04\x12\x13\n" +
 	"\x0fEXECUTE_BUSINES\x10\x05\x12\r\n" +
-	"\tCHALLENGE\x10\x06*\x98\x02\n" +
+	"\tCHALLENGE\x10\x06*\xc3\x02\n" +
 	"\x12ExecuteBusinesType\x12\x1b\n" +
 	"\x17EXECUTE_BUSINES_UNKNOWN\x10\x00\x12\"\n" +
 	"\x1eEXECUTE_BUSINES_ANSSL_CLI_CERT\x10\x01\x12\x1f\n" +
@@ -1136,7 +1139,8 @@ const file_deployPB_deploy_proto_rawDesc = "" +
 	"\x14EXECUTE_BUSINES_DCDN\x10\x04\x12\x17\n" +
 	"\x13EXECUTE_BUSINES_OSS\x10\x05\x12)\n" +
 	"%EXECUTE_BUSINES_ANSSL_CLI_APACHE_CERT\x10\x06\x12)\n" +
-	"%EXECUTE_BUSINES_ANSSL_CLI_RUSTFS_CERT\x10\a2P\n" +
+	"%EXECUTE_BUSINES_ANSSL_CLI_RUSTFS_CERT\x10\a\x12)\n" +
+	"%EXECUTE_BUSINES_ANSSL_CLI_FEINIU_CERT\x10\b2P\n" +
 	"\rDeployService\x12?\n" +
 	"\x06Notify\x12\x17.deployPB.NotifyRequest\x1a\x18.deployPB.NotifyResponse(\x010\x01B\x85\x01\n" +
 	"\fcom.deployPBB\vDeployProtoP\x01Z(github.com/https-cert/deploy/pb/deployPB\xa2\x02\x03DXX\xaa\x02\bDeployPB\xca\x02\bDeployPB\xe2\x02\x14DeployPB\\GPBMetadata\xea\x02\bDeployPBb\x06proto3"
