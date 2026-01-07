@@ -28,8 +28,8 @@ const (
 	minReconnectDelay    = 1 * time.Second  // 最小重连延迟
 	maxReconnectDelay    = 30 * time.Second // 最大重连延迟
 	fastReconnectAttempt = 3                // 快速重连尝试次数
-	tcpKeepaliveInterval = 30 * time.Second // TCP keepalive 间隔
-	heartbeatInterval    = 30 * time.Second // 应用层心跳间隔 - 保持连接活跃
+	tcpKeepaliveInterval = 15 * time.Second // TCP keepalive 间隔
+	heartbeatInterval    = 15 * time.Second // 应用层心跳间隔（缩短以避免60秒超时）
 )
 
 var (

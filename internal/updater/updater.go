@@ -243,7 +243,7 @@ func getHTTPClient() *http.Client {
 
 	// 检查配置文件中的代理设置
 	cfg := config.GetConfig()
-	if cfg != nil && cfg.Update.Proxy != "" {
+	if cfg != nil && cfg.Update != nil && cfg.Update.Proxy != "" {
 		proxyURL, err := url.Parse(cfg.Update.Proxy)
 		if err == nil {
 			transport.Proxy = http.ProxyURL(proxyURL)
