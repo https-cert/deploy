@@ -111,8 +111,8 @@ func GenerateApacheSSLConfig(apachePath, folderName, safeDomain string) error {
 	configFile := filepath.Join(certDir, configFileName)
 
 	// 证书文件路径（使用用户配置的实际路径）
-	certPath := filepath.Join(certDir, "fullchain.pem")
-	keyPath := filepath.Join(certDir, "privkey.pem")
+	certPath := filepath.Join(certDir, "cert.pem")
+	keyPath := filepath.Join(certDir, "privateKey.key")
 
 	// 生成配置内容
 	configContent := fmt.Sprintf(`# Apache SSL 证书配置 - %s

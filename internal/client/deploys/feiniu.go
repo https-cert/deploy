@@ -211,7 +211,7 @@ func updateFeiniuDatabase(domain, certPath string, validFrom, validTo int64) err
 // updateFeiniuNginxConfig 更新飞牛OS Nginx配置文件
 func updateFeiniuNginxConfig(domain, certPath string) error {
 	configFile := "/usr/trim/etc/network_gateway_cert.conf"
-	certFile := filepath.Join(certPath, domain+".crt") // 使用 .crt 而不是 fullchain.crt
+	certFile := filepath.Join(certPath, domain+".crt")
 	keyFile := filepath.Join(certPath, domain+".key")
 
 	// 备份配置文件
