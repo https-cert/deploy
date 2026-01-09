@@ -29,7 +29,7 @@ const (
 	maxReconnectDelay    = 30 * time.Second // 最大重连延迟
 	fastReconnectAttempt = 3                // 快速重连尝试次数
 	tcpKeepaliveInterval = 15 * time.Second // TCP keepalive 间隔
-	heartbeatInterval    = 15 * time.Second // 应用层心跳间隔（缩短以避免60秒超时）
+	heartbeatInterval    = 10 * time.Second // 应用层心跳间隔
 )
 
 var (
@@ -321,14 +321,30 @@ func (c *Client) sendHeartbeat(ctx context.Context, stream *connect.BidiStreamFo
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			// 获取系统信息用于心跳
+			systemInfo, err := c.getSystemInfo()
+			if err != nil {
+				logger.Warn("获取系统信息失败", "error", err)
+				return
+			}
+
 			// 发送心跳消息
-			err := stream.Send(&deployPB.NotifyRequest{
+			if err := stream.Send(&deployPB.NotifyRequest{
 				AccessKey: c.accessKey,
 				ClientId:  c.clientId,
 				Version:   config.Version,
-			})
-			if err != nil {
-				logger.Debug("发送心跳失败", "error", err)
+				Data: &deployPB.NotifyRequest_RegisterResponse{
+					RegisterResponse: &deployPB.RegisterResponse{
+						SystemInfo: &deployPB.RegisterResponse_SystemInfo{
+							Os:       systemInfo.OS,
+							Arch:     systemInfo.Arch,
+							Hostname: systemInfo.Hostname,
+							Ip:       systemInfo.IP,
+						},
+					},
+				},
+			}); err != nil {
+				logger.Warn("发送心跳失败", "error", err)
 				return
 			}
 		}
