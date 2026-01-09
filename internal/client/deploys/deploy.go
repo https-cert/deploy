@@ -77,8 +77,9 @@ func (cd *CertDeployer) DeployCertificate(domain, url string) error {
 	apachePath := sslConfig.ApachePath
 	rustFSPath := sslConfig.RustFSPath
 	feiNiuEnabled := sslConfig.FeiNiuEnabled
+	onePanelEnabled := sslConfig.OnePanel != nil && sslConfig.OnePanel.URL != ""
 
-	if nginxPath == "" && apachePath == "" && rustFSPath == "" && !feiNiuEnabled {
+	if nginxPath == "" && apachePath == "" && rustFSPath == "" && !feiNiuEnabled && !onePanelEnabled {
 		logger.Info("未配置SSL目录，证书已下载", "file", zipFile)
 		return nil
 	}
@@ -122,6 +123,13 @@ func (cd *CertDeployer) DeployCertificate(domain, url string) error {
 	if feiNiuEnabled {
 		if err := cd.DeployToFeiNiu(extractDir, FeiNiuFixedPath, domain); err != nil {
 			return fmt.Errorf("部署到飞牛失败: %w", err)
+		}
+	}
+
+	// 6. 部署到 1Panel 目录
+	if onePanelEnabled {
+		if err := cd.DeployTo1Panel(extractDir, domain); err != nil {
+			return fmt.Errorf("部署到1Panel失败: %w", err)
 		}
 	}
 

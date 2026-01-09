@@ -33,10 +33,17 @@ type (
 	}
 
 	DeployConfig struct {
-		NginxPath     string `yaml:"nginxPath"`     // Nginx SSL 证书目录
-		ApachePath    string `yaml:"apachePath"`    // Apache SSL 证书目录
-		RustFSPath    string `yaml:"rustFSPath"`    // RustFS TLS 证书目录
-		FeiNiuEnabled bool   `yaml:"feiNiuEnabled"` // 飞牛 TLS 证书部署开关
+		NginxPath     string          `yaml:"nginxPath"`     // Nginx SSL 证书目录
+		ApachePath    string          `yaml:"apachePath"`    // Apache SSL 证书目录
+		RustFSPath    string          `yaml:"rustFSPath"`    // RustFS TLS 证书目录
+		FeiNiuEnabled bool            `yaml:"feiNiuEnabled"` // 飞牛 TLS 证书部署开关
+		OnePanel      *OnePanelConfig `yaml:"onePanel"`      // 1Panel 配置
+	}
+
+	// OnePanelConfig 1Panel 配置
+	OnePanelConfig struct {
+		URL    string `yaml:"url"`    // 1Panel API 地址
+		APIKey string `yaml:"apiKey"` // 1Panel API 密钥
 	}
 
 	UpdateConfig struct {
