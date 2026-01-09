@@ -77,7 +77,7 @@ func (cd *CertDeployer) DeployCertificateToRustFS(domain, url string) error {
 		}
 	}()
 
-	folderName := safeDomain + "_certificates"
+	folderName := safeDomain
 	extractDir := filepath.Join(CertsDir, folderName)
 
 	if err := ExtractZip(zipFile, extractDir); err != nil {

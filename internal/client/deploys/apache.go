@@ -70,7 +70,7 @@ func (cd *CertDeployer) DeployCertificateToApache(domain, url string) error {
 		}
 	}()
 
-	folderName := safeDomain + "_certificates"
+	folderName := safeDomain
 	extractDir := filepath.Join(CertsDir, folderName)
 
 	if err := ExtractZip(zipFile, extractDir); err != nil {
@@ -144,8 +144,8 @@ SSLSessionTickets off
 		return fmt.Errorf("写入Apache SSL配置文件失败: %w", err)
 	}
 
-	logger.Info("Apache SSL配置文件已生成", "file", configFile)
-	logger.Info("使用方法: 在Apache VirtualHost块中添加 Include", "path", configFile)
+	logger.Info("Apache SSL配置文件已生成", configFile)
+	logger.Info("使用方法: 在Apache VirtualHost块中添加 include", configFile)
 	return nil
 }
 

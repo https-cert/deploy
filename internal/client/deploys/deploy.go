@@ -84,7 +84,7 @@ func (cd *CertDeployer) DeployCertificate(domain, url string) error {
 	}
 
 	// 证书文件夹名（使用处理后的安全域名）
-	folderName := safeDomain + "_certificates"
+	folderName := safeDomain
 	extractDir := filepath.Join(CertsDir, folderName)
 
 	// 1. 解压zip文件

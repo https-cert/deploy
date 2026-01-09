@@ -58,7 +58,7 @@ func (cd *CertDeployer) DeployCertificateToNginx(domain, url string) error {
 		}
 	}()
 
-	folderName := safeDomain + "_certificates"
+	folderName := safeDomain
 	extractDir := filepath.Join(CertsDir, folderName)
 
 	if err := ExtractZip(zipFile, extractDir); err != nil {
@@ -97,8 +97,8 @@ func GenerateNginxSSLConfig(nginxPath, folderName, safeDomain string) error {
 	configFile := filepath.Join(certDir, configFileName)
 
 	// 证书文件路径
-	certPath := filepath.Join(certDir, "fullchain.pem")
-	keyPath := filepath.Join(certDir, "privkey.pem")
+	certPath := filepath.Join(certDir, "cert.pem")
+	keyPath := filepath.Join(certDir, "privateKey.key")
 
 	// 生成配置内容
 	configContent := fmt.Sprintf(`# SSL 证书配置 - %s
@@ -124,8 +124,8 @@ ssl_session_tickets off;
 		return fmt.Errorf("写入SSL配置文件失败: %w", err)
 	}
 
-	logger.Info("Nginx SSL配置文件已生成", "file", configFile)
-	logger.Info("使用方法: 在nginx server块中添加 include", "path", configFile)
+	logger.Info("Nginx SSL配置文件已生成", configFile)
+	logger.Info("使用方法: 在 nginx server块中添加 include", configFile)
 	return nil
 }
 
