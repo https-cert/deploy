@@ -12,7 +12,7 @@ import (
 
 // Scheduler 定时任务调度器
 type Scheduler struct {
-	client     *client.Client
+	client     *client.WSClient
 	httpServer *server.HTTPServer
 	ticker     *time.Ticker
 	ctx        context.Context
@@ -20,7 +20,7 @@ type Scheduler struct {
 
 // NewScheduler 创建调度器
 func NewScheduler(ctx context.Context) (*Scheduler, error) {
-	client, err := client.NewClient(ctx)
+	client, err := client.NewWSClient(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -35,7 +35,7 @@ func NewScheduler(ctx context.Context) (*Scheduler, error) {
 		AccessKey: client.GetAccessKey(),
 	})
 
-	// 启动客户端连接
+	// 启动WebSocket客户端连接
 	client.Start()
 
 	// 创建 HTTP-01 验证服务器

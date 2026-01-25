@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,11 +11,21 @@ import (
 	"github.com/https-cert/deploy/pkg/logger"
 )
 
-// handleUpdate 处理版本更新
-func (c *Client) handleUpdate() {
+// UpdateHandler 版本更新处理器
+type UpdateHandler struct {
+	ctx context.Context
+}
+
+// NewUpdateHandler 创建版本更新处理器
+func NewUpdateHandler(ctx context.Context) *UpdateHandler {
+	return &UpdateHandler{ctx: ctx}
+}
+
+// HandleUpdate 处理版本更新
+func (uh *UpdateHandler) HandleUpdate() {
 	logger.Info("收到版本更新通知")
 
-	updateInfo, err := updater.CheckUpdate(c.ctx)
+	updateInfo, err := updater.CheckUpdate(uh.ctx)
 	if err != nil {
 		logger.Error("检查更新失败", "error", err)
 		return
@@ -26,7 +37,7 @@ func (c *Client) handleUpdate() {
 
 	logger.Info("发现新版本", "current", updateInfo.CurrentVersion, "latest", updateInfo.LatestVersion)
 
-	if err := updater.PerformUpdate(c.ctx, updateInfo); err != nil {
+	if err := updater.PerformUpdate(uh.ctx, updateInfo); err != nil {
 		logger.Error("更新失败", "error", err)
 		return
 	}

@@ -45,7 +45,7 @@ func SetReporter(r *LogReporter) {
 }
 
 // formatKeyValues 格式化键值对参数
-func formatKeyValues(args ...interface{}) string {
+func formatKeyValues(args ...any) string {
 	if len(args) == 0 {
 		return ""
 	}
@@ -76,7 +76,7 @@ func reportLog(level LogLevel, message string, timestamp int64) {
 
 	// 异步上报，不阻塞
 	go func() {
-		payload := map[string]interface{}{
+		payload := map[string]any{
 			"type":      "deploy", // 日志类型
 			"clientId":  reporter.ClientID,
 			"level":     level,
@@ -101,14 +101,9 @@ func reportLog(level LogLevel, message string, timestamp int64) {
 		client := &http.Client{Timeout: 3 * time.Second}
 		resp, err := client.Do(req)
 		if err != nil {
-			// 上报失败时输出到 stderr（仅用于调试，不使用 logger 避免递归）
-			fmt.Fprintf(os.Stderr, "[LOG_REPORT_ERROR] url=%s error=%v\n", url, err)
 			return
 		}
 		resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
-			fmt.Fprintf(os.Stderr, "[LOG_REPORT_ERROR] url=%s status=%d\n", url, resp.StatusCode)
-		}
 	}()
 }
 
