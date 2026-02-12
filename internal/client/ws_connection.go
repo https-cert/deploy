@@ -89,6 +89,9 @@ func (c *WSClient) connect() error {
 		return fmt.Errorf("WebSocket连接失败: %w", err)
 	}
 
+	// 设置 WebSocket 读取限制为无限制，避免大消息被截断
+	conn.SetReadLimit(-1)
+
 	c.connMu.Lock()
 	c.conn = conn
 	c.connMu.Unlock()

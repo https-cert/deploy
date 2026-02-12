@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	"github.com/https-cert/deploy/internal/updater"
@@ -58,6 +59,21 @@ func (uh *UpdateHandler) HandleUpdate() {
 		return
 	}
 
-	time.Sleep(1 * time.Second)
-	os.Exit(0)
+	// 发送 SIGTERM 信号给当前进程，触发优雅关闭
+	// 这样可以让 HTTP 服务器和其他资源正确释放
+	process, err := os.FindProcess(os.Getpid())
+	if err != nil {
+		logger.Error("获取当前进程失败", "error", err)
+		// 降级方案：等待后强制退出
+		time.Sleep(3 * time.Second)
+		os.Exit(0)
+		return
+	}
+
+	if err := process.Signal(syscall.SIGTERM); err != nil {
+		logger.Error("发送退出信号失败", "error", err)
+		// 降级方案：等待后强制退出
+		time.Sleep(3 * time.Second)
+		os.Exit(0)
+	}
 }

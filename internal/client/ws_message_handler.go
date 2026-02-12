@@ -49,19 +49,23 @@ func (c *WSClient) handleWSMessages() error {
 			return errors.New("连接已关闭")
 		}
 
-		// 设置读取超时（心跳间隔的 3 倍，确保有足够时间接收消息）
-		readCtx, readCancel := context.WithTimeout(c.ctx, heartbeatInterval*3)
-		_, data, err := conn.Read(readCtx)
-		readCancel()
+		// 不设置读取超时，让连接保持持久化
+		// 依靠心跳机制和 TCP keepalive 来检测连接状态
+		_, data, err := conn.Read(c.ctx)
 
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
+				logger.Info("WebSocket 连接因 context 取消而关闭")
 				return nil
 			}
 			// 使用 CloseStatus 检查正常关闭
-			if websocket.CloseStatus(err) == websocket.StatusNormalClosure {
+			closeStatus := websocket.CloseStatus(err)
+			if closeStatus == websocket.StatusNormalClosure {
+				logger.Info("WebSocket 连接正常关闭")
 				return nil
 			}
+			// 记录详细的错误信息
+			logger.Warn("WebSocket 读取错误", "error", err, "closeStatus", closeStatus)
 			return err
 		}
 
@@ -157,7 +161,6 @@ func (c *WSClient) handleGetProvider(requestId string) {
 
 // handleUpdate 处理版本更新
 func (c *WSClient) handleUpdate() {
-	logger.Info("收到版本更新通知")
 	updateHandler := NewUpdateHandler(c.ctx)
 	updateHandler.HandleUpdate()
 }

@@ -65,9 +65,6 @@ func NewHTTPServer() *HTTPServer {
 
 // Start 启动 HTTP 服务器
 func (s *HTTPServer) Start() error {
-	cfg := config.GetConfig()
-	logger.Info("HTTP-01 验证服务启动", "port", cfg.Server.Port)
-
 	if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		return fmt.Errorf("HTTP 服务器启动失败: %w", err)
 	}

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/https-cert/deploy/internal/client"
+	"github.com/https-cert/deploy/internal/config"
 	"github.com/https-cert/deploy/internal/server"
 	"github.com/https-cert/deploy/pkg/logger"
 )
@@ -60,6 +61,8 @@ func Start(ctx context.Context) {
 
 	// 启动 HTTP-01 验证服务器
 	go func() {
+		cfg := config.GetConfig()
+		logger.Info("HTTP-01 验证服务启动", "port", cfg.Server.Port)
 		if err := scheduler.httpServer.Start(); err != nil {
 			logger.Error("HTTP-01 验证服务启动失败", "error", err)
 		}

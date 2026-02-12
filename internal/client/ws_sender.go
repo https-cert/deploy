@@ -107,7 +107,7 @@ func (c *WSClient) sendHeartbeat(ctx context.Context) {
 			}
 
 			if err := c.sendNotifyRequest(req); err != nil {
-				logger.Warn("发送心跳失败，主动关闭连接以触发重连", "error", err)
+				logger.Warn("发送心跳失败，主动关闭连接以触发重连", "error", err, "interval", heartbeatInterval)
 				// 主动关闭连接，触发重连机制
 				c.connMu.Lock()
 				if c.conn != nil {
