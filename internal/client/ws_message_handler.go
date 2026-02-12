@@ -49,7 +49,11 @@ func (c *WSClient) handleWSMessages() error {
 			return errors.New("连接已关闭")
 		}
 
-		_, data, err := conn.Read(c.ctx)
+		// 设置读取超时（心跳间隔的 3 倍，确保有足够时间接收消息）
+		readCtx, readCancel := context.WithTimeout(c.ctx, heartbeatInterval*3)
+		_, data, err := conn.Read(readCtx)
+		readCancel()
+
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
 				return nil
