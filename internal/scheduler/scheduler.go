@@ -77,8 +77,19 @@ func Start(ctx context.Context) {
 
 // stop 停止调度器
 func (s *Scheduler) stop() {
+	logger.Info("正在停止调度器...")
+
 	if s.ticker != nil {
 		s.ticker.Stop()
+	}
+
+	// 关闭 WebSocket 客户端连接
+	if s.client != nil {
+		if err := s.client.Close(); err != nil {
+			logger.Error("关闭 WebSocket 客户端失败", "error", err)
+		} else {
+			logger.Info("WebSocket 客户端已关闭")
+		}
 	}
 
 	// 停止 HTTP 服务器
@@ -88,6 +99,10 @@ func (s *Scheduler) stop() {
 
 		if err := s.httpServer.Stop(ctx); err != nil {
 			logger.Error("停止 HTTP-01 验证服务失败", "error", err)
+		} else {
+			logger.Info("HTTP-01 验证服务已停止")
 		}
 	}
+
+	logger.Info("调度器已停止")
 }

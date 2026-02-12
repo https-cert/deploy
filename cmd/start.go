@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	"github.com/https-cert/deploy/internal/config"
 	"github.com/https-cert/deploy/internal/scheduler"
@@ -41,15 +42,28 @@ func CreateStartCmd() *cobra.Command {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			scheduler.Start(ctx)
+			// 在 goroutine 中启动调度器
+			done := make(chan struct{})
+			go func() {
+				scheduler.Start(ctx)
+				close(done)
+			}()
 
 			sigChan := make(chan os.Signal, 1)
 			signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
 			<-sigChan
-			logger.Info("停止中...")
+			logger.Info("收到停止信号，正在关闭...")
 			cancel()
-			logger.Info("已停止")
+
+			// 等待调度器完全停止，最多等待 10 秒
+			select {
+			case <-done:
+				logger.Info("已停止")
+			case <-time.After(10 * time.Second):
+				logger.Warn("停止超时，强制退出")
+			}
+
 			return nil
 		},
 	}

@@ -29,7 +29,8 @@ func (c *WSClient) sendNotifyRequest(req *deployPB.NotifyRequest) error {
 	}
 
 	// 发送 JSON 消息（WebSocket Text 消息）
-	ctx, cancel := context.WithTimeout(c.ctx, 10*time.Second)
+	// 使用较长的超时时间，避免网络慢时误判为失败
+	ctx, cancel := context.WithTimeout(c.ctx, 30*time.Second)
 	defer cancel()
 
 	return conn.Write(ctx, websocket.MessageText, data)
@@ -85,8 +86,8 @@ func (c *WSClient) sendHeartbeat(ctx context.Context) {
 			// 获取系统信息用于心跳
 			systemInfo, err := c.getSystemInfo()
 			if err != nil {
-				logger.Warn("获取系统信息失败", "error", err)
-				return
+				logger.Warn("获取系统信息失败，跳过本次心跳", "error", err)
+				continue // 跳过本次心跳，不要退出整个心跳循环
 			}
 
 			// 发送心跳消息（使用 RegisterResponse 格式）

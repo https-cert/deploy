@@ -154,6 +154,8 @@ func (c *WSClient) StartWSNotify() {
 			busyOps := c.busyOperations.Load()
 			if busyOps > 0 {
 				logger.Warn("WebSocket连接意外断开(有业务正在执行)", "error", err, "busyOps", busyOps)
+			} else {
+				logger.Info("WebSocket连接断开", "error", err)
 			}
 
 			isConnected.Store(false)
