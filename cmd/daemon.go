@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -103,7 +105,43 @@ func runSupervisor() {
 		supervisorLogFile.Sync()
 	}
 
-	logSupervisor("已启动")
+	// 将 supervisor 自身的 PID 写入 PID 文件
+	pidFile := GetPIDFile()
+	if err := os.WriteFile(pidFile, []byte(strconv.Itoa(os.Getpid())), 0600); err != nil {
+		fmt.Printf("写入PID文件失败: %v\n", err)
+		return
+	}
+
+	logSupervisor("已启动 (PID: %d)", os.Getpid())
+
+	// 信号处理：收到 SIGTERM/SIGINT 时杀掉子进程并退出
+	var currentChild *os.Process
+	var childMu sync.Mutex
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
+	go func() {
+		sig := <-sigCh
+		logSupervisor("收到信号 %v，正在停止...", sig)
+		childMu.Lock()
+		child := currentChild
+		childMu.Unlock()
+		if child != nil {
+			child.Signal(syscall.SIGTERM)
+			// 等待子进程退出，最多 5 秒后强杀
+			for i := 0; i < 50; i++ {
+				time.Sleep(100 * time.Millisecond)
+				if err := child.Signal(syscall.Signal(0)); err != nil {
+					break // 子进程已退出
+				}
+			}
+			// 如果还活着，强杀
+			child.Kill()
+		}
+		os.Remove(pidFile)
+		os.Remove(filepath.Join(getHomeDir(), ".anssl-stop"))
+		os.Exit(0)
+	}()
 
 	restartDelay := 1 * time.Second
 	maxRestartDelay := 30 * time.Second
@@ -112,6 +150,7 @@ func runSupervisor() {
 	for {
 		if shouldStopSupervisor() {
 			logSupervisor("停止")
+			os.Remove(pidFile)
 			return
 		}
 
@@ -134,16 +173,17 @@ func runSupervisor() {
 			continue
 		}
 
-		pidFile := GetPIDFile()
-		if err := os.WriteFile(pidFile, []byte(strconv.Itoa(cmd.Process.Pid)), 0600); err != nil {
-			cmd.Process.Kill()
-			logFile.Close()
-			time.Sleep(restartDelay)
-			continue
-		}
+		childMu.Lock()
+		currentChild = cmd.Process
+		childMu.Unlock()
 
 		err = cmd.Wait()
 		logFile.Close()
+
+		childMu.Lock()
+		currentChild = nil
+		childMu.Unlock()
+
 		uptime := time.Since(startTime)
 
 		if err != nil {
@@ -180,12 +220,7 @@ func runSupervisor() {
 
 // shouldStopSupervisor 检查是否应该停止监控器
 func shouldStopSupervisor() bool {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		// 如果无法获取用户主目录，使用当前目录
-		homeDir = "."
-	}
-	stopMarker := filepath.Join(homeDir, ".anssl-stop")
+	stopMarker := filepath.Join(getHomeDir(), ".anssl-stop")
 	if _, err := os.Stat(stopMarker); err == nil {
 		os.Remove(stopMarker)
 		return true
@@ -193,17 +228,20 @@ func shouldStopSupervisor() bool {
 	return false
 }
 
-// StopDaemon 停止守护进程
-func StopDaemon() error {
+// getHomeDir 获取用户主目录，失败时返回当前目录
+func getHomeDir() string {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		// 如果无法获取用户主目录，使用当前目录
-		homeDir = "."
+		return "."
 	}
-	stopMarker := filepath.Join(homeDir, ".anssl-stop")
-	if err := os.WriteFile(stopMarker, []byte("stop"), 0600); err != nil {
-		return fmt.Errorf("创建停止标记失败: %w", err)
-	}
+	return homeDir
+}
+
+// StopDaemon 停止守护进程
+func StopDaemon() error {
+	// 保留 stop marker 作为备用停止机制
+	stopMarker := filepath.Join(getHomeDir(), ".anssl-stop")
+	os.WriteFile(stopMarker, []byte("stop"), 0600)
 
 	pidFile := GetPIDFile()
 	data, err := os.ReadFile(pidFile)
@@ -222,23 +260,28 @@ func StopDaemon() error {
 		return fmt.Errorf("查找进程失败: %w", err)
 	}
 
+	// 发送 SIGTERM，supervisor 的信号处理会级联杀掉 worker
 	if err := process.Signal(syscall.SIGTERM); err != nil {
-		return fmt.Errorf("发送停止信号失败: %w", err)
+		// 进程可能已经退出
+		os.Remove(pidFile)
+		os.Remove(stopMarker)
+		return nil
 	}
 
+	// 等待 supervisor 退出
 	for i := 0; i < 10; i++ {
-		if !IsRunning() {
-			break
-		}
 		time.Sleep(1 * time.Second)
+		if err := process.Signal(syscall.Signal(0)); err != nil {
+			// 进程已退出
+			os.Remove(pidFile)
+			os.Remove(stopMarker)
+			return nil
+		}
 	}
 
-	// 如果进程还在运行，强制杀死
-	if IsRunning() {
-		// 忽略错误，因为进程可能在检查和发送信号之间已经退出
-		process.Signal(syscall.SIGKILL)
-		time.Sleep(500 * time.Millisecond)
-	}
+	// 超时，强制杀死
+	process.Signal(syscall.SIGKILL)
+	time.Sleep(500 * time.Millisecond)
 
 	os.Remove(pidFile)
 	os.Remove(stopMarker)
