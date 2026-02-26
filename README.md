@@ -84,6 +84,10 @@ provider:
 >
 > - 选择“阿里云-CAS 上传证书”业务：调用 CAS `UploadUserCertificate`
 > - 选择“阿里云-ESA 上传证书”业务：调用 ESA `SetCertificate`（需要 `esaSiteId`）
+>
+> #### 腾讯云上传证书
+>
+> - 选择“腾讯云-上传证书”业务：通过腾讯云官方 Go SDK 调用 SSL `UploadCertificate`（`ssl.tencentcloudapi.com`, `2019-12-05`）
 
 ### 3. 配置 Nginx
 

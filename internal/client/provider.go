@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/https-cert/deploy/internal/client/providers/aliyun"
+	cloud_tencent "github.com/https-cert/deploy/internal/client/providers/cloud_tencent"
 	"github.com/https-cert/deploy/internal/client/providers/qiniu"
 	"github.com/https-cert/deploy/internal/config"
 	"github.com/https-cert/deploy/pkg/logger"
@@ -91,7 +92,20 @@ func TestProviderConnection(providerName string) (bool, error) {
 		return success, nil
 
 	case "cloudTencent":
-		return false, nil
+		providerConfig := config.GetProvider("cloudTencent")
+		if providerConfig == nil {
+			return false, fmt.Errorf("未配置【腾讯云】提供商配置")
+		}
+		if providerConfig.GetSecretId() == "" || providerConfig.GetSecretKey() == "" {
+			return false, fmt.Errorf("腾讯云配置不完整: secretId 或 secretKey 为空")
+		}
+
+		provider := cloud_tencent.New(providerConfig.GetSecretId(), providerConfig.GetSecretKey())
+		success, err := provider.TestConnection()
+		if err != nil {
+			return false, fmt.Errorf("腾讯云连接测试失败: %w", err)
+		}
+		return success, nil
 
 	case "qiniu":
 		providerConfig := config.GetProvider("qiniu")

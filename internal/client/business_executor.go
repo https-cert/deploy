@@ -6,6 +6,7 @@ import (
 	"github.com/https-cert/deploy/internal/client/deploys"
 	"github.com/https-cert/deploy/internal/client/providers"
 	"github.com/https-cert/deploy/internal/client/providers/aliyun"
+	cloud_tencent "github.com/https-cert/deploy/internal/client/providers/cloud_tencent"
 	"github.com/https-cert/deploy/internal/client/providers/qiniu"
 	"github.com/https-cert/deploy/internal/config"
 	"github.com/https-cert/deploy/pb/deployPB"
@@ -63,6 +64,13 @@ func (be *BusinessExecutor) ExecuteBusiness(providerName string, executeBusinesT
 
 	case "qiniu":
 		// 上传证书到云服务商
+		if executeBusinesType != deployPB.ExecuteBusinesType_EXECUTE_BUSINES_UPLOAD_CERT {
+			return fmt.Errorf("不支持的业务类型: %d", executeBusinesType)
+		}
+		return be.handleCertificateProvider(providerName, domain, remark, cert, key)
+
+	case "cloudTencent":
+		// 腾讯云仅支持上传证书
 		if executeBusinesType != deployPB.ExecuteBusinesType_EXECUTE_BUSINES_UPLOAD_CERT {
 			return fmt.Errorf("不支持的业务类型: %d", executeBusinesType)
 		}
@@ -209,6 +217,22 @@ func (be *BusinessExecutor) getAliyunProvider(service string) (providers.Provide
 	return aliyun.New(accessKeyId, accessKeySecret, options)
 }
 
+// getCloudTencentProvider 获取腾讯云 provider
+func (be *BusinessExecutor) getCloudTencentProvider() (*cloud_tencent.Provider, error) {
+	providerConfig := config.GetProvider("cloudTencent")
+	if providerConfig == nil {
+		return nil, fmt.Errorf("未配置【腾讯云】提供商配置")
+	}
+
+	secretID := providerConfig.GetSecretId()
+	secretKey := providerConfig.GetSecretKey()
+	if secretID == "" || secretKey == "" {
+		return nil, fmt.Errorf("腾讯云配置不完整: secretId 或 secretKey 为空")
+	}
+
+	return cloud_tencent.New(secretID, secretKey), nil
+}
+
 // getProviderHandler 根据提供商名称获取对应的 handler
 func (be *BusinessExecutor) getProviderHandler(providerName string) (providers.ProviderHandler, error) {
 	providerConfig := config.GetProvider(providerName)
@@ -224,6 +248,8 @@ func (be *BusinessExecutor) getProviderHandler(providerName string) (providers.P
 			return nil, fmt.Errorf("七牛云配置不完整: accessKey 或 accessSecret 为空")
 		}
 		return qiniu.New(accessKey, accessSecret), nil
+	case "cloudTencent":
+		return be.getCloudTencentProvider()
 
 	default:
 		return nil, fmt.Errorf("不支持的提供商: %s", providerName)
