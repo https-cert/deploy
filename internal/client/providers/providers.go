@@ -6,7 +6,7 @@ type ProviderHandler interface {
 	TestConnection() (bool, error)
 
 	// 上传证书
-	UploadCertificate(name, cert, key string) error
+	UploadCertificate(name, domain, cert, key string) error
 
 	// 部署到 对象存储
 	DeployToOSS(certID string, domain string) (string, error)

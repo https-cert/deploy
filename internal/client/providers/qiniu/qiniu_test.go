@@ -108,7 +108,7 @@ KL4PUrESYdGBudzsT0uOrSQnIek/6QQZOg==
 `
 
 	// 执行上传证书
-	err := provider.UploadCertificate("test-cert2", cert, key)
+	err := provider.UploadCertificate("test-cert2", "test.example.com", cert, key)
 	if err != nil {
 		logger.Error("上传证书执行失败", "error", err)
 		return

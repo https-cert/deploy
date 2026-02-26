@@ -56,6 +56,8 @@ provider:
     auth:
       accessKeyId: "your-aliyun-access-key-id"
       accessKeySecret: "your-aliyun-access-key-secret"
+      # ESA 业务专用字段（仅在执行 ESA 业务时使用）
+      esaSiteId: "your-esa-site-id"
 
   - name: "qiniu"
     remark: "七牛云"
@@ -74,9 +76,14 @@ provider:
 >
 > | 服务商 |    name 值     |           认证字段           |
 > | :----: | :------------: | :--------------------------: |
-> | 阿里云 |    `aliyun`    | accessKeyId, accessKeySecret |
+> | 阿里云 |    `aliyun`    | accessKeyId, accessKeySecret（ESA可选：esaSiteId） |
 > | 七牛云 |    `qiniu`     |   accessKey, accessSecret    |
 > | 腾讯云 | `cloudTencent` |     secretId, secretKey      |
+
+> #### 阿里云 CAS/ESA 业务分离（无自动识别）
+>
+> - 选择“阿里云-CAS 上传证书”业务：调用 CAS `UploadUserCertificate`
+> - 选择“阿里云-ESA 上传证书”业务：调用 ESA `SetCertificate`（需要 `esaSiteId`）
 
 ### 3. 配置 Nginx
 

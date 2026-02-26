@@ -16,7 +16,7 @@ type Provider struct {
 }
 
 // New 创建实例
-func New(accessKeyId, accessKeySecret string) (*Provider, error) {
+func New(accessKeyId, accessKeySecret string, options *Options) (*Provider, error) {
 	return &Provider{
 		AccessKeyId:     accessKeyId,
 		AccessKeySecret: accessKeySecret,
@@ -29,7 +29,7 @@ func (p *Provider) TestConnection() (bool, error) {
 }
 
 // UploadCertificate 上传证书
-func (p *Provider) UploadCertificate(name, cert, key string) error {
+func (p *Provider) UploadCertificate(name, domain, cert, key string) error {
 	return fmt.Errorf("阿里云 provider 不支持 Windows 平台")
 }
 

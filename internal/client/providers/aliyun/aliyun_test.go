@@ -25,7 +25,9 @@ func TestMain(m *testing.M) {
 			accessKeySecret := p.GetAccessKeySecret()
 			logger.Info("测试提供商上传证书", "provider", p.Name, "accessKeyId", accessKeyId, "accessKeySecret", accessKeySecret)
 			// 创建实例
-			provider, err = aliyun.New(accessKeyId, accessKeySecret)
+			provider, err = aliyun.New(accessKeyId, accessKeySecret, &aliyun.Options{
+				Service: aliyun.ServiceCAS,
+			})
 			if err != nil {
 				logger.Error("创建提供商实例失败", "error", err)
 				return
@@ -115,7 +117,7 @@ KL4PUrESYdGBudzsT0uOrSQnIek/6QQZOg==
 `
 
 	// 执行上传证书
-	err := provider.UploadCertificate("test-cert", cert, key)
+	err := provider.UploadCertificate("test-cert", "test.example.com", cert, key)
 	if err != nil {
 		logger.Error("上传证书执行失败", "error", err)
 		return

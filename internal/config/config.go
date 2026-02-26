@@ -59,6 +59,7 @@ type (
 		// 阿里云认证字段
 		AccessKeyId     string `yaml:"accessKeyId,omitempty"`
 		AccessKeySecret string `yaml:"accessKeySecret,omitempty"`
+		ESASiteID       string `yaml:"esaSiteId,omitempty"`
 		// 腾讯云认证字段
 		SecretId  string `yaml:"secretId,omitempty"`
 		SecretKey string `yaml:"secretKey,omitempty"`
@@ -190,6 +191,14 @@ func (p *Provider) GetAccessKeyId() string {
 func (p *Provider) GetAccessKeySecret() string {
 	if p.Auth != nil {
 		return p.Auth.AccessKeySecret
+	}
+	return ""
+}
+
+// GetESASiteID 获取阿里云 ESA SiteId
+func (p *Provider) GetESASiteID() string {
+	if p.Auth != nil {
+		return p.Auth.ESASiteID
 	}
 	return ""
 }

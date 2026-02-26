@@ -3,9 +3,7 @@ module github.com/https-cert/deploy
 go 1.26
 
 require (
-	github.com/alibabacloud-go/cas-20200407/v4 v4.1.0
 	github.com/alibabacloud-go/darabonba-openapi/v2 v2.1.15
-	github.com/alibabacloud-go/tea v1.4.0
 	github.com/alibabacloud-go/tea-utils/v2 v2.0.9
 	github.com/coder/websocket v1.8.14
 	github.com/qiniu/go-sdk/v7 v7.25.6
@@ -18,6 +16,7 @@ require (
 	github.com/BurntSushi/toml v1.6.0 // indirect
 	github.com/alibabacloud-go/alibabacloud-gateway-spi v0.0.5 // indirect
 	github.com/alibabacloud-go/debug v1.0.1 // indirect
+	github.com/alibabacloud-go/tea v1.4.0 // indirect
 	github.com/aliyun/credentials-go v1.4.11 // indirect
 	github.com/clbanning/mxj/v2 v2.7.0 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect

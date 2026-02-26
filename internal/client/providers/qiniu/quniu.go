@@ -82,7 +82,7 @@ func (p *Provider) TestConnection() (bool, error) {
 }
 
 // UploadCertificate 上传证书
-func (p *Provider) UploadCertificate(name, cert, key string) error {
+func (p *Provider) UploadCertificate(name, domain, cert, key string) error {
 	token, err := p.getToken("/sslcert")
 	if err != nil {
 		return err

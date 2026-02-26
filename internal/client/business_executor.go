@@ -50,12 +50,23 @@ func (be *BusinessExecutor) ExecuteBusiness(providerName string, executeBusinesT
 			return fmt.Errorf("不支持的业务类型: %d", executeBusinesType)
 		}
 
-	case "aliyun", "qiniu":
+	case "aliyun":
+		// 阿里云 CAS 与 ESA 业务显式分离，不做自动识别
+		switch executeBusinesType {
+		case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_UPLOAD_CERT:
+			return be.handleAliyunCertificateProvider(domain, remark, cert, key, aliyun.ServiceCAS)
+		case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_OSS:
+			return be.handleAliyunCertificateProvider(domain, remark, cert, key, aliyun.ServiceESA)
+		default:
+			return fmt.Errorf("不支持的业务类型: %d", executeBusinesType)
+		}
+
+	case "qiniu":
 		// 上传证书到云服务商
 		if executeBusinesType != deployPB.ExecuteBusinesType_EXECUTE_BUSINES_UPLOAD_CERT {
 			return fmt.Errorf("不支持的业务类型: %d", executeBusinesType)
 		}
-		return be.handleCertificateProvider(providerName, remark, cert, key)
+		return be.handleCertificateProvider(providerName, domain, remark, cert, key)
 
 	default:
 		logger.Warn("不支持的提供商", "provider", providerName)
@@ -144,7 +155,7 @@ func (be *BusinessExecutor) handle1PanelCertificateDeploy(domain, downloadURL st
 }
 
 // handleCertificateProvider 处理证书提供商的上传操作
-func (be *BusinessExecutor) handleCertificateProvider(providerName, remark, cert, key string) error {
+func (be *BusinessExecutor) handleCertificateProvider(providerName, domain, remark, cert, key string) error {
 	// 获取 provider 实例
 	providerHandler, err := be.getProviderHandler(providerName)
 	if err != nil {
@@ -153,13 +164,49 @@ func (be *BusinessExecutor) handleCertificateProvider(providerName, remark, cert
 	}
 
 	// 上传证书
-	if err := providerHandler.UploadCertificate(remark, cert, key); err != nil {
+	if err := providerHandler.UploadCertificate(remark, domain, cert, key); err != nil {
 		logger.Error("上传证书失败", "provider", providerName, "error", err)
 		return err
 	}
 
-	logger.Info("证书上传成功", "provider", providerName, "remark", remark)
+	logger.Info("证书上传成功", "provider", providerName, "remark", remark, "domain", domain)
 	return nil
+}
+
+// handleAliyunCertificateProvider 处理阿里云证书上传（CAS/ESA 显式分离）
+func (be *BusinessExecutor) handleAliyunCertificateProvider(domain, remark, cert, key, service string) error {
+	providerHandler, err := be.getAliyunProvider(service)
+	if err != nil {
+		logger.Error("创建阿里云提供商实例失败", "service", service, "error", err)
+		return err
+	}
+
+	if err := providerHandler.UploadCertificate(remark, domain, cert, key); err != nil {
+		logger.Error("上传阿里云证书失败", "service", service, "error", err)
+		return err
+	}
+
+	logger.Info("阿里云证书上传成功", "service", service, "remark", remark, "domain", domain)
+	return nil
+}
+
+func (be *BusinessExecutor) getAliyunProvider(service string) (providers.ProviderHandler, error) {
+	providerConfig := config.GetProvider("aliyun")
+	if providerConfig == nil {
+		return nil, fmt.Errorf("未配置【阿里云】提供商配置")
+	}
+
+	accessKeyId := providerConfig.GetAccessKeyId()
+	accessKeySecret := providerConfig.GetAccessKeySecret()
+	if accessKeyId == "" || accessKeySecret == "" {
+		return nil, fmt.Errorf("阿里云配置不完整: accessKeyId 或 accessKeySecret 为空")
+	}
+
+	options := &aliyun.Options{
+		Service:   service,
+		ESASiteID: providerConfig.GetESASiteID(),
+	}
+	return aliyun.New(accessKeyId, accessKeySecret, options)
 }
 
 // getProviderHandler 根据提供商名称获取对应的 handler
@@ -170,14 +217,6 @@ func (be *BusinessExecutor) getProviderHandler(providerName string) (providers.P
 	}
 
 	switch providerName {
-	case "aliyun":
-		accessKeyId := providerConfig.GetAccessKeyId()
-		accessKeySecret := providerConfig.GetAccessKeySecret()
-		if accessKeyId == "" || accessKeySecret == "" {
-			return nil, fmt.Errorf("阿里云配置不完整: accessKeyId 或 accessKeySecret 为空")
-		}
-		return aliyun.New(accessKeyId, accessKeySecret)
-
 	case "qiniu":
 		accessKey := providerConfig.GetAccessKey()
 		accessSecret := providerConfig.GetAccessSecret()
