@@ -1,5 +1,7 @@
 # 证书自动部署 CLI 工具
 
+[English README](README_EN.md)
+
 一个自动化的 SSL 证书部署工具，用于从 [anssl.cn](https://anssl.cn) 下载并部署证书到服务器。
 
 ## 特性
