@@ -6,11 +6,11 @@ require (
 	github.com/alibabacloud-go/darabonba-openapi/v2 v2.1.15
 	github.com/alibabacloud-go/tea-utils/v2 v2.0.9
 	github.com/coder/websocket v1.8.14
-	github.com/qiniu/go-sdk/v7 v7.25.6
+	github.com/qiniu/go-sdk/v7 v7.26.4
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
-	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.3.49
-	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ssl v1.3.42
+	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.3.56
+	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ssl v1.3.52
 	google.golang.org/protobuf v1.36.11
 )
 
@@ -40,8 +40,8 @@ require (
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/tjfoc/gmsm v1.4.1 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
-	golang.org/x/net v0.51.0 // indirect
-	golang.org/x/sys v0.41.0 // indirect
-	golang.org/x/text v0.34.0 // indirect
+	golang.org/x/net v0.52.0 // indirect
+	golang.org/x/sys v0.42.0 // indirect
+	golang.org/x/text v0.35.0 // indirect
 	gopkg.in/ini.v1 v1.67.1 // indirect
 )
