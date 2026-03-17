@@ -37,6 +37,12 @@ func (be *BusinessExecutor) ExecuteBusiness(providerName string, executeBusinesT
 		case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_APACHE_CERT:
 			// 部署证书到本地 apache
 			return be.handleApacheCertificateDeploy(domain, downloadURL)
+		case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_OPENVPN_AS_CERT:
+			// 部署证书到 OpenVPN-AS
+			return be.handleOpenVPNASCertificateDeploy(domain, downloadURL)
+		case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_UPLOAD_ONLY_CERT:
+			// 仅将证书保存到本地目录
+			return be.handleUploadOnlyCertificateDeploy(domain, downloadURL)
 		case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_RUSTFS_CERT:
 			// 部署证书到本地 RustFS
 			return be.handleRustFSCertificateDeploy(domain, downloadURL)
@@ -111,6 +117,38 @@ func (be *BusinessExecutor) handleApacheCertificateDeploy(domain, downloadURL st
 	}
 
 	logger.Info("Apache 证书部署成功", "domain", domain)
+	return nil
+}
+
+// handleOpenVPNASCertificateDeploy 处理证书部署到 OpenVPN-AS
+func (be *BusinessExecutor) handleOpenVPNASCertificateDeploy(domain, downloadURL string) error {
+	if domain == "" {
+		return fmt.Errorf("域名不能为空")
+	}
+
+	deployer := deploys.NewCertDeployer(be.downloadFile)
+	if err := deployer.DeployCertificateToOpenVPNAS(domain, downloadURL); err != nil {
+		logger.Error("OpenVPN-AS证书部署失败", "error", err, "domain", domain)
+		return err
+	}
+
+	logger.Info("OpenVPN-AS 证书部署成功", "domain", domain)
+	return nil
+}
+
+// handleUploadOnlyCertificateDeploy 仅将证书保存到本地目录
+func (be *BusinessExecutor) handleUploadOnlyCertificateDeploy(domain, downloadURL string) error {
+	if domain == "" {
+		return fmt.Errorf("域名不能为空")
+	}
+
+	deployer := deploys.NewCertDeployer(be.downloadFile)
+	if err := deployer.DeployCertificateToUploadOnly(domain, downloadURL); err != nil {
+		logger.Error("UploadOnly证书保存失败", "error", err, "domain", domain)
+		return err
+	}
+
+	logger.Info("UploadOnly 证书保存成功", "domain", domain, "path", deploys.UploadOnlyTargetDir(domain))
 	return nil
 }
 
