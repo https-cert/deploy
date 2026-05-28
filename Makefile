@@ -12,9 +12,11 @@ build-mac:
 	@echo "构建 Mac 版本..."
 	@mkdir -p bin bin/darwin-amd64 bin/darwin-arm64
 	@GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -trimpath -o bin/darwin-amd64/anssl main.go
-	@tar -C bin/darwin-amd64 -czf bin/anssl-darwin-amd64.tar.gz anssl
+	@cp config.example.yaml bin/darwin-amd64/config.yaml
+	@tar -C bin/darwin-amd64 -czf bin/anssl-darwin-amd64.tar.gz anssl config.yaml
 	@GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -trimpath -o bin/darwin-arm64/anssl main.go
-	@tar -C bin/darwin-arm64 -czf bin/anssl-darwin-arm64.tar.gz anssl
+	@cp config.example.yaml bin/darwin-arm64/config.yaml
+	@tar -C bin/darwin-arm64 -czf bin/anssl-darwin-arm64.tar.gz anssl config.yaml
 	@rm -rf bin/darwin-amd64 bin/darwin-arm64
 	@echo "Mac 版本构建完成"
 
@@ -29,7 +31,8 @@ build-linux:
 	else \
 		echo "UPX 未安装，跳过 linux-amd64 压缩"; \
 	fi
-	@tar -C bin/linux-amd64 -czf bin/anssl-linux-amd64.tar.gz anssl
+	@cp config.example.yaml bin/linux-amd64/config.yaml
+	@tar -C bin/linux-amd64 -czf bin/anssl-linux-amd64.tar.gz anssl config.yaml
 	@GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -trimpath -o bin/linux-arm64/anssl main.go
 	@echo "尝试使用 UPX 压缩 linux-arm64 二进制..."
 	@if command -v upx >/dev/null 2>&1; then \
@@ -37,7 +40,8 @@ build-linux:
 	else \
 		echo "UPX 未安装，跳过 linux-arm64 压缩"; \
 	fi
-	@tar -C bin/linux-arm64 -czf bin/anssl-linux-arm64.tar.gz anssl
+	@cp config.example.yaml bin/linux-arm64/config.yaml
+	@tar -C bin/linux-arm64 -czf bin/anssl-linux-arm64.tar.gz anssl config.yaml
 	@rm -rf bin/linux-amd64 bin/linux-arm64
 	@echo "Linux 版本构建完成"
 
@@ -46,9 +50,11 @@ build-windows:
 	@echo "构建 Windows 版本..."
 	@mkdir -p bin bin/windows-amd64 bin/windows-arm64
 	@GOOS=windows GOARCH=amd64 go build -trimpath -o bin/windows-amd64/anssl.exe main.go
-	@cd bin/windows-amd64 && zip -q ../../bin/anssl-windows-amd64.zip anssl.exe
+	@cp config.example.yaml bin/windows-amd64/config.yaml
+	@cd bin/windows-amd64 && zip -q ../../bin/anssl-windows-amd64.zip anssl.exe config.yaml
 	@GOOS=windows GOARCH=arm64 go build -trimpath -o bin/windows-arm64/anssl.exe main.go
-	@cd bin/windows-arm64 && zip -q ../../bin/anssl-windows-arm64.zip anssl.exe
+	@cp config.example.yaml bin/windows-arm64/config.yaml
+	@cd bin/windows-arm64 && zip -q ../../bin/anssl-windows-arm64.zip anssl.exe config.yaml
 	@rm -rf bin/windows-amd64 bin/windows-arm64
 	@echo "Windows 版本构建完成"
 

@@ -28,7 +28,15 @@ sudo mv anssl /usr/local/bin/
 
 ### 2. Configure
 
-Create a `config.yaml` file:
+Release archives include a `config.yaml` template. Before starting, edit its `accessKey` and any deployment targets you want to enable.
+
+If you run from source, copy the template first:
+
+```bash
+cp config.example.yaml config.yaml
+```
+
+`config.yaml` example:
 
 ```yaml
 server:
@@ -38,18 +46,26 @@ server:
   port: 19000
 
 ssl:
-  # Nginx certificate directory (optional)
-  nginxPath: "/etc/nginx/ssl"
-  # Apache certificate directory (optional)
-  apachePath: "/etc/apache2/ssl"
-  # RustFS TLS certificate directory (optional)
-  rustFSPath: "/etc/rustfs/tls"
+  # Nginx certificate directory (optional; leave empty to disable Nginx deployment)
+  nginxPath: ""
+  # Apache certificate directory (optional; leave empty to disable Apache deployment)
+  apachePath: ""
+  # RustFS TLS certificate directory (optional; leave empty to disable RustFS deployment)
+  rustFSPath: ""
   # FeiNiu deployment (optional)
   feiNiuEnabled: false
-  # 1Panel configuration (optional)
+  # 1Panel configuration (optional; leave empty to disable 1Panel deployment)
   onePanel:
-    url: "http://localhost:10000"  # 1Panel panel URL
-    apiKey: "your-1panel-api-key"  # 1Panel API key
+    url: ""
+    apiKey: ""
+
+update:
+  # Mirror type: github, ghproxy, ghproxy2, custom
+  mirror: "ghproxy"
+  # Required when mirror is custom
+  customUrl: ""
+  # HTTP proxy URL (optional)
+  proxy: ""
 
 # Cloud provider configuration (optional)
 provider:

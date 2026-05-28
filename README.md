@@ -28,7 +28,15 @@ sudo mv anssl /usr/local/bin/
 
 ### 2. 配置
 
-创建 `config.yaml` 文件：
+发布包中已包含 `config.yaml` 模板。启动前请修改其中的 `accessKey` 和需要启用的部署目标。
+
+如果从源码运行，可以复制模板：
+
+```bash
+cp config.example.yaml config.yaml
+```
+
+`config.yaml` 示例：
 
 ```yaml
 server:
@@ -38,18 +46,26 @@ server:
   port: 19000
 
 ssl:
-  # Nginx 证书目录（可选）
-  nginxPath: "/etc/nginx/ssl"
-  # Apache 证书目录（可选）
-  apachePath: "/etc/apache2/ssl"
-  # RustFS TLS 证书目录（可选）
-  rustFSPath: "/etc/rustfs/tls"
+  # Nginx 证书目录（可选，留空则不部署到 Nginx）
+  nginxPath: ""
+  # Apache 证书目录（可选，留空则不部署到 Apache）
+  apachePath: ""
+  # RustFS TLS 证书目录（可选，留空则不部署到 RustFS）
+  rustFSPath: ""
   # 飞牛部署（可选）
   feiNiuEnabled: false
-  # 1Panel 配置（可选）
+  # 1Panel 配置（可选，留空则不部署到 1Panel）
   onePanel:
-    url: "http://localhost:10000"  # 1Panel 面板地址
-    apiKey: "your-1panel-api-key"  # 1Panel API密钥
+    url: ""
+    apiKey: ""
+
+update:
+  # 镜像源类型：github、ghproxy、ghproxy2、custom
+  mirror: "ghproxy"
+  # 使用 custom 镜像源时填写
+  customUrl: ""
+  # HTTP 代理地址（可选）
+  proxy: ""
 
 # 云服务配置（可选）
 provider:

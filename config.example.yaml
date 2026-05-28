@@ -1,0 +1,49 @@
+# anssl 配置模板
+server:
+  # 从 anssl.cn 设置 -> 个人资料 中获取
+  accessKey: "your_access_key_here"
+  # HTTP-01 验证服务端口
+  port: 19000
+
+ssl:
+  # Nginx 证书目录（可选，留空则不部署到 Nginx）
+  nginxPath: ""
+  # Apache 证书目录（可选，留空则不部署到 Apache）
+  apachePath: ""
+  # RustFS TLS 证书目录（可选，留空则不部署到 RustFS）
+  rustFSPath: ""
+  # 飞牛部署（可选）
+  feiNiuEnabled: false
+  # 1Panel 配置（可选，留空则不部署到 1Panel）
+  onePanel:
+    url: ""
+    apiKey: ""
+
+update:
+  # 镜像源类型：github、ghproxy、ghproxy2、custom
+  mirror: "ghproxy"
+  # 使用 custom 镜像源时填写
+  customUrl: ""
+  # HTTP 代理地址（可选）
+  proxy: ""
+
+# 云服务配置（可选）
+# provider:
+#   - name: "aliyun"
+#     remark: "阿里云"
+#     auth:
+#       accessKeyId: "your-aliyun-access-key-id"
+#       accessKeySecret: "your-aliyun-access-key-secret"
+#       esaSiteId: "your-esa-site-id"
+#
+#   - name: "qiniu"
+#     remark: "七牛云"
+#     auth:
+#       accessKey: "your-qiniu-access-key"
+#       accessSecret: "your-qiniu-access-secret"
+#
+#   - name: "cloudTencent"
+#     remark: "腾讯云"
+#     auth:
+#       secretId: "your-tencent-secret-id"
+#       secretKey: "your-tencent-secret-key"
