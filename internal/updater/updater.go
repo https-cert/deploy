@@ -28,6 +28,7 @@ const (
 	githubRepo      = "https-cert/deploy"
 	githubAPIURL    = "https://api.github.com/repos/" + githubRepo + "/releases/latest"
 	downloadTimeout = 10 * time.Minute
+	downloadRetries = 3
 )
 
 // 常见的 GitHub 镜像加速服务
@@ -436,6 +437,27 @@ func getBinaryName() string {
 
 // downloadFile 下载文件
 func downloadFile(ctx context.Context, downloadURL, filepath string) error {
+	var lastErr error
+
+	for attempt := 1; attempt <= downloadRetries; attempt++ {
+		if attempt > 1 {
+			time.Sleep(time.Duration(attempt-1) * time.Second)
+			os.Remove(filepath)
+		}
+
+		if err := downloadFileOnce(ctx, downloadURL, filepath); err != nil {
+			lastErr = err
+			logger.Warn("下载失败，准备重试", "attempt", attempt, "max", downloadRetries, "error", err)
+			continue
+		}
+
+		return nil
+	}
+
+	return lastErr
+}
+
+func downloadFileOnce(ctx context.Context, downloadURL, filepath string) error {
 	ctx, cancel := context.WithTimeout(ctx, downloadTimeout)
 	defer cancel()
 

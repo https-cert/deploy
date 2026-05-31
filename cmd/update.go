@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/https-cert/deploy/internal/config"
 	"github.com/https-cert/deploy/internal/updater"
 	"github.com/spf13/cobra"
 )
@@ -20,6 +21,10 @@ func CreateCheckUpdateCmd() *cobra.Command {
 		Long:  "检查 GitHub 是否有新版本可用",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := context.Background()
+
+			if err := config.Init(ConfigFile); err != nil {
+				return fmt.Errorf("初始化配置失败: %w", err)
+			}
 
 			fmt.Println("正在检查更新...")
 			info, err := updater.CheckUpdate(ctx)
@@ -49,6 +54,10 @@ func CreateUpdateCmd() *cobra.Command {
 		Long:  "从 GitHub Release 下载并更新到最新版本，如果守护进程正在运行则自动重启",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := context.Background()
+
+			if err := config.Init(ConfigFile); err != nil {
+				return fmt.Errorf("初始化配置失败: %w", err)
+			}
 
 			// 获取当前可执行文件的真实路径
 			execPath, err := os.Executable()
