@@ -75,23 +75,23 @@ func (cd *CertDeployer) DeployCertificateToOpenVPNAS(domain, url string) error {
 	}
 
 	safeDomain := SanitizeDomain(domain)
-	fileName := fmt.Sprintf("%s_certificates.zip", safeDomain)
-	zipFile := filepath.Join(CertsDir, fileName)
+	fileName := fmt.Sprintf("%s_certificates.tar", safeDomain)
+	tarFile := filepath.Join(CertsDir, fileName)
 
-	if err := cd.downloadFunc(url, zipFile); err != nil {
+	if err := cd.downloadFunc(url, tarFile); err != nil {
 		return fmt.Errorf("下载证书失败: %w", err)
 	}
 
-	logger.Info("证书下载完成", "file", zipFile)
+	logger.Info("证书下载完成", "file", tarFile)
 
 	defer func() {
-		if _, err := os.Stat(zipFile); err == nil {
-			_ = os.Remove(zipFile)
+		if _, err := os.Stat(tarFile); err == nil {
+			_ = os.Remove(tarFile)
 		}
 	}()
 
 	extractDir := filepath.Join(CertsDir, safeDomain)
-	if err := ExtractZip(zipFile, extractDir); err != nil {
+	if err := ExtractTar(tarFile, extractDir); err != nil {
 		_ = os.RemoveAll(extractDir)
 		return fmt.Errorf("解压证书失败: %w", err)
 	}

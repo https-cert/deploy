@@ -1,7 +1,7 @@
 package deploys
 
 import (
-	"archive/zip"
+	"archive/tar"
 	"errors"
 	"fmt"
 	"io"
@@ -52,22 +52,22 @@ func (cd *CertDeployer) DeployCertificate(domain, url string) error {
 	// 处理泛域名，将 * 转换为 _
 	safeDomain := SanitizeDomain(domain)
 
-	// 文件名格式为 {domain}_certificates.zip
-	fileName := fmt.Sprintf("%s_certificates.zip", safeDomain)
-	zipFile := filepath.Join(CertsDir, fileName)
+	// 文件名格式为 {domain}_certificates.tar
+	fileName := fmt.Sprintf("%s_certificates.tar", safeDomain)
+	tarFile := filepath.Join(CertsDir, fileName)
 
-	// 下载zip文件
-	if err := cd.downloadFunc(url, zipFile); err != nil {
+	// 下载tar文件
+	if err := cd.downloadFunc(url, tarFile); err != nil {
 		return fmt.Errorf("下载证书失败: %w", err)
 	}
 
-	logger.Info("证书下载完成", "file", zipFile)
+	logger.Info("证书下载完成", "file", tarFile)
 
 	// 确保下载失败时清理
 	defer func() {
-		if _, err := os.Stat(zipFile); err == nil {
-			// 部署成功后删除zip文件
-			os.Remove(zipFile)
+		if _, err := os.Stat(tarFile); err == nil {
+			// 部署成功后删除tar文件
+			os.Remove(tarFile)
 		}
 	}()
 
@@ -80,7 +80,7 @@ func (cd *CertDeployer) DeployCertificate(domain, url string) error {
 	onePanelEnabled := sslConfig.OnePanel != nil && sslConfig.OnePanel.URL != ""
 
 	if nginxPath == "" && apachePath == "" && rustFSPath == "" && !feiNiuEnabled && !onePanelEnabled {
-		logger.Info("未配置SSL目录，证书已下载", "file", zipFile)
+		logger.Info("未配置SSL目录，证书已下载", "file", tarFile)
 		return nil
 	}
 
@@ -88,8 +88,8 @@ func (cd *CertDeployer) DeployCertificate(domain, url string) error {
 	folderName := safeDomain
 	extractDir := filepath.Join(CertsDir, folderName)
 
-	// 1. 解压zip文件
-	if err := ExtractZip(zipFile, extractDir); err != nil {
+	// 1. 解压tar文件
+	if err := ExtractTar(tarFile, extractDir); err != nil {
 		// 清理失败的解压文件
 		os.RemoveAll(extractDir)
 		return fmt.Errorf("解压证书失败: %w", err)
@@ -167,48 +167,66 @@ func (cd *CertDeployer) DeployCertificate(domain, url string) error {
 	return nil
 }
 
-// ExtractZip 解压zip文件
-func ExtractZip(zipFile, extractDir string) error {
+// ExtractTar 解压tar文件
+func ExtractTar(tarFile, extractDir string) error {
 	// 创建解压目录
 	if err := os.MkdirAll(extractDir, 0755); err != nil {
 		return fmt.Errorf("创建解压目录失败: %w", err)
 	}
 
-	// 打开zip文件
-	reader, err := zip.OpenReader(zipFile)
+	// 打开tar文件
+	reader, err := os.Open(tarFile)
 	if err != nil {
-		return fmt.Errorf("打开zip文件失败: %w", err)
+		return fmt.Errorf("打开tar文件失败: %w", err)
 	}
 	defer reader.Close()
 
+	tarReader := tar.NewReader(reader)
+
 	// 解压所有文件
-	for _, file := range reader.File {
-		if err := extractZipFile(file, extractDir); err != nil {
+	for {
+		header, err := tarReader.Next()
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("读取tar文件失败: %w", err)
+		}
+
+		if err := extractTarFile(header, tarReader, extractDir); err != nil {
 			return err
 		}
 	}
-
-	return nil
 }
 
-// extractZipFile 解压单个zip文件条目
-func extractZipFile(file *zip.File, extractDir string) error {
+// extractTarFile 解压单个tar文件条目
+func extractTarFile(header *tar.Header, reader io.Reader, extractDir string) error {
+	if header == nil || header.Name == "" {
+		return nil
+	}
+
 	// 使用 filepath.Rel 安全地检查路径
-	targetPath := filepath.Join(extractDir, file.Name)
+	targetPath := filepath.Join(extractDir, header.Name)
 
 	// 清理路径并检查符号链接
 	cleanTarget := filepath.Clean(targetPath)
 	rel, err := filepath.Rel(extractDir, cleanTarget)
 	if err != nil || strings.HasPrefix(rel, "..") || strings.Contains(rel, ".."+string(filepath.Separator)) {
-		return fmt.Errorf("不安全的文件路径: %s", file.Name)
+		return fmt.Errorf("不安全的文件路径: %s", header.Name)
 	}
 
 	// 使用清理后的路径
 	targetPath = cleanTarget
 
-	// 创建目录
-	if file.FileInfo().IsDir() {
-		return os.MkdirAll(targetPath, file.FileInfo().Mode())
+	mode := os.FileMode(header.Mode)
+	switch header.Typeflag {
+	case tar.TypeDir:
+		return os.MkdirAll(targetPath, mode)
+	case tar.TypeReg, tar.TypeRegA:
+		// 继续处理普通文件
+	default:
+		// 跳过符号链接、硬链接和设备文件等特殊条目
+		return nil
 	}
 
 	// 创建文件目录
@@ -216,27 +234,20 @@ func extractZipFile(file *zip.File, extractDir string) error {
 		return fmt.Errorf("创建文件目录失败: %w", err)
 	}
 
-	// 打开zip文件中的文件
-	rc, err := file.Open()
-	if err != nil {
-		return fmt.Errorf("打开zip中的文件失败: %w", err)
-	}
-	defer rc.Close()
-
 	// 创建目标文件
-	outFile, err := os.Create(targetPath)
+	outFile, err := os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
 	if err != nil {
 		return fmt.Errorf("创建文件失败: %w", err)
 	}
 	defer outFile.Close()
 
 	// 复制文件内容
-	if _, err := io.Copy(outFile, rc); err != nil {
+	if _, err := io.Copy(outFile, reader); err != nil {
 		return fmt.Errorf("复制文件内容失败: %w", err)
 	}
 
 	// 设置文件权限
-	if err := os.Chmod(targetPath, file.FileInfo().Mode()); err != nil {
+	if err := os.Chmod(targetPath, mode); err != nil {
 		return fmt.Errorf("设置文件权限失败: %w", err)
 	}
 
