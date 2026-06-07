@@ -23,18 +23,19 @@ Download the binary for your OS from [GitHub Releases](https://github.com/https-
 wget https://github.com/https-cert/deploy/releases/latest/download/anssl-linux-amd64.tar.gz
 tar -xzf anssl-linux-amd64.tar.gz
 chmod +x anssl
+cp -n config.example.yaml config.yaml
 sudo mv anssl /usr/local/bin/
 ```
 
 ### 2. Configure
 
-Release archives include a `config.yaml` template. Before starting, edit its `accessKey` and any deployment targets you want to enable.
-
-If you run from source, copy the template first:
+Release archives include only `config.example.yaml`, not a real `config.yaml`, so manually extracting an update will not overwrite an existing configuration. On first install, copy the template and edit its `accessKey` and any deployment targets you want to enable:
 
 ```bash
 cp config.example.yaml config.yaml
 ```
+
+For later updates, replace only the `anssl` executable; you do not need to copy the configuration template again.
 
 `config.yaml` example:
 

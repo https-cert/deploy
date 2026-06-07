@@ -11,7 +11,6 @@ import (
 
 var (
 	Config   *Configuration
-	Version  = "v0.5.6"
 	URL      = URLProd
 	URLProd  = "https://anssl.cn/deploy"
 	URLLocal = "http://localhost:9000/deploy"

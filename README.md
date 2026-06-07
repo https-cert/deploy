@@ -23,18 +23,19 @@
 wget https://github.com/https-cert/deploy/releases/latest/download/anssl-linux-amd64.tar.gz
 tar -xzf anssl-linux-amd64.tar.gz
 chmod +x anssl
+cp -n config.example.yaml config.yaml
 sudo mv anssl /usr/local/bin/
 ```
 
 ### 2. 配置
 
-发布包中已包含 `config.yaml` 模板。启动前请修改其中的 `accessKey` 和需要启用的部署目标。
-
-如果从源码运行，可以复制模板：
+发布包中只包含 `config.example.yaml` 模板，不包含真实的 `config.yaml`，避免手动解压更新时覆盖已有配置。首次安装时请复制模板并修改其中的 `accessKey` 和需要启用的部署目标：
 
 ```bash
 cp config.example.yaml config.yaml
 ```
+
+后续更新时只替换 `anssl` 可执行文件即可，不需要重新复制配置模板。
 
 `config.yaml` 示例：
 
