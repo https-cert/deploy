@@ -1,6 +1,7 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -8,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"time"
 )
@@ -68,6 +70,9 @@ func DownloadFile(ctx context.Context, httpClient *http.Client, accessKey, downl
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("下载失败，状态码: %d", resp.StatusCode)
 	}
+	if err := ensureDownloadContentType(resp); err != nil {
+		return err
+	}
 
 	// 确保目标目录存在
 	if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
@@ -112,5 +117,28 @@ func DownloadFile(ctx context.Context, httpClient *http.Client, accessKey, downl
 	}
 
 	completed = true
+	return nil
+}
+
+func ensureDownloadContentType(resp *http.Response) error {
+	contentType := strings.ToLower(resp.Header.Get("Content-Type"))
+	if contentType == "" {
+		return nil
+	}
+
+	invalidTypes := []string{
+		"application/json",
+		"text/html",
+		"text/plain",
+	}
+	for _, invalidType := range invalidTypes {
+		if strings.Contains(contentType, invalidType) {
+			preview, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+			resp.Body.Close()
+			resp.Body = io.NopCloser(bytes.NewReader(preview))
+			return fmt.Errorf("下载内容不是证书压缩包: content-type=%s body=%q", contentType, string(preview))
+		}
+	}
+
 	return nil
 }

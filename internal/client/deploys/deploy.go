@@ -2,6 +2,10 @@ package deploys
 
 import (
 	"archive/tar"
+	"archive/zip"
+	"bufio"
+	"compress/gzip"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -167,7 +171,14 @@ func (cd *CertDeployer) DeployCertificate(domain, url string) error {
 	return nil
 }
 
-// ExtractTar 解压tar文件
+const (
+	archiveFormatTar     = "tar"
+	archiveFormatTarGzip = "tar.gz"
+	archiveFormatZip     = "zip"
+)
+
+// ExtractTar 解压证书压缩包。
+// 当前证书包标准格式为 tar；这里兼容 tar.gz 和旧版 zip，避免前后端版本短暂不一致时部署失败。
 func ExtractTar(tarFile, extractDir string) error {
 	// 创建解压目录
 	if err := os.MkdirAll(extractDir, 0755); err != nil {
@@ -181,17 +192,77 @@ func ExtractTar(tarFile, extractDir string) error {
 	}
 	defer reader.Close()
 
-	tarReader := tar.NewReader(reader)
+	bufferedReader := bufio.NewReader(reader)
+	header, err := bufferedReader.Peek(512)
+	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, bufio.ErrBufferFull) {
+		return fmt.Errorf("读取压缩包文件头失败: %w", err)
+	}
 
+	switch detectArchiveFormat(header) {
+	case archiveFormatTarGzip:
+		gzipReader, err := gzip.NewReader(bufferedReader)
+		if err != nil {
+			return fmt.Errorf("打开gzip压缩tar失败: %w", err)
+		}
+		defer gzipReader.Close()
+		return extractTarReader(tar.NewReader(gzipReader), extractDir, archiveHeaderSummary(header))
+	case archiveFormatZip:
+		return extractZipArchive(tarFile, extractDir)
+	default:
+		return extractTarReader(tar.NewReader(bufferedReader), extractDir, archiveHeaderSummary(header))
+	}
+}
+
+func detectArchiveFormat(header []byte) string {
+	if len(header) >= 2 && header[0] == 0x1f && header[1] == 0x8b {
+		return archiveFormatTarGzip
+	}
+	if len(header) >= 4 {
+		switch string(header[:4]) {
+		case "PK\x03\x04", "PK\x05\x06", "PK\x07\x08":
+			return archiveFormatZip
+		}
+	}
+	return archiveFormatTar
+}
+
+func archiveHeaderSummary(header []byte) string {
+	if len(header) == 0 {
+		return "<empty>"
+	}
+
+	const maxHeaderSummaryBytes = 64
+	if len(header) > maxHeaderSummaryBytes {
+		header = header[:maxHeaderSummaryBytes]
+	}
+
+	printable := make([]byte, 0, len(header))
+	for _, b := range header {
+		if b >= 32 && b <= 126 {
+			printable = append(printable, b)
+		} else {
+			printable = append(printable, '.')
+		}
+	}
+
+	return fmt.Sprintf("ascii=%q hex=%s", string(printable), hex.EncodeToString(header))
+}
+
+func extractTarReader(tarReader *tar.Reader, extractDir, headerSummary string) error {
 	// 解压所有文件
+	firstEntry := true
 	for {
 		header, err := tarReader.Next()
 		if errors.Is(err, io.EOF) {
 			return nil
 		}
 		if err != nil {
+			if firstEntry {
+				return fmt.Errorf("读取tar文件失败: %w, 文件头: %s", err, headerSummary)
+			}
 			return fmt.Errorf("读取tar文件失败: %w", err)
 		}
+		firstEntry = false
 
 		if err := extractTarFile(header, tarReader, extractDir); err != nil {
 			return err
@@ -205,18 +276,10 @@ func extractTarFile(header *tar.Header, reader io.Reader, extractDir string) err
 		return nil
 	}
 
-	// 使用 filepath.Rel 安全地检查路径
-	targetPath := filepath.Join(extractDir, header.Name)
-
-	// 清理路径并检查符号链接
-	cleanTarget := filepath.Clean(targetPath)
-	rel, err := filepath.Rel(extractDir, cleanTarget)
-	if err != nil || strings.HasPrefix(rel, "..") || strings.Contains(rel, ".."+string(filepath.Separator)) {
-		return fmt.Errorf("不安全的文件路径: %s", header.Name)
+	targetPath, err := safeArchiveTarget(extractDir, header.Name)
+	if err != nil {
+		return err
 	}
-
-	// 使用清理后的路径
-	targetPath = cleanTarget
 
 	mode := os.FileMode(header.Mode)
 	switch header.Typeflag {
@@ -247,6 +310,89 @@ func extractTarFile(header *tar.Header, reader io.Reader, extractDir string) err
 	}
 
 	// 设置文件权限
+	if err := os.Chmod(targetPath, mode); err != nil {
+		return fmt.Errorf("设置文件权限失败: %w", err)
+	}
+
+	return nil
+}
+
+func safeArchiveTarget(extractDir, entryName string) (string, error) {
+	// 使用 filepath.Rel 安全地检查路径
+	targetPath := filepath.Join(extractDir, entryName)
+
+	// 清理路径并检查符号链接
+	cleanTarget := filepath.Clean(targetPath)
+	rel, err := filepath.Rel(extractDir, cleanTarget)
+	if err != nil || strings.HasPrefix(rel, "..") || strings.Contains(rel, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("不安全的文件路径: %s", entryName)
+	}
+
+	return cleanTarget, nil
+}
+
+func extractZipArchive(zipFile, extractDir string) error {
+	reader, err := zip.OpenReader(zipFile)
+	if err != nil {
+		return fmt.Errorf("打开zip文件失败: %w", err)
+	}
+	defer reader.Close()
+
+	for _, file := range reader.File {
+		if err := extractZipFile(file, extractDir); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func extractZipFile(file *zip.File, extractDir string) error {
+	if file == nil || file.Name == "" {
+		return nil
+	}
+
+	targetPath, err := safeArchiveTarget(extractDir, file.Name)
+	if err != nil {
+		return err
+	}
+
+	info := file.FileInfo()
+	if info.IsDir() {
+		mode := info.Mode().Perm()
+		if mode == 0 {
+			mode = 0755
+		}
+		return os.MkdirAll(targetPath, mode)
+	}
+	if !info.Mode().IsRegular() {
+		return nil
+	}
+
+	if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+		return fmt.Errorf("创建文件目录失败: %w", err)
+	}
+
+	reader, err := file.Open()
+	if err != nil {
+		return fmt.Errorf("打开zip文件条目失败: %w", err)
+	}
+	defer reader.Close()
+
+	mode := info.Mode().Perm()
+	if mode == 0 {
+		mode = 0644
+	}
+	outFile, err := os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
+	if err != nil {
+		return fmt.Errorf("创建文件失败: %w", err)
+	}
+	defer outFile.Close()
+
+	if _, err := io.Copy(outFile, reader); err != nil {
+		return fmt.Errorf("复制文件内容失败: %w", err)
+	}
+
 	if err := os.Chmod(targetPath, mode); err != nil {
 		return fmt.Errorf("设置文件权限失败: %w", err)
 	}
