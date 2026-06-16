@@ -150,6 +150,53 @@ sudo ./anssl daemon -c config.yaml
 
 **Fully automated end-to-end, with no manual intervention.**
 
+## Docker Deployment
+
+Images are published to the GitHub Container Registry: `ghcr.io/https-cert/deploy`.
+
+The container runs in foreground mode (`anssl start`), logs to stdout (viewable via `docker logs`), and lets Docker handle restarts.
+
+### Prepare config
+
+```bash
+cp config.example.yaml config.yaml
+# Edit config.yaml and set at least server.accessKey
+```
+
+### docker run
+
+```bash
+docker run -d --name anssl \
+  --restart unless-stopped \
+  -v "$PWD/config.yaml:/app/config.yaml:ro" \
+  -v anssl-data:/root/.config/anssl \
+  -p 19000:19000 \
+  ghcr.io/https-cert/deploy:latest
+
+# View logs
+docker logs -f anssl
+```
+
+> `-v anssl-data:/root/.config/anssl` persists the client ID cache. **Without this volume**, the server treats the container as a new client on every recreate (the container hostname changes each time).
+
+To pull a specific version, replace `:latest` with a tag, e.g. `ghcr.io/https-cert/deploy:v1.0.0`.
+
+### docker compose
+
+A `docker-compose.yml` is included in the repo:
+
+```bash
+docker compose up -d      # start
+docker compose logs -f    # view logs
+docker compose down       # stop and remove
+```
+
+### Notes
+
+- **Local deployment targets** (Nginx/Apache/RustFS paths) require mounting the target directories into the container as volumes, keeping the paths in `config.yaml` consistent with the in-container paths.
+- **Remote-only deployment** (SCP / 1Panel API) needs no certificate directory mounts; the SCP private key can be provided by mounting the host `~/.ssh`.
+- **HTTP-01 validation**: if using the HTTP-01 challenge, map port `19000` (or the port configured in `config.yaml`).
+
 ## Common Commands
 
 ```bash

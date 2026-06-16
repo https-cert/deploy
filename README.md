@@ -150,6 +150,53 @@ sudo ./anssl daemon -c config.yaml
 
 **全程自动化，无需手动操作。**
 
+## Docker 部署
+
+镜像发布在 GitHub Container Registry：`ghcr.io/https-cert/deploy`。
+
+容器内以前台模式运行（`anssl start`），日志输出到标准输出，可用 `docker logs` 查看，重启交由 Docker 管理。
+
+### 准备配置
+
+```bash
+cp config.example.yaml config.yaml
+# 编辑 config.yaml，至少填写 server.accessKey
+```
+
+### docker run
+
+```bash
+docker run -d --name anssl \
+  --restart unless-stopped \
+  -v "$PWD/config.yaml:/app/config.yaml:ro" \
+  -v anssl-data:/root/.config/anssl \
+  -p 19000:19000 \
+  ghcr.io/https-cert/deploy:latest
+
+# 查看日志
+docker logs -f anssl
+```
+
+> `-v anssl-data:/root/.config/anssl` 用于持久化客户端 ID 缓存。**不加这个卷**，容器每次重建后会被服务器识别成一个新客户端（因为容器 hostname 每次都变）。
+
+拉取指定版本：将 `:latest` 替换为具体 tag，例如 `ghcr.io/https-cert/deploy:v1.0.0`。
+
+### docker compose
+
+仓库已提供 `docker-compose.yml`：
+
+```bash
+docker compose up -d      # 启动
+docker compose logs -f    # 查看日志
+docker compose down       # 停止并移除
+```
+
+### 说明
+
+- **本地部署目标**（Nginx/Apache/RustFS 路径）需通过 volume 把对应目录挂载进容器，并保持 `config.yaml` 中的路径与容器内路径一致。
+- **纯远程部署**（SCP / 1Panel API）无需额外挂载证书目录；SCP 私钥可挂载宿主 `~/.ssh`。
+- **HTTP-01 验证**：如使用 HTTP-01 challenge，需要映射 `19000` 端口（或在 `config.yaml` 中配置的端口）。
+
 ## 常用命令
 
 ```bash

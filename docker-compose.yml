@@ -1,0 +1,29 @@
+services:
+  anssl:
+    # image: ghcr.io/https-cert/deploy:latest
+    # 如需本地自行构建镜像，注释掉上面的 image，改用下面的 build：
+    build: .
+    container_name: anssl
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+    ports:
+      # HTTP-01 challenge 服务端口（如使用 HTTP-01 验证则需映射）
+      - "19000:19000"
+    volumes:
+      # 必需：挂载配置文件（先 cp config.example.yaml config.yaml 并填写 accessKey）
+      - ./config.yaml:/app/config.yaml:ro
+      # 必需：持久化客户端 ID 缓存，否则容器每次重建都会被服务器当成新客户端
+      - anssl-data:/root/.config/anssl
+      # 本地部署目标目录：容器内 /app/ssl（与 config.yaml 的 nginxPath/apachePath/rustFSPath 一致）
+      #   映射到宿主机 ./ssl，证书才会落到宿主机上。
+      #   注意：容器内无 nginx，写入后宿主机的 nginx 需自行 reload。
+      - ./ssl:/app/ssl
+      # 可选：飞牛部署（feiNiuEnabled: true）时挂载其固定目录
+      # - /usr/trim/var/trim_connect/ssls:/usr/trim/var/trim_connect/ssls
+      # 可选：SCP 远程部署时挂载 SSH 私钥
+      # - ~/.ssh:/root/.ssh:ro
+
+volumes:
+  # 客户端 ID 缓存，确保重启后仍是同一个客户端
+  anssl-data:

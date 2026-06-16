@@ -1,8 +1,18 @@
-.PHONY: build build-mac build-linux build-windows compress build-compress proto clean install
+.PHONY: build build-mac build-linux build-windows compress build-compress proto clean install docker-build docker-buildx docker-run
 
 VERSION ?= $(shell git describe --tags --abbrev=0 2>/dev/null || echo dev)
 BASE_LDFLAGS := -X github.com/https-cert/deploy/internal/config.Version=$(VERSION)
 STRIP_LDFLAGS := -s -w $(BASE_LDFLAGS)
+
+# Docker 镜像名（可通过 make docker-build DOCKER_IMAGE=xxx 覆盖）
+DOCKER_IMAGE ?= ghcr.io/https-cert/deploy
+DOCKER_TAG ?= dev
+# 注入镜像的版本号：默认跟随 DOCKER_TAG；显式传 VERSION 时以 VERSION 为准
+ifeq ($(origin VERSION),command line)
+DOCKER_VERSION := $(VERSION)
+else
+DOCKER_VERSION := $(DOCKER_TAG)
+endif
 
 # 默认目标
 all: proto build
@@ -65,3 +75,20 @@ build-windows:
 # 兼容旧的 build-compress 目标（现在等价于 build）
 build-compress: build
 	@echo "构建完成（输出为压缩包，内部应用名为 anssl）"
+
+# 构建本机架构 Docker 镜像（用于本地调试）
+docker-build:
+	@echo "构建 Docker 镜像 $(DOCKER_IMAGE):$(DOCKER_TAG) (VERSION=$(DOCKER_VERSION))..."
+	@docker build --build-arg VERSION=$(DOCKER_VERSION) -t $(DOCKER_IMAGE):$(DOCKER_TAG) .
+	@echo "Docker 镜像构建完成: $(DOCKER_IMAGE):$(DOCKER_TAG)"
+
+# 构建多架构 Docker 镜像（amd64 + arm64，仅校验构建，不加载到本地）
+docker-buildx:
+	@echo "构建多架构 Docker 镜像 $(DOCKER_IMAGE):$(DOCKER_TAG) (VERSION=$(DOCKER_VERSION))..."
+	@docker buildx build --platform linux/amd64,linux/arm64 --build-arg VERSION=$(DOCKER_VERSION) -t $(DOCKER_IMAGE):$(DOCKER_TAG) .
+	@echo "多架构镜像构建完成（如需推送请加 --push）"
+
+# 运行本地镜像（前台，需当前目录存在 config.yaml）
+docker-run: docker-build
+	@echo "运行 $(DOCKER_IMAGE):$(DOCKER_TAG)（挂载 ./config.yaml，映射 19000 端口）..."
+	@docker run --rm -it -v "$(PWD)/config.yaml:/app/config.yaml:ro" -p 19000:19000 $(DOCKER_IMAGE):$(DOCKER_TAG)
