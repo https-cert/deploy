@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"strings"
 
 	"github.com/spf13/viper"
 )
@@ -16,21 +17,31 @@ var (
 	URLLocal = "http://localhost:9000/deploy"
 )
 
+const (
+	defaultHTTPChallengePort = 19000
+	minPort                  = 1
+	maxPort                  = 65535
+	envLocal                 = "local"
+	defaultUpdateMirror      = "ghproxy"
+)
+
 // Configuration 应用配置结构
 type Configuration struct {
-	Server   *ServerConfig `yaml:"server"`
-	SSL      *DeployConfig `yaml:"ssl"`
-	Update   *UpdateConfig `yaml:"update"`
-	Provider []*Provider   `yaml:"provider"`
+	Server   *ServerConfig `yaml:"server"`   // Server 服务端连接和本地 HTTP-01 配置
+	SSL      *DeployConfig `yaml:"ssl"`      // SSL 本地部署目标配置
+	Update   *UpdateConfig `yaml:"update"`   // Update 自更新配置
+	Provider []*Provider   `yaml:"provider"` // Provider 云服务提供商配置
 }
 
 type (
+	// ServerConfig 服务端连接和本地 HTTP-01 challenge 配置
 	ServerConfig struct {
-		AccessKey string `yaml:"accessKey"`
-		Env       string `yaml:"env"`
-		Port      int    `yaml:"port"` // HTTP-01 challenge 服务端口，默认 19000
+		AccessKey string `yaml:"accessKey"` // AccessKey 后端鉴权令牌
+		Env       string `yaml:"env"`       // Env 服务环境，空值为生产环境，local 为本地开发环境
+		Port      int    `yaml:"port"`      // Port HTTP-01 challenge 服务端口，默认 19000
 	}
 
+	// DeployConfig 本地证书部署目标配置
 	DeployConfig struct {
 		NginxPath     string          `yaml:"nginxPath"`     // Nginx SSL 证书目录
 		ApachePath    string          `yaml:"apachePath"`    // Apache SSL 证书目录
@@ -45,8 +56,9 @@ type (
 		APIKey string `yaml:"apiKey"` // 1Panel API 密钥
 	}
 
+	// UpdateConfig 自更新下载源和代理配置
 	UpdateConfig struct {
-		// 镜像源类型: github(默认), ghproxy, fastgit, custom
+		// 镜像源类型: github, ghproxy, ghproxy2, custom
 		Mirror string `yaml:"mirror"`
 		// 自定义镜像地址（当 mirror=custom 时使用）
 		CustomURL string `yaml:"customUrl"`
@@ -54,6 +66,7 @@ type (
 		Proxy string `yaml:"proxy"`
 	}
 
+	// ProviderAuth 云服务提供商认证字段集合
 	ProviderAuth struct {
 		// 阿里云认证字段
 		AccessKeyId     string `yaml:"accessKeyId,omitempty"`
@@ -67,15 +80,19 @@ type (
 		AccessSecret string `yaml:"accessSecret,omitempty"`
 	}
 
+	// Provider 云服务提供商配置
 	Provider struct {
-		Name   string        `yaml:"name"`
-		Remark string        `yaml:"remark"`
-		Auth   *ProviderAuth `yaml:"auth"`
+		Name   string        `yaml:"name"`   // Name 提供商内部名称
+		Remark string        `yaml:"remark"` // Remark 提供商展示备注
+		Auth   *ProviderAuth `yaml:"auth"`   // Auth 提供商认证配置
 	}
 )
 
 // Init 初始化配置
 func Init(configFile string) error {
+	viper.Reset()
+	URL = URLProd
+
 	viper.SetConfigFile(configFile)
 	viper.SetConfigType("yaml")
 
@@ -109,7 +126,10 @@ func validateConfig() error {
 
 	// 设置 HTTP-01 challenge 服务端口默认值
 	if Config.Server.Port == 0 {
-		Config.Server.Port = 19000
+		Config.Server.Port = defaultHTTPChallengePort
+	}
+	if Config.Server.Port < minPort || Config.Server.Port > maxPort {
+		return fmt.Errorf("server.port 必须在 %d-%d 之间", minPort, maxPort)
 	}
 
 	// 处理 SSL 配置
@@ -117,24 +137,10 @@ func validateConfig() error {
 		Config.SSL = &DeployConfig{}
 	}
 
-	// 创建证书目录
-	if Config.SSL.NginxPath != "" {
-		if err := os.MkdirAll(Config.SSL.NginxPath, 0755); err != nil {
-			return fmt.Errorf("创建Nginx证书目录失败: %w", err)
-		}
+	if Config.Server.Env != "" && Config.Server.Env != envLocal {
+		return fmt.Errorf("不支持的服务环境: %s (支持: 空值, local)", Config.Server.Env)
 	}
-	if Config.SSL.ApachePath != "" {
-		if err := os.MkdirAll(Config.SSL.ApachePath, 0755); err != nil {
-			return fmt.Errorf("创建Apache证书目录失败: %w", err)
-		}
-	}
-	if Config.SSL.RustFSPath != "" {
-		if err := os.MkdirAll(Config.SSL.RustFSPath, 0755); err != nil {
-			return fmt.Errorf("创建RustFS证书目录失败: %w", err)
-		}
-	}
-
-	if Config.Server.Env == "local" {
+	if Config.Server.Env == envLocal {
 		URL = URLLocal
 	}
 
@@ -154,9 +160,67 @@ func validateConfig() error {
 			return errors.New("使用 custom 镜像源时，customUrl 不能为空")
 		}
 	} else {
-		Config.Update.Mirror = "ghproxy"
+		Config.Update.Mirror = defaultUpdateMirror
 	}
 
+	if err := validateProviders(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// PrepareRuntimeDirs 创建启动和部署需要的本地目录
+func PrepareRuntimeDirs() error {
+	if Config == nil {
+		return errors.New("配置未初始化")
+	}
+	if Config.SSL == nil {
+		return nil
+	}
+
+	if err := prepareDir("Nginx", Config.SSL.NginxPath); err != nil {
+		return err
+	}
+	if err := prepareDir("Apache", Config.SSL.ApachePath); err != nil {
+		return err
+	}
+	if err := prepareDir("RustFS", Config.SSL.RustFSPath); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// prepareDir 创建单个运行期目录
+func prepareDir(name, path string) error {
+	if path == "" {
+		return nil
+	}
+	if err := os.MkdirAll(path, 0755); err != nil {
+		return fmt.Errorf("创建%s证书目录失败: %w", name, err)
+	}
+	return nil
+}
+
+// validateProviders 验证 provider 列表中不包含空名称或重复名称
+func validateProviders() error {
+	providerNames := make(map[string]struct{}, len(Config.Provider))
+	for _, provider := range Config.Provider {
+		if provider == nil {
+			return errors.New("provider 配置不能为空")
+		}
+
+		name := strings.TrimSpace(provider.Name)
+		if name == "" {
+			return errors.New("provider.name 不能为空")
+		}
+
+		if _, exists := providerNames[name]; exists {
+			return fmt.Errorf("provider.name 不能重复: %s", name)
+		}
+		providerNames[name] = struct{}{}
+	}
 	return nil
 }
 

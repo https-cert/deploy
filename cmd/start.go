@@ -27,6 +27,9 @@ func CreateStartCmd() *cobra.Command {
 			if err := config.Init(ConfigFile); err != nil {
 				return fmt.Errorf("初始化配置失败: %w", err)
 			}
+			if err := config.PrepareRuntimeDirs(); err != nil {
+				return fmt.Errorf("准备运行目录失败: %w", err)
+			}
 
 			// 检查更新标记并清理（程序同级目录）
 			execPath, _ := os.Executable()
