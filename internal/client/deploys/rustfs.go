@@ -13,23 +13,19 @@ import (
 func (cd *CertDeployer) DeployToRustFS(sourceDir, rustFSPath, safeDomain string) error {
 	// RustFS 目标目录（使用域名作为子目录）
 	targetDir := filepath.Join(rustFSPath, safeDomain)
-
-	// 如果目标目录已存在，先删除
-	if _, err := os.Stat(targetDir); err == nil {
-		if err := os.RemoveAll(targetDir); err != nil {
-			return fmt.Errorf("删除现有RustFS证书目录失败: %w", err)
-		}
+	stagingDir := targetDir + ".prepare"
+	if err := os.RemoveAll(stagingDir); err != nil {
+		return fmt.Errorf("清理RustFS临时目录失败: %w", err)
 	}
-
-	// 创建目标目录
-	if err := os.MkdirAll(targetDir, 0755); err != nil {
-		return fmt.Errorf("创建RustFS证书目录失败: %w", err)
+	if err := os.MkdirAll(stagingDir, 0755); err != nil {
+		return fmt.Errorf("创建RustFS临时目录失败: %w", err)
 	}
+	defer os.RemoveAll(stagingDir)
 
 	// 复制并重命名证书文件
 	// cert.pem -> rustfs_cert.pem
 	srcCert := filepath.Join(sourceDir, "cert.pem")
-	dstCert := filepath.Join(targetDir, "rustfs_cert.pem")
+	dstCert := filepath.Join(stagingDir, "rustfs_cert.pem")
 	if err := CopyFileWithMode(srcCert, dstCert, 0644); err != nil {
 		return fmt.Errorf("复制证书文件失败: %w", err)
 	}
@@ -37,9 +33,13 @@ func (cd *CertDeployer) DeployToRustFS(sourceDir, rustFSPath, safeDomain string)
 	// 复制并重命名私钥文件
 	// privateKey.key -> rustfs_key.pem
 	srcKey := filepath.Join(sourceDir, "privateKey.key")
-	dstKey := filepath.Join(targetDir, "rustfs_key.pem")
+	dstKey := filepath.Join(stagingDir, "rustfs_key.pem")
 	if err := CopyFileWithMode(srcKey, dstKey, 0600); err != nil {
 		return fmt.Errorf("复制私钥文件失败: %w", err)
+	}
+
+	if err := PublishDirectoryWithRollback(stagingDir, targetDir); err != nil {
+		return fmt.Errorf("发布RustFS证书目录失败: %w", err)
 	}
 
 	logger.Info("证书已部署到RustFS目录", "path", targetDir, "cert", "rustfs_cert.pem", "key", "rustfs_key.pem")

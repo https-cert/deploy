@@ -28,13 +28,7 @@ func (cd *CertDeployer) DeployToUploadOnly(sourceDir, domain string) error {
 
 	targetDir := UploadOnlyTargetDir(domain)
 
-	if _, err := os.Stat(targetDir); err == nil {
-		if err := os.RemoveAll(targetDir); err != nil {
-			return fmt.Errorf("清理旧的上传目录失败: %w", err)
-		}
-	}
-
-	if err := CopyDirectory(sourceDir, targetDir); err != nil {
+	if err := PublishDirectoryWithRollback(sourceDir, targetDir); err != nil {
 		return fmt.Errorf("保存证书到本地目录失败: %w", err)
 	}
 

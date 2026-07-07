@@ -14,17 +14,20 @@ import (
 
 // DeployToNginx 部署证书到 Nginx 目录并生成配置文件
 func (cd *CertDeployer) DeployToNginx(sourceDir, nginxPath, folderName, safeDomain string) error {
-	// 移动证书文件
-	if err := moveCertificates(sourceDir, nginxPath, folderName); err != nil {
-		return err
+	// 确保SSL目录存在
+	if err := os.MkdirAll(nginxPath, 0755); err != nil {
+		return fmt.Errorf("创建SSL目录失败: %w", err)
 	}
 
-	// 生成 Nginx SSL 配置文件
-	if err := GenerateNginxSSLConfig(nginxPath, folderName, safeDomain); err != nil {
-		return fmt.Errorf("生成Nginx SSL配置失败: %w", err)
-	}
-
-	return nil
+	// 发布目录和生成配置必须作为一个事务处理，避免配置生成失败时覆盖旧证书目录。
+	targetDir := filepath.Join(nginxPath, folderName)
+	return publishDirectoryWithRollback(sourceDir, targetDir, func() error {
+		if err := GenerateNginxSSLConfig(nginxPath, folderName, safeDomain); err != nil {
+			return fmt.Errorf("生成Nginx SSL配置失败: %w", err)
+		}
+		logger.Info("证书文件夹已更新", "path", targetDir)
+		return nil
+	})
 }
 
 // DeployCertificateToNginx 仅部署证书到 Nginx
@@ -126,41 +129,6 @@ ssl_session_tickets off;
 
 	logger.Info("Nginx SSL配置文件已生成", configFile)
 	logger.Info("使用方法: 在 nginx server块中添加 include", configFile)
-	return nil
-}
-
-// moveCertificates 移动证书文件夹到SSL目录
-func moveCertificates(sourceDir, sslPath, folderName string) error {
-	// 确保SSL目录存在
-	if err := os.MkdirAll(sslPath, 0755); err != nil {
-		return fmt.Errorf("创建SSL目录失败: %w", err)
-	}
-
-	// 构建目标路径
-	targetDir := filepath.Join(sslPath, folderName)
-
-	// 如果目标目录已存在，直接删除
-	if _, err := os.Stat(targetDir); err == nil {
-		if err := os.RemoveAll(targetDir); err != nil {
-			return fmt.Errorf("删除现有目录失败: %w", err)
-		}
-	}
-
-	// 移动新证书到目标位置（跨磁盘时回退到复制）
-	if err := os.Rename(sourceDir, targetDir); err != nil {
-		if !IsCrossDeviceError(err) {
-			return fmt.Errorf("移动证书文件夹失败: %w", err)
-		}
-
-		if err := CopyDirectory(sourceDir, targetDir); err != nil {
-			return fmt.Errorf("复制证书文件夹失败: %w", err)
-		}
-		if err := os.RemoveAll(sourceDir); err != nil {
-			return fmt.Errorf("清理解压目录失败: %w", err)
-		}
-	}
-
-	logger.Info("证书文件夹已更新", "path", targetDir)
 	return nil
 }
 

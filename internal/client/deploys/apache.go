@@ -17,23 +17,15 @@ func (cd *CertDeployer) DeployToApache(sourceDir, apachePath, folderName, safeDo
 	// 复制证书文件到 Apache 目录
 	targetDir := filepath.Join(apachePath, folderName)
 
-	// 如果目标目录已存在，先删除
-	if _, err := os.Stat(targetDir); err == nil {
-		if err := os.RemoveAll(targetDir); err != nil {
-			return fmt.Errorf("删除现有Apache证书目录失败: %w", err)
+	// 发布目录和生成配置必须作为一个事务处理，避免配置生成失败时覆盖旧证书目录。
+	if err := publishDirectoryWithRollback(sourceDir, targetDir, func() error {
+		if err := GenerateApacheSSLConfig(apachePath, folderName, safeDomain); err != nil {
+			return fmt.Errorf("生成Apache SSL配置失败: %w", err)
 		}
-	}
-
-	// 复制证书文件
-	if err := CopyDirectory(sourceDir, targetDir); err != nil {
-		return fmt.Errorf("复制证书到Apache目录失败: %w", err)
-	}
-
-	logger.Info("证书已部署到Apache目录", "path", targetDir)
-
-	// 生成 Apache SSL 配置文件
-	if err := GenerateApacheSSLConfig(apachePath, folderName, safeDomain); err != nil {
-		return fmt.Errorf("生成Apache SSL配置失败: %w", err)
+		logger.Info("证书已部署到Apache目录", "path", targetDir)
+		return nil
+	}); err != nil {
+		return fmt.Errorf("发布证书到Apache目录失败: %w", err)
 	}
 
 	return nil
