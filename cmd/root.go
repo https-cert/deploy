@@ -30,6 +30,7 @@ func CreateRootCmd() *cobra.Command {
 	rootCmd.AddCommand(CreateStatusCmd())
 	rootCmd.AddCommand(CreateRestartCmd())
 	rootCmd.AddCommand(CreateLogCmd())
+	rootCmd.AddCommand(CreateDoctorCmd())
 	rootCmd.AddCommand(CreateCheckUpdateCmd())
 	rootCmd.AddCommand(CreateUpdateCmd())
 	rootCmd.AddCommand(CreateVersionCmd())
