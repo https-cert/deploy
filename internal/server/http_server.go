@@ -2,8 +2,10 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -14,9 +16,12 @@ import (
 
 // ChallengeCache 存储 ACME challenge token 和 response 的映射
 type ChallengeCache struct {
-	mu           sync.RWMutex
-	challenges   map[string]*challengeEntry
-	tokenDomains map[string]string // token → domain 映射，用于日志记录和调试
+	// mu 保护 challenge 缓存的并发读写。
+	mu sync.RWMutex
+	// challenges 保存 token 对应的 challenge 内容和过期时间。
+	challenges map[string]*challengeEntry
+	// tokenDomains 保存 token 到域名的映射，用于日志记录和调试。
+	tokenDomains map[string]string
 }
 
 type challengeEntry struct {
@@ -27,23 +32,49 @@ type challengeEntry struct {
 
 // HTTPServer HTTP-01 验证服务器
 type HTTPServer struct {
+	// server 是底层 HTTP 服务实例。
 	server *http.Server
-	cache  *ChallengeCache
+	// cache 保存当前等待验证的 HTTP-01 challenge。
+	cache *ChallengeCache
+}
+
+type healthResponse struct {
+	// Status 表示 HTTP-01 验证服务状态。
+	Status string `json:"status"`
+	// ChallengeCount 表示当前有效 challenge 数量。
+	ChallengeCount int `json:"challengeCount"`
+	// Time 表示健康检查响应时间。
+	Time time.Time `json:"time"`
+}
+
+type debugChallengeInfo struct {
+	// Domain 是 challenge 关联的域名。
+	Domain string `json:"domain"`
+	// Token 是脱敏后的 challenge token。
+	Token string `json:"token"`
+	// ExpiresAt 是 challenge 过期时间。
+	ExpiresAt time.Time `json:"expiresAt"`
+	// ExpiresInSeconds 是距离过期的剩余秒数。
+	ExpiresInSeconds int64 `json:"expiresInSeconds"`
+}
+
+type debugChallengesResponse struct {
+	// Count 表示返回的有效 challenge 数量。
+	Count int `json:"count"`
+	// Challenges 是有效 challenge 的脱敏调试信息。
+	Challenges []debugChallengeInfo `json:"challenges"`
 }
 
 // NewHTTPServer 创建新的 HTTP 服务器
 func NewHTTPServer() *HTTPServer {
-	cache := &ChallengeCache{
-		challenges:   make(map[string]*challengeEntry),
-		tokenDomains: make(map[string]string),
-	}
-
 	mux := http.NewServeMux()
 	s := &HTTPServer{
-		cache: cache,
+		cache: newChallengeCache(),
 	}
 
 	// 注册 ACME challenge 处理器
+	mux.HandleFunc("/healthz", s.handleHealthz)
+	mux.HandleFunc("/debug/challenges", s.handleDebugChallenges)
 	mux.HandleFunc("/acme-challenge/", s.handleACMEChallenge)
 
 	cfg := config.GetConfig()
@@ -63,6 +94,14 @@ func NewHTTPServer() *HTTPServer {
 	return s
 }
 
+// newChallengeCache 创建空的 challenge 缓存。
+func newChallengeCache() *ChallengeCache {
+	return &ChallengeCache{
+		challenges:   make(map[string]*challengeEntry),
+		tokenDomains: make(map[string]string),
+	}
+}
+
 // Start 启动 HTTP 服务器
 func (s *HTTPServer) Start() error {
 	if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -76,6 +115,34 @@ func (s *HTTPServer) Start() error {
 func (s *HTTPServer) Stop(ctx context.Context) error {
 	logger.Info("正在停止 HTTP-01 验证服务")
 	return s.server.Shutdown(ctx)
+}
+
+// handleHealthz 返回 HTTP-01 验证服务健康状态。
+func (s *HTTPServer) handleHealthz(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, healthResponse{
+		Status:         "ok",
+		ChallengeCount: s.cache.CountActive(),
+		Time:           time.Now(),
+	})
+}
+
+// handleDebugChallenges 返回有效 challenge 的脱敏调试信息。
+func (s *HTTPServer) handleDebugChallenges(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	challenges := s.cache.DebugChallenges()
+	writeJSON(w, http.StatusOK, debugChallengesResponse{
+		Count:      len(challenges),
+		Challenges: challenges,
+	})
 }
 
 // handleACMEChallenge 处理 ACME HTTP-01 challenge 请求
@@ -100,6 +167,15 @@ func (s *HTTPServer) handleACMEChallenge(w http.ResponseWriter, r *http.Request)
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(response))
+}
+
+// writeJSON 输出 JSON 响应。
+func writeJSON(w http.ResponseWriter, status int, data any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		logger.Error("写入 JSON 响应失败", "error", err)
+	}
 }
 
 // SetChallenge 设置 challenge token 和 response，10 分钟后过期
@@ -176,6 +252,58 @@ func (c *ChallengeCache) CleanExpired() {
 			delete(c.tokenDomains, token)
 		}
 	}
+}
+
+// CountActive 返回当前未过期的 challenge 数量。
+func (c *ChallengeCache) CountActive() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	now := time.Now()
+	count := 0
+	for _, entry := range c.challenges {
+		if !now.After(entry.expiresAt) {
+			count++
+		}
+	}
+	return count
+}
+
+// DebugChallenges 返回当前有效 challenge 的脱敏调试信息。
+func (c *ChallengeCache) DebugChallenges() []debugChallengeInfo {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	now := time.Now()
+	challenges := make([]debugChallengeInfo, 0, len(c.challenges))
+	for token, entry := range c.challenges {
+		if now.After(entry.expiresAt) {
+			continue
+		}
+
+		challenges = append(challenges, debugChallengeInfo{
+			Domain:           entry.domain,
+			Token:            maskChallengeToken(token),
+			ExpiresAt:        entry.expiresAt,
+			ExpiresInSeconds: int64(entry.expiresAt.Sub(now).Seconds()),
+		})
+	}
+
+	sort.Slice(challenges, func(i, j int) bool {
+		if challenges[i].Domain == challenges[j].Domain {
+			return challenges[i].Token < challenges[j].Token
+		}
+		return challenges[i].Domain < challenges[j].Domain
+	})
+	return challenges
+}
+
+// maskChallengeToken 对 challenge token 做脱敏处理。
+func maskChallengeToken(token string) string {
+	if len(token) <= 8 {
+		return strings.Repeat("*", len(token))
+	}
+	return token[:4] + strings.Repeat("*", len(token)-8) + token[len(token)-4:]
 }
 
 // GetDomain 获取 token 对应的域名
