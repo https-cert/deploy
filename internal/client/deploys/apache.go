@@ -14,6 +14,10 @@ import (
 
 // DeployToApache 部署证书到 Apache 目录
 func (cd *CertDeployer) DeployToApache(sourceDir, apachePath, folderName, safeDomain string) error {
+	if err := ValidateCertificateFiles(sourceDir, safeDomain); err != nil {
+		return err
+	}
+
 	// 复制证书文件到 Apache 目录
 	targetDir := filepath.Join(apachePath, folderName)
 

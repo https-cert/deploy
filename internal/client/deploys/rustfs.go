@@ -11,6 +11,10 @@ import (
 
 // DeployToRustFS 部署证书到 RustFS 目录
 func (cd *CertDeployer) DeployToRustFS(sourceDir, rustFSPath, safeDomain string) error {
+	if err := ValidateCertificateFiles(sourceDir, safeDomain); err != nil {
+		return err
+	}
+
 	// RustFS 目标目录（使用域名作为子目录）
 	targetDir := filepath.Join(rustFSPath, safeDomain)
 	stagingDir := targetDir + ".prepare"

@@ -25,6 +25,9 @@ func (cd *CertDeployer) DeployToUploadOnly(sourceDir, domain string) error {
 	if domain == "" {
 		return fmt.Errorf("域名不能为空")
 	}
+	if err := ValidateCertificateFiles(sourceDir, domain); err != nil {
+		return err
+	}
 
 	targetDir := UploadOnlyTargetDir(domain)
 

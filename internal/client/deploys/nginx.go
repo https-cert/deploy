@@ -14,6 +14,10 @@ import (
 
 // DeployToNginx 部署证书到 Nginx 目录并生成配置文件
 func (cd *CertDeployer) DeployToNginx(sourceDir, nginxPath, folderName, safeDomain string) error {
+	if err := ValidateCertificateFiles(sourceDir, safeDomain); err != nil {
+		return err
+	}
+
 	// 确保SSL目录存在
 	if err := os.MkdirAll(nginxPath, 0755); err != nil {
 		return fmt.Errorf("创建SSL目录失败: %w", err)
