@@ -335,6 +335,18 @@ print_success_banner() {
 EOF
 }
 
+# print_next_step 输出首次启动命令，默认命令目录下省略绝对二进制路径。
+print_next_step() {
+	if [ "$INSTALL_DIR" = "/usr/local/bin" ]; then
+		command_bin="${BIN_NAME}"
+	else
+		command_bin="${INSTALL_DIR}/${BIN_NAME}"
+	fi
+
+	printf '%s\n' "下一步：编辑 ${CONFIG_DIR}/config.yaml，填写 server.accessKey 后运行："
+	printf '%s\n' "${command_bin} daemon -c ${CONFIG_DIR}/config.yaml"
+}
+
 # main 执行下载、校验、解压和安装流程。
 main() {
 	parse_args "$@"
@@ -381,8 +393,7 @@ main() {
 	install_config
 
 	print_success_banner
-	printf '%s\n' "下一步：编辑 ${CONFIG_DIR}/config.yaml，填写 server.accessKey 后运行："
-	printf '%s\n' "${BIN_NAME} daemon -c ${CONFIG_DIR}/config.yaml"
+	print_next_step
 }
 
 main "$@"

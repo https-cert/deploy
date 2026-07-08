@@ -14,6 +14,11 @@ var (
 	ConfigFile string
 )
 
+const (
+	localDefaultConfigFile     = "config.yaml"
+	installedDefaultConfigFile = "/opt/anssl/config.yaml"
+)
+
 // CreateRootCmd 创建根命令
 func CreateRootCmd() *cobra.Command {
 	rootCmd := &cobra.Command{
@@ -37,12 +42,23 @@ func CreateRootCmd() *cobra.Command {
 	rootCmd.AddCommand(CreateVersionCmd())
 
 	// 全局标志
-	rootCmd.PersistentFlags().StringVarP(&ConfigFile, "config", "c", "config.yaml", "配置文件路径")
+	rootCmd.PersistentFlags().StringVarP(&ConfigFile, "config", "c", defaultConfigFile(), "配置文件路径")
 
 	return rootCmd
 }
 
 // 辅助函数
+
+// defaultConfigFile 返回默认配置文件路径，本地开发配置优先于安装目录配置。
+func defaultConfigFile() string {
+	if _, err := os.Stat(localDefaultConfigFile); err == nil {
+		return localDefaultConfigFile
+	}
+	if _, err := os.Stat(installedDefaultConfigFile); err == nil {
+		return installedDefaultConfigFile
+	}
+	return localDefaultConfigFile
+}
 
 // GetPIDFile 获取PID文件路径
 func GetPIDFile() string {

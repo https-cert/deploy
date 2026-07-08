@@ -61,7 +61,7 @@ func CreateDaemonCmd() *cobra.Command {
 				info, err := updater.CheckUpdate(ctx)
 				if err == nil && info.HasUpdate {
 					fmt.Printf("\n发现新版本: %s -> %s\n", info.CurrentVersion, info.LatestVersion)
-					fmt.Println("执行 './anssl update' 进行更新")
+					fmt.Println("执行 'anssl update' 进行更新")
 				}
 			}()
 

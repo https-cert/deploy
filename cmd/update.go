@@ -37,7 +37,7 @@ func CreateCheckUpdateCmd() *cobra.Command {
 
 			if info.HasUpdate {
 				fmt.Println("\n发现新版本！")
-				fmt.Println("执行 './anssl update' 进行更新")
+				fmt.Println("执行 'anssl update' 进行更新")
 			} else {
 				fmt.Println("\n当前已是最新版本")
 			}
@@ -103,13 +103,13 @@ func CreateUpdateCmd() *cobra.Command {
 
 				restartCmd := exec.Command(execPath, "daemon", "-c", ConfigFile)
 				if err := restartCmd.Start(); err != nil {
-					return fmt.Errorf("守护进程启动失败，请手动启动: anssl daemon: %w", err)
+					return fmt.Errorf("守护进程启动失败，请手动启动: anssl daemon -c %s: %w", ConfigFile, err)
 				}
 
 				time.Sleep(1 * time.Second)
 
 				if !IsRunning() {
-					return fmt.Errorf("守护进程启动失败，请手动启动: anssl daemon")
+					return fmt.Errorf("守护进程启动失败，请手动启动: anssl daemon -c %s", ConfigFile)
 				}
 				fmt.Println("守护进程已重启")
 			}
