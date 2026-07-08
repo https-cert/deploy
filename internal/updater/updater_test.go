@@ -5,11 +5,14 @@ import (
 	"archive/zip"
 	"bytes"
 	"compress/gzip"
+	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
+// TestExtractBinaryTarGzFindsExecutableByName 验证 tar.gz 包中可以按名称提取可执行文件。
 func TestExtractBinaryTarGzFindsExecutableByName(t *testing.T) {
 	tempDir := t.TempDir()
 	archivePath := filepath.Join(tempDir, "anssl-linux-amd64.tar.gz")
@@ -27,6 +30,7 @@ func TestExtractBinaryTarGzFindsExecutableByName(t *testing.T) {
 	assertFileContent(t, extractedPath, "binary-content")
 }
 
+// TestExtractBinaryZipFindsExecutableByName 验证 zip 包中可以按名称提取可执行文件。
 func TestExtractBinaryZipFindsExecutableByName(t *testing.T) {
 	tempDir := t.TempDir()
 	archivePath := filepath.Join(tempDir, "anssl-windows-amd64.zip")
@@ -44,6 +48,7 @@ func TestExtractBinaryZipFindsExecutableByName(t *testing.T) {
 	assertFileContent(t, extractedPath, "windows-binary-content")
 }
 
+// TestExtractBinaryTarGzMissingExecutable 验证压缩包缺少可执行文件时返回错误。
 func TestExtractBinaryTarGzMissingExecutable(t *testing.T) {
 	tempDir := t.TempDir()
 	archivePath := filepath.Join(tempDir, "anssl-linux-amd64.tar.gz")
@@ -57,11 +62,85 @@ func TestExtractBinaryTarGzMissingExecutable(t *testing.T) {
 	}
 }
 
+// TestSmokeTestBinaryRunsVersion 验证 smoke test 会执行新二进制的 version 命令。
+func TestSmokeTestBinaryRunsVersion(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell script smoke test is Unix-only")
+	}
+
+	tempDir := t.TempDir()
+	binaryPath := filepath.Join(tempDir, "anssl")
+	if err := os.WriteFile(binaryPath, []byte("#!/bin/sh\nif [ \"$1\" = \"version\" ]; then echo v-test; exit 0; fi\nexit 1\n"), 0755); err != nil {
+		t.Fatalf("write smoke binary: %v", err)
+	}
+
+	if err := smokeTestBinary(context.Background(), binaryPath); err != nil {
+		t.Fatalf("smokeTestBinary() error = %v", err)
+	}
+}
+
+// TestSmokeTestBinaryFails 验证 smoke test 会拒绝执行失败的新二进制。
+func TestSmokeTestBinaryFails(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell script smoke test is Unix-only")
+	}
+
+	tempDir := t.TempDir()
+	binaryPath := filepath.Join(tempDir, "anssl")
+	if err := os.WriteFile(binaryPath, []byte("#!/bin/sh\nexit 1\n"), 0755); err != nil {
+		t.Fatalf("write smoke binary: %v", err)
+	}
+
+	if err := smokeTestBinary(context.Background(), binaryPath); err == nil {
+		t.Fatal("smokeTestBinary() error = nil, want error")
+	}
+}
+
+// TestRestoreBackupRestoresMissingExecutable 验证目标文件缺失时可以从备份恢复。
+func TestRestoreBackupRestoresMissingExecutable(t *testing.T) {
+	tempDir := t.TempDir()
+	execPath := filepath.Join(tempDir, "anssl")
+	backupPath := backupPathFor(execPath)
+	if err := os.WriteFile(backupPath, []byte("backup-binary"), 0755); err != nil {
+		t.Fatalf("write backup: %v", err)
+	}
+
+	if err := restoreBackup(backupPath, execPath); err != nil {
+		t.Fatalf("restoreBackup() error = %v", err)
+	}
+
+	assertFileContent(t, execPath, "backup-binary")
+	assertFileContent(t, backupPath, "backup-binary")
+}
+
+// TestRestoreBackupReplacesExistingExecutable 验证目标文件存在时可以从备份替换恢复。
+func TestRestoreBackupReplacesExistingExecutable(t *testing.T) {
+	tempDir := t.TempDir()
+	execPath := filepath.Join(tempDir, "anssl")
+	backupPath := backupPathFor(execPath)
+	if err := os.WriteFile(execPath, []byte("current-binary"), 0755); err != nil {
+		t.Fatalf("write current binary: %v", err)
+	}
+	if err := os.WriteFile(backupPath, []byte("backup-binary"), 0755); err != nil {
+		t.Fatalf("write backup: %v", err)
+	}
+
+	if err := restoreBackup(backupPath, execPath); err != nil {
+		t.Fatalf("restoreBackup() error = %v", err)
+	}
+
+	assertFileContent(t, execPath, "backup-binary")
+	assertFileContent(t, backupPath, "backup-binary")
+}
+
 type archiveEntry struct {
-	name    string
+	// name 是压缩包内文件名。
+	name string
+	// content 是压缩包内文件内容。
 	content string
 }
 
+// writeTarGzArchive 写入测试用 tar.gz 压缩包。
 func writeTarGzArchive(t *testing.T, archivePath string, entries []archiveEntry) {
 	t.Helper()
 
@@ -94,6 +173,7 @@ func writeTarGzArchive(t *testing.T, archivePath string, entries []archiveEntry)
 	}
 }
 
+// writeZipArchive 写入测试用 zip 压缩包。
 func writeZipArchive(t *testing.T, archivePath string, entries []archiveEntry) {
 	t.Helper()
 
@@ -118,6 +198,7 @@ func writeZipArchive(t *testing.T, archivePath string, entries []archiveEntry) {
 	}
 }
 
+// assertFileContent 断言文件内容等于预期字符串。
 func assertFileContent(t *testing.T, filePath, want string) {
 	t.Helper()
 

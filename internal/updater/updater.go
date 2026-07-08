@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -24,10 +25,11 @@ import (
 )
 
 const (
-	githubRepo      = "https-cert/deploy"
-	githubAPIURL    = "https://api.github.com/repos/" + githubRepo + "/releases/latest"
-	downloadTimeout = 10 * time.Minute
-	downloadRetries = 3
+	githubRepo       = "https-cert/deploy"
+	githubAPIURL     = "https://api.github.com/repos/" + githubRepo + "/releases/latest"
+	downloadTimeout  = 10 * time.Minute
+	downloadRetries  = 3
+	smokeTestTimeout = 15 * time.Second
 )
 
 // 常见的 GitHub 镜像加速服务
@@ -136,13 +138,12 @@ func PerformUpdate(ctx context.Context, info *UpdateInfo) error {
 	logger.Info("下载更新中...", "version", info.LatestVersion)
 
 	// 获取当前可执行文件路径
-	execPath, err := os.Executable()
+	execPath, err := currentExecutablePath()
 	if err != nil {
-		return fmt.Errorf("获取可执行文件路径失败: %w", err)
+		return err
 	}
-	execPath, err = filepath.EvalSymlinks(execPath)
-	if err != nil {
-		return fmt.Errorf("解析可执行文件路径失败: %w", err)
+	if err := checkExecutableWritable(execPath); err != nil {
+		return err
 	}
 
 	// 创建临时目录
@@ -174,6 +175,8 @@ func PerformUpdate(ctx context.Context, info *UpdateInfo) error {
 				return fmt.Errorf("文件校验失败: %w", err)
 			}
 		}
+	} else {
+		logger.Warn("未找到 checksum 文件，跳过下载文件校验", "binary", info.BinaryName)
 	}
 
 	// 设置可执行权限（Unix 系统）
@@ -182,25 +185,156 @@ func PerformUpdate(ctx context.Context, info *UpdateInfo) error {
 			return fmt.Errorf("设置可执行权限失败: %w", err)
 		}
 	}
+	if err := smokeTestBinary(ctx, newBinaryPath); err != nil {
+		return err
+	}
 
 	// 备份当前版本
-	backupPath := execPath + ".backup"
-	if err := copyFile(execPath, backupPath); err != nil {
-		return fmt.Errorf("备份当前版本失败: %w", err)
+	backupPath, err := backupExecutable(execPath)
+	if err != nil {
+		return err
 	}
 
 	// 替换可执行文件
 	if err := replaceExecutable(newBinaryPath, execPath); err != nil {
-		// 恢复备份
-		if restoreErr := os.Rename(backupPath, execPath); restoreErr != nil {
+		if restoreErr := restoreBackup(backupPath, execPath); restoreErr != nil {
 			return fmt.Errorf("替换失败且恢复备份失败: %w, 恢复错误: %v", err, restoreErr)
 		}
 		return fmt.Errorf("替换可执行文件失败: %w", err)
 	}
 
-	// 删除备份
-	os.Remove(backupPath)
+	logger.Info("更新成功，已保留上一版本备份", "backup", backupPath)
 
+	return nil
+}
+
+// Rollback 回滚到上一次更新保留的备份版本。
+func Rollback() error {
+	execPath, err := currentExecutablePath()
+	if err != nil {
+		return err
+	}
+	if err := checkExecutableWritable(execPath); err != nil {
+		return err
+	}
+
+	backupPath := backupPathFor(execPath)
+	if _, err := os.Stat(backupPath); err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("未找到可回滚备份: %s", backupPath)
+		}
+		return fmt.Errorf("检查回滚备份失败: %w", err)
+	}
+
+	if err := restoreBackup(backupPath, execPath); err != nil {
+		return fmt.Errorf("回滚失败: %w", err)
+	}
+	logger.Info("回滚成功", "backup", backupPath)
+	return nil
+}
+
+// currentExecutablePath 返回当前可执行文件的真实路径。
+func currentExecutablePath() (string, error) {
+	execPath, err := os.Executable()
+	if err != nil {
+		return "", fmt.Errorf("获取可执行文件路径失败: %w", err)
+	}
+	execPath, err = filepath.EvalSymlinks(execPath)
+	if err != nil {
+		return "", fmt.Errorf("解析可执行文件路径失败: %w", err)
+	}
+	return execPath, nil
+}
+
+// checkExecutableWritable 检查当前二进制和所在目录是否可写。
+func checkExecutableWritable(execPath string) error {
+	if strings.TrimSpace(execPath) == "" {
+		return fmt.Errorf("可执行文件路径不能为空")
+	}
+
+	info, err := os.Stat(execPath)
+	if err != nil {
+		return fmt.Errorf("检查当前二进制失败: %w", err)
+	}
+	if info.IsDir() {
+		return fmt.Errorf("当前二进制路径不是文件: %s", execPath)
+	}
+
+	file, err := os.Open(execPath)
+	if err != nil {
+		return fmt.Errorf("当前二进制不可读: %w", err)
+	}
+	if err := file.Close(); err != nil {
+		return fmt.Errorf("关闭当前二进制失败: %w", err)
+	}
+
+	parentDir := filepath.Dir(execPath)
+	probe, err := os.CreateTemp(parentDir, ".anssl-update-write-*")
+	if err != nil {
+		return fmt.Errorf("当前二进制所在目录不可写: %w", err)
+	}
+	probePath := probe.Name()
+	if err := probe.Close(); err != nil {
+		os.Remove(probePath)
+		return fmt.Errorf("关闭写权限探测文件失败: %w", err)
+	}
+	if err := os.Remove(probePath); err != nil {
+		return fmt.Errorf("删除写权限探测文件失败: %w", err)
+	}
+	return nil
+}
+
+// smokeTestBinary 通过 version 命令验证新二进制可执行。
+func smokeTestBinary(ctx context.Context, binaryPath string) error {
+	smokeCtx, cancel := context.WithTimeout(ctx, smokeTestTimeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(smokeCtx, binaryPath, "version")
+	output, err := cmd.CombinedOutput()
+	if smokeCtx.Err() == context.DeadlineExceeded {
+		return fmt.Errorf("新二进制 smoke test 超时")
+	}
+	if err != nil {
+		return fmt.Errorf("新二进制 smoke test 失败: %w\n%s", err, strings.TrimSpace(string(output)))
+	}
+	return nil
+}
+
+// backupPathFor 返回当前二进制的备份路径。
+func backupPathFor(execPath string) string {
+	return execPath + ".backup"
+}
+
+// backupExecutable 备份当前二进制，成功更新后仍保留该备份供 rollback 使用。
+func backupExecutable(execPath string) (string, error) {
+	backupPath := backupPathFor(execPath)
+	if err := copyFile(execPath, backupPath); err != nil {
+		return "", fmt.Errorf("备份当前版本失败: %w", err)
+	}
+	return backupPath, nil
+}
+
+// restoreBackup 使用备份恢复当前二进制，同时保留备份文件。
+func restoreBackup(backupPath, execPath string) error {
+	restorePath := execPath + ".restore"
+	os.Remove(restorePath)
+	if err := copyFile(backupPath, restorePath); err != nil {
+		return fmt.Errorf("准备恢复文件失败: %w", err)
+	}
+	if _, err := os.Stat(execPath); os.IsNotExist(err) {
+		if err := copyFile(restorePath, execPath); err != nil {
+			os.Remove(restorePath)
+			return err
+		}
+		return os.Remove(restorePath)
+	} else if err != nil {
+		os.Remove(restorePath)
+		return err
+	}
+	if err := replaceExecutable(restorePath, execPath); err != nil {
+		os.Remove(restorePath)
+		return err
+	}
 	return nil
 }
 

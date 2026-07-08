@@ -33,6 +33,7 @@ func CreateRootCmd() *cobra.Command {
 	rootCmd.AddCommand(CreateDoctorCmd())
 	rootCmd.AddCommand(CreateCheckUpdateCmd())
 	rootCmd.AddCommand(CreateUpdateCmd())
+	rootCmd.AddCommand(CreateRollbackCmd())
 	rootCmd.AddCommand(CreateVersionCmd())
 
 	// 全局标志

@@ -117,3 +117,21 @@ func CreateUpdateCmd() *cobra.Command {
 		},
 	}
 }
+
+// CreateRollbackCmd 创建回滚命令。
+func CreateRollbackCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:           "rollback",
+		Short:         "回滚到上一个版本",
+		Long:          "使用上一次更新保留的备份二进制回滚当前程序",
+		SilenceErrors: true,
+		SilenceUsage:  true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := updater.Rollback(); err != nil {
+				return err
+			}
+			fmt.Println("已回滚到上一个版本")
+			return nil
+		},
+	}
+}
