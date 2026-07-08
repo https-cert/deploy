@@ -61,33 +61,68 @@ func followLogs(logFile string) {
 	}
 	defer file.Close()
 
-	file.Seek(0, 2)
+	offset, err := file.Seek(0, io.SeekEnd)
+	if err != nil {
+		fmt.Printf("定位日志失败: %v\n", err)
+		return
+	}
 
 	buffer := make([]byte, 1024)
-	done := make(chan bool)
 
-	go func() {
-		for {
-			select {
-			case <-done:
-				return
-			default:
-				n, err := file.Read(buffer)
-				if err != nil {
-					if err == io.EOF {
-						time.Sleep(100 * time.Millisecond)
-						continue
-					}
-					done <- true
-					return
-				}
-				if n > 0 {
-					fmt.Print(string(buffer[:n]))
-				}
-			}
+	for {
+		select {
+		case <-sigChan:
+			return
+		default:
 		}
-	}()
 
-	<-sigChan
-	done <- true
+		n, err := file.Read(buffer)
+		if n > 0 {
+			fmt.Print(string(buffer[:n]))
+			offset += int64(n)
+		}
+		if err == nil {
+			continue
+		}
+		if err == io.EOF {
+			newFile, newOffset, changed, reopenErr := reopenFollowLogIfNeeded(logFile, file, offset)
+			if reopenErr != nil {
+				fmt.Printf("重新打开日志失败: %v\n", reopenErr)
+				return
+			}
+			if changed {
+				file.Close()
+				file = newFile
+				offset = newOffset
+			}
+			time.Sleep(100 * time.Millisecond)
+			continue
+		}
+
+		fmt.Printf("读取日志失败: %v\n", err)
+		return
+	}
+}
+
+// reopenFollowLogIfNeeded 在日志轮转或截断后重新打开当前日志文件。
+func reopenFollowLogIfNeeded(logFile string, currentFile *os.File, offset int64) (*os.File, int64, bool, error) {
+	currentInfo, currentErr := currentFile.Stat()
+	pathInfo, err := os.Stat(logFile)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return currentFile, offset, false, nil
+		}
+		return currentFile, offset, false, err
+	}
+
+	changed := currentErr != nil || !os.SameFile(currentInfo, pathInfo) || pathInfo.Size() < offset
+	if !changed {
+		return currentFile, offset, false, nil
+	}
+
+	newFile, err := os.Open(logFile)
+	if err != nil {
+		return currentFile, offset, false, err
+	}
+	return newFile, 0, true, nil
 }
