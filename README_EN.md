@@ -38,86 +38,7 @@ curl -fsSL https://gh-proxy.com/https://raw.githubusercontent.com/https-cert/dep
 curl -fsSL https://gh-proxy.com/https://raw.githubusercontent.com/https-cert/deploy/main/scripts/install.sh | sh -s -- --uninstall --purge
 ```
 
-### 2. Configure
-
-The install script copies the packaged `config.yaml` template to `/opt/anssl/config.yaml` and never overwrites an existing config file. On first install, edit that file and set its `accessKey` and any deployment targets you want to enable.
-
-Running the install script again keeps the existing `config.yaml`. If anssl is installed but not running, the script updates the binary directly; if anssl is running, the script stops the old daemon before installing the new version.
-
-For later updates, replace only the `anssl` executable to avoid overwriting an existing `config.yaml`.
-
-`config.yaml` example:
-
-```yaml
-server:
-  # Get this from anssl.cn -> Settings -> Profile
-  accessKey: "your_access_key_here"
-  # HTTP-01 validation service port
-  port: 19000
-
-ssl:
-  # Nginx certificate directory (optional; leave empty to disable Nginx deployment)
-  nginxPath: ""
-  # Apache certificate directory (optional; leave empty to disable Apache deployment)
-  apachePath: ""
-  # RustFS TLS certificate directory (optional; leave empty to disable RustFS deployment)
-  rustFSPath: ""
-  # FeiNiu deployment (optional)
-  feiNiuEnabled: false
-  # 1Panel configuration (optional; leave empty to disable 1Panel deployment)
-  onePanel:
-    url: ""
-    apiKey: ""
-
-update:
-  # Mirror type: github, ghproxy, custom
-  mirror: "ghproxy"
-  # Required when mirror is custom
-  customUrl: ""
-  # HTTP proxy URL (optional)
-  proxy: ""
-
-# Cloud provider configuration (optional)
-provider:
-  - name: "aliyun"
-    remark: "Alibaba Cloud"
-    auth:
-      accessKeyId: "your-aliyun-access-key-id"
-      accessKeySecret: "your-aliyun-access-key-secret"
-      # ESA-specific field (only used for ESA deployment)
-      esaSiteId: "your-esa-site-id"
-
-  - name: "qiniu"
-    remark: "Qiniu Cloud"
-    auth:
-      accessKey: "your-qiniu-access-key"
-      accessSecret: "your-qiniu-access-secret"
-
-  - name: "cloudTencent"
-    remark: "Tencent Cloud"
-    auth:
-      secretId: "your-tencent-secret-id"
-      secretKey: "your-tencent-secret-key"
-```
-
-> #### Supported Cloud Providers
->
-> | Provider      | `name` value    | Auth fields                                         |
-> | :------------ | :-------------- | :-------------------------------------------------- |
-> | Alibaba Cloud | `aliyun`        | accessKeyId, accessKeySecret (ESA optional: esaSiteId) |
-> | Qiniu Cloud   | `qiniu`         | accessKey, accessSecret                             |
-> | Tencent Cloud | `cloudTencent`  | secretId, secretKey                                 |
-
-> #### Alibaba Cloud CAS/ESA Separation (No Auto-Detection)
->
-> - Select “Alibaba Cloud - CAS Upload Certificate”: calls CAS `UploadUserCertificate`
-> - Select “Alibaba Cloud - ESA Upload Certificate”: calls ESA `SetCertificate` (requires `esaSiteId`)
->
-> #### Tencent Cloud Certificate Upload
->
-> - Select “Tencent Cloud - Upload Certificate”: uses Tencent Cloud Go SDK to call SSL `UploadCertificate` (`ssl.tencentcloudapi.com`, `2019-12-05`)
-
-### 3. Configure Nginx
+### 2. Configure Nginx
 
 Add an HTTP-01 reverse proxy rule (for certificate issuance):
 
@@ -135,7 +56,7 @@ Reload Nginx:
 sudo nginx -t && sudo nginx -s reload
 ```
 
-### 4. Run
+### 3. Run
 
 ```bash
 # Start daemon
@@ -176,23 +97,6 @@ anssl log -f                            # Follow logs
 anssl check-update                      # Check updates
 anssl update                            # Run update
 ```
-
-## Configuration Reference
-
-| Config key             | Required | Description                                                  |
-| ---------------------- | -------- | ------------------------------------------------------------ |
-| `server.accessKey`     | ✅       | Access key from anssl.cn                                     |
-| `server.port`          | ❌       | HTTP-01 validation port, default `19000`                     |
-| `ssl.nginxPath`        | ❌       | Nginx cert directory; auto deploy + reload Nginx             |
-| `ssl.apachePath`       | ❌       | Apache cert directory; auto deploy + reload Apache           |
-| `ssl.rustFSPath`       | ❌       | RustFS TLS cert directory; auto deploy certificates          |
-| `ssl.feiNiuEnabled`    | ❌       | FeiNiu OS deployment switch, default `false`                 |
-| `ssl.onePanel.url`     | ❌       | 1Panel URL (e.g. `http://localhost:10000`)                   |
-| `ssl.onePanel.apiKey`  | ❌       | 1Panel API key generated from panel settings                 |
-| `log.maxSizeMB`        | ❌       | Max size per log file, default `20` MB                       |
-| `log.maxBackups`       | ❌       | Max rotated log files to keep, default `5`                   |
-| `log.maxAgeDays`       | ❌       | Max age for rotated logs, default `30` days                  |
-| `provider`             | ❌       | Cloud provider config (Alibaba Cloud / Qiniu Cloud / Tencent Cloud) |
 
 ## Troubleshooting
 

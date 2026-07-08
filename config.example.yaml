@@ -1,57 +1,79 @@
-# anssl 配置模板
+# anssl 配置模板。
+# 首次安装后通常只需要先填写 server.accessKey。
+# 除 server.accessKey 外，其余字段均可按需要启用；留空或 false 表示不启用对应能力。
 server:
-  # 从 anssl.cn 设置 -> 个人资料 中获取
+  # 必填。从 anssl.cn 设置 -> 个人资料 中获取，用于客户端连接后端时鉴权。
   accessKey: "your_access_key_here"
-  # HTTP-01 验证服务端口
+  # 可选。HTTP-01 验证服务端口，默认 19000。
+  # Nginx/Apache 反向代理 .well-known/acme-challenge 到该端口后，证书申请验证可自动完成。
   port: 19000
 
 ssl:
-  # Nginx 证书目录（可选，留空则不部署到 Nginx）
+  # 可选。Nginx 证书目录，配置后会自动部署证书并执行 nginx -t / nginx reload。
+  # 留空则不部署到 Nginx。
   nginxPath: ""
-  # Apache 证书目录（可选，留空则不部署到 Apache）
+  # 可选。Apache 证书目录，配置后会自动部署证书并执行 Apache 配置测试 / graceful reload。
+  # 留空则不部署到 Apache。
   apachePath: ""
-  # RustFS TLS 证书目录（可选，留空则不部署到 RustFS）
+  # 可选。RustFS TLS 证书目录，配置后会自动部署 RustFS 使用的 TLS 证书。
+  # 留空则不部署到 RustFS。
   rustFSPath: ""
-  # 飞牛部署（可选）
+  # 可选。飞牛 OS 证书部署开关，默认 false。
   feiNiuEnabled: false
-  # 1Panel 配置（可选，留空则不部署到 1Panel）
+  # 可选。1Panel 配置。url 或 apiKey 留空则不部署到 1Panel。
   onePanel:
+    # 1Panel 面板地址，例如 http://localhost:10000。
     url: ""
+    # 1Panel API 密钥，在 1Panel 面板 设置 -> 安全 -> API 接口 中生成。
     apiKey: ""
 
 update:
-  # 镜像源类型：github、ghproxy、custom
+  # 可选。自更新下载源类型，支持 github、ghproxy、custom，默认 ghproxy。
+  # github：直连 GitHub。
+  # ghproxy：使用 https://gh-proxy.com/https://github.com 加速。
+  # custom：使用 customUrl 指定的自定义 GitHub 镜像前缀。
   mirror: "ghproxy"
-  # 使用 custom 镜像源时填写
+  # 可选。mirror 为 custom 时必填，例如 https://your-proxy.example.com/https://github.com。
   customUrl: ""
-  # HTTP 代理地址（可选）
+  # 可选。HTTP/HTTPS 代理地址，例如 http://127.0.0.1:7890。
   proxy: ""
 
 log:
-  # 单个日志文件最大体积（MB），0 表示使用默认值 20
+  # 可选。单个日志文件最大体积（MB），0 表示使用默认值 20。
   maxSizeMB: 20
-  # 最多保留的轮转日志文件数量，0 表示使用默认值 5
+  # 可选。最多保留的轮转日志文件数量，0 表示使用默认值 5。
   maxBackups: 5
-  # 轮转日志最长保留天数，0 表示使用默认值 30
+  # 可选。轮转日志最长保留天数，0 表示使用默认值 30。
   maxAgeDays: 30
 
-# 云服务配置（可选）
+# 可选。云服务 provider 配置。未配置则不启用云服务上传。
+# 支持的 name：
+# - aliyun：阿里云。CAS 上传证书使用 accessKeyId/accessKeySecret；ESA 业务额外需要 esaSiteId。
+# - qiniu：七牛云。使用 accessKey/accessSecret。
+# - cloudTencent：腾讯云。使用 secretId/secretKey，通过腾讯云 SSL UploadCertificate 上传。
 # provider:
 #   - name: "aliyun"
 #     remark: "阿里云"
 #     auth:
+#       # 阿里云 AccessKey ID。
 #       accessKeyId: "your-aliyun-access-key-id"
+#       # 阿里云 AccessKey Secret。
 #       accessKeySecret: "your-aliyun-access-key-secret"
+#       # 阿里云 ESA 业务专用字段，仅执行 ESA 上传证书时需要。
 #       esaSiteId: "your-esa-site-id"
 #
 #   - name: "qiniu"
 #     remark: "七牛云"
 #     auth:
+#       # 七牛云 AccessKey。
 #       accessKey: "your-qiniu-access-key"
+#       # 七牛云 SecretKey。
 #       accessSecret: "your-qiniu-access-secret"
 #
 #   - name: "cloudTencent"
 #     remark: "腾讯云"
 #     auth:
+#       # 腾讯云 SecretId。
 #       secretId: "your-tencent-secret-id"
+#       # 腾讯云 SecretKey。
 #       secretKey: "your-tencent-secret-key"

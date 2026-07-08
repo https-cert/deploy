@@ -38,77 +38,7 @@ curl -fsSL https://gh-proxy.com/https://raw.githubusercontent.com/https-cert/dep
 curl -fsSL https://gh-proxy.com/https://raw.githubusercontent.com/https-cert/deploy/main/scripts/install.sh | sh -s -- --uninstall --purge
 ```
 
-### 2. 配置
-
-安装脚本会把发布包中的 `config.yaml` 模板复制到 `/opt/anssl/config.yaml`，如果配置文件已存在则不会覆盖。首次安装后直接编辑该文件，修改其中的 `accessKey` 和需要启用的部署目标。
-
-重复执行安装脚本时，会保留已有 `config.yaml`。如果已安装但未运行，会直接更新程序；如果检测到 anssl 正在运行，会先停止旧版本，再安装新版本。
-
-后续更新时只替换 `anssl` 可执行文件即可，避免手动解压覆盖已有的 `config.yaml`。
-
-`config.yaml` 示例：
-
-```yaml
-server:
-  # 从 anssl.cn 设置 -> 个人资料 中获取
-  accessKey: "your_access_key_here"
-  # HTTP-01 验证服务端口
-  port: 19000
-
-ssl:
-  # Nginx 证书目录（可选，留空则不部署到 Nginx）
-  nginxPath: ""
-  # Apache 证书目录（可选，留空则不部署到 Apache）
-  apachePath: ""
-  # RustFS TLS 证书目录（可选，留空则不部署到 RustFS）
-  rustFSPath: ""
-  # 飞牛部署（可选）
-  feiNiuEnabled: false
-  # 1Panel 配置（可选，留空则不部署到 1Panel）
-  onePanel:
-    url: ""
-    apiKey: ""
-
-update:
-  # 镜像源类型：github、ghproxy、custom
-  mirror: "ghproxy"
-  # 使用 custom 镜像源时填写
-  customUrl: ""
-  # HTTP 代理地址（可选）
-  proxy: ""
-
-# 云服务配置（可选）
-provider:
-  - name: "aliyun"
-    remark: "阿里云"
-    auth:
-      accessKeyId: "your-aliyun-access-key-id"
-      accessKeySecret: "your-aliyun-access-key-secret"
-      # ESA 业务专用字段（仅在执行 ESA 业务时使用）
-      esaSiteId: "your-esa-site-id"
-
-  - name: "qiniu"
-    remark: "七牛云"
-    auth:
-      accessKey: "your-qiniu-access-key"
-      accessSecret: "your-qiniu-access-secret"
-
-  - name: "cloudTencent"
-    remark: "腾讯云"
-    auth:
-      secretId: "your-tencent-secret-id"
-      secretKey: "your-tencent-secret-key"
-```
-
-#### 已支持的云服务商
-
-> | 服务商 |    name 值     |                      认证字段                      |
-> | :----: | :------------: | :------------------------------------------------: |
-> | 阿里云 |    `aliyun`    | accessKeyId, accessKeySecret（ESA可选：esaSiteId） |
-> | 七牛云 |    `qiniu`     |              accessKey, accessSecret               |
-> | 腾讯云 | `cloudTencent` |                secretId, secretKey                 |
-
-### 3. 配置 Nginx
+### 2. 配置 Nginx
 
 添加 HTTP-01 验证反向代理（用于证书申请）：
 
@@ -126,7 +56,7 @@ location ~ ^/.well-known/acme-challenge/(.+)$ {
 sudo nginx -t && sudo nginx -s reload
 ```
 
-### 4. 运行
+### 3. 运行
 
 ```bash
 # 启动守护进程
@@ -167,23 +97,6 @@ anssl log -f                            # 实时跟踪
 anssl check-update                      # 检查更新
 anssl update                            # 执行更新
 ```
-
-## 配置说明
-
-| 配置项                | 必填 | 说明                                         |
-| --------------------- | ---- | -------------------------------------------- |
-| `server.accessKey`    | ✅   | 从 anssl.cn 获取的访问密钥                   |
-| `server.port`         | ❌   | HTTP-01 验证端口，默认 19000                 |
-| `ssl.nginxPath`       | ❌   | Nginx 证书目录，配置后自动部署并重载 Nginx   |
-| `ssl.apachePath`      | ❌   | Apache 证书目录，配置后自动部署并重载 Apache |
-| `ssl.rustFSPath`      | ❌   | RustFS TLS 证书目录，配置后自动部署证书      |
-| `ssl.feiNiuEnabled`   | ❌   | 飞牛 OS 证书部署开关，默认 false             |
-| `ssl.onePanel.url`    | ❌   | 1Panel 面板地址（如 http://localhost:10000） |
-| `ssl.onePanel.apiKey` | ❌   | 1Panel API 密钥，在面板设置中生成            |
-| `log.maxSizeMB`       | ❌   | 单个日志文件最大体积，默认 20 MB             |
-| `log.maxBackups`      | ❌   | 最多保留的轮转日志数量，默认 5               |
-| `log.maxAgeDays`      | ❌   | 轮转日志最长保留天数，默认 30                |
-| `provider`            | ❌   | 云服务配置（阿里云/七牛云/腾讯云）           |
 
 ## 故障排除
 
