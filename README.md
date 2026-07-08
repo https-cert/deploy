@@ -19,29 +19,23 @@
 Linux/macOS 推荐使用一键安装脚本，默认安装 [GitHub Releases](https://github.com/https-cert/deploy/releases) 最新版本：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/https-cert/deploy/main/scripts/install.sh | sh
-```
-
-国内服务器可使用 GitHub 代理加速下载：
-
-```bash
-curl -fsSL https://ghproxy.net/https://raw.githubusercontent.com/https-cert/deploy/main/scripts/install.sh | MIRROR=ghproxy sh
+curl -fsSL https://gh-proxy.com/https://raw.githubusercontent.com/https-cert/deploy/main/scripts/install.sh | sh
 ```
 
 如需固定版本或修改安装目录：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/https-cert/deploy/main/scripts/install.sh | VERSION=v0.6.0 APP_DIR=/opt/anssl sh
+curl -fsSL https://gh-proxy.com/https://raw.githubusercontent.com/https-cert/deploy/main/scripts/install.sh | VERSION=v0.6.0 APP_DIR=/opt/anssl sh
 ```
 
 默认安装到 `/opt/anssl`，并创建 `/usr/local/bin/anssl` 软链接。如需卸载：
 
 ```bash
 # 卸载程序，保留配置
-curl -fsSL https://raw.githubusercontent.com/https-cert/deploy/main/scripts/install.sh | sh -s -- --uninstall
+curl -fsSL https://gh-proxy.com/https://raw.githubusercontent.com/https-cert/deploy/main/scripts/install.sh | sh -s -- --uninstall
 
 # 卸载程序并删除配置
-curl -fsSL https://raw.githubusercontent.com/https-cert/deploy/main/scripts/install.sh | sh -s -- --uninstall --purge
+curl -fsSL https://gh-proxy.com/https://raw.githubusercontent.com/https-cert/deploy/main/scripts/install.sh | sh -s -- --uninstall --purge
 ```
 
 ### 2. 配置
@@ -74,7 +68,7 @@ ssl:
     apiKey: ""
 
 update:
-  # 镜像源类型：github、ghproxy、ghproxy2、custom
+  # 镜像源类型：github、ghproxy、custom
   mirror: "ghproxy"
   # 使用 custom 镜像源时填写
   customUrl: ""

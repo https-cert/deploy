@@ -19,29 +19,23 @@ An automated SSL certificate deployment tool for downloading certificates from [
 For Linux/macOS, use the install script. It installs the latest version from [GitHub Releases](https://github.com/https-cert/deploy/releases) by default:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/https-cert/deploy/main/scripts/install.sh | sh
-```
-
-For servers with slow GitHub access, use a GitHub proxy:
-
-```bash
-curl -fsSL https://ghproxy.net/https://raw.githubusercontent.com/https-cert/deploy/main/scripts/install.sh | MIRROR=ghproxy sh
+curl -fsSL https://gh-proxy.com/https://raw.githubusercontent.com/https-cert/deploy/main/scripts/install.sh | sh
 ```
 
 To pin a version or customize paths:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/https-cert/deploy/main/scripts/install.sh | VERSION=v0.6.0 APP_DIR=/opt/anssl sh
+curl -fsSL https://gh-proxy.com/https://raw.githubusercontent.com/https-cert/deploy/main/scripts/install.sh | VERSION=v0.6.0 APP_DIR=/opt/anssl sh
 ```
 
 By default, anssl is installed into `/opt/anssl` and linked as `/usr/local/bin/anssl`. To uninstall:
 
 ```bash
 # Remove the binary and keep config
-curl -fsSL https://raw.githubusercontent.com/https-cert/deploy/main/scripts/install.sh | sh -s -- --uninstall
+curl -fsSL https://gh-proxy.com/https://raw.githubusercontent.com/https-cert/deploy/main/scripts/install.sh | sh -s -- --uninstall
 
 # Remove the binary and config
-curl -fsSL https://raw.githubusercontent.com/https-cert/deploy/main/scripts/install.sh | sh -s -- --uninstall --purge
+curl -fsSL https://gh-proxy.com/https://raw.githubusercontent.com/https-cert/deploy/main/scripts/install.sh | sh -s -- --uninstall --purge
 ```
 
 ### 2. Configure
@@ -74,7 +68,7 @@ ssl:
     apiKey: ""
 
 update:
-  # Mirror type: github, ghproxy, ghproxy2, custom
+  # Mirror type: github, ghproxy, custom
   mirror: "ghproxy"
   # Required when mirror is custom
   customUrl: ""

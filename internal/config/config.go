@@ -59,7 +59,7 @@ type (
 
 	// UpdateConfig 自更新下载源和代理配置
 	UpdateConfig struct {
-		// 镜像源类型: github, ghproxy, ghproxy2, custom
+		// 镜像源类型: github, ghproxy, custom
 		Mirror string `yaml:"mirror"`
 		// 自定义镜像地址（当 mirror=custom 时使用）
 		CustomURL string `yaml:"customUrl"`
@@ -157,10 +157,10 @@ func validateConfig() error {
 		Config.Update = &UpdateConfig{}
 	}
 	if Config.Update.Mirror != "" {
-		validMirrors := []string{"github", "ghproxy", "ghproxy2", "custom"}
+		validMirrors := []string{"github", "ghproxy", "custom"}
 		isValid := slices.Contains(validMirrors, Config.Update.Mirror)
 		if !isValid {
-			return fmt.Errorf("不支持的镜像源类型: %s (支持: github, ghproxy, ghproxy2, custom)", Config.Update.Mirror)
+			return fmt.Errorf("不支持的镜像源类型: %s (支持: github, ghproxy, custom)", Config.Update.Mirror)
 		}
 
 		// 如果使用自定义镜像，检查 customUrl 是否设置

@@ -20,7 +20,7 @@ ssl:
     apiKey: ""
 
 update:
-  # 镜像源类型：github、ghproxy、ghproxy2、custom
+  # 镜像源类型：github、ghproxy、custom
   mirror: "ghproxy"
   # 使用 custom 镜像源时填写
   customUrl: ""

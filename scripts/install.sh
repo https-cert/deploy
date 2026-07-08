@@ -7,7 +7,7 @@ set -eu
 REPO="${REPO:-https-cert/deploy}"
 BIN_NAME="${BIN_NAME:-anssl}"
 VERSION="${VERSION:-latest}"
-MIRROR="${MIRROR:-}"
+MIRROR="${MIRROR:-ghproxy}"
 APP_DIR="${APP_DIR:-/opt/anssl}"
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
 CONFIG_DIR="${CONFIG_DIR:-$APP_DIR}"
@@ -43,7 +43,7 @@ usage() {
 
 环境变量:
   VERSION      安装版本，默认 latest，例如 v0.6.0
-  MIRROR       GitHub 代理，可选 ghproxy、ghproxy2
+  MIRROR       下载源，可选 ghproxy、github，默认 ghproxy
   APP_DIR      程序目录，默认 /opt/anssl
   INSTALL_DIR  命令链接目录，默认 /usr/local/bin
   CONFIG_DIR   配置目录，默认等于 APP_DIR
@@ -137,18 +137,14 @@ build_release_urls() {
 	checksum_url="${base_url}/checksums.txt"
 
 	case "$MIRROR" in
-		"")
+		github)
 			;;
 		ghproxy)
-			asset_url="https://ghproxy.net/${asset_url}"
-			checksum_url="https://ghproxy.net/${checksum_url}"
-			;;
-		ghproxy2 | gh-proxy)
 			asset_url="https://gh-proxy.com/${asset_url}"
 			checksum_url="https://gh-proxy.com/${checksum_url}"
 			;;
 		*)
-			log_error "不支持的镜像源: ${MIRROR}，可选值: ghproxy, ghproxy2"
+			log_error "不支持的下载源: ${MIRROR}，可选值: ghproxy, github"
 			;;
 	esac
 }
@@ -244,6 +240,39 @@ uninstall_anssl() {
 	log_info "卸载完成"
 }
 
+# print_success_banner 输出安装完成后的摘要信息。
+print_success_banner() {
+	version_output="$("${INSTALL_DIR}/${BIN_NAME}" version 2>/dev/null || true)"
+	if [ "$version_output" = "" ]; then
+		version_output="${BIN_NAME} version unknown"
+	fi
+
+	cat <<EOF
+
+------------------------------------------------------------
+     ___    _   _ ____ ____  _
+    / _ \  | \ | / ___/ ___|| |
+   / /_\ \ |  \| \___ \___ \| |
+  / ___  \ | |\ | ___) |__) | |___
+ /_/   \_\|_| \_||____/____/|_____|
+
+  anssl 安装成功
+
+  版本: ${version_output}
+  程序: ${APP_DIR}/${BIN_NAME}
+  命令: ${INSTALL_DIR}/${BIN_NAME}
+  配置: ${CONFIG_DIR}/config.yaml
+
+  卸载:
+    curl -fsSL https://gh-proxy.com/https://raw.githubusercontent.com/https-cert/deploy/main/scripts/install.sh | sh -s -- --uninstall
+
+  卸载并删除配置:
+    curl -fsSL https://gh-proxy.com/https://raw.githubusercontent.com/https-cert/deploy/main/scripts/install.sh | sh -s -- --uninstall --purge
+------------------------------------------------------------
+
+EOF
+}
+
 # main 执行下载、校验、解压和安装流程。
 main() {
 	parse_args "$@"
@@ -287,9 +316,8 @@ main() {
 	log_info "准备配置目录 ${CONFIG_DIR}"
 	install_config
 
-	log_info "安装完成"
-	"${INSTALL_DIR}/${BIN_NAME}" version || true
-	printf '\n%s\n' "下一步：编辑 ${CONFIG_DIR}/config.yaml，填写 server.accessKey 后运行："
+	print_success_banner
+	printf '%s\n' "下一步：编辑 ${CONFIG_DIR}/config.yaml，填写 server.accessKey 后运行："
 	printf '%s\n' "${INSTALL_DIR}/${BIN_NAME} daemon -c ${CONFIG_DIR}/config.yaml"
 }
 

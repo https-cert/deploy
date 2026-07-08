@@ -34,16 +34,14 @@ const (
 
 // 常见的 GitHub 镜像加速服务
 const (
-	mirrorGitHub   = "github"
-	mirrorGHProxy  = "ghproxy"
-	mirrorGHProxy2 = "ghproxy2"
-	mirrorCustom   = "custom"
+	mirrorGitHub  = "github"
+	mirrorGHProxy = "ghproxy"
+	mirrorCustom  = "custom"
 )
 
 var mirrorMap = map[string]string{
-	mirrorGitHub:   "https://github.com",
-	mirrorGHProxy:  "https://ghproxy.net/https://github.com",
-	mirrorGHProxy2: "https://gh-proxy.com/https://github.com",
+	mirrorGitHub:  "https://github.com",
+	mirrorGHProxy: "https://gh-proxy.com/https://github.com",
 }
 
 // GitHubRelease GitHub Release API 响应结构
