@@ -16,19 +16,37 @@ An automated SSL certificate deployment tool for downloading certificates from [
 
 ### 1. Install
 
-Download the binary for your OS from [GitHub Releases](https://github.com/https-cert/deploy/releases):
+For Linux/macOS, use the install script. It installs the latest version from [GitHub Releases](https://github.com/https-cert/deploy/releases) by default:
 
 ```bash
-# Linux
-wget https://github.com/https-cert/deploy/releases/latest/download/anssl-linux-amd64.tar.gz
-tar -xzf anssl-linux-amd64.tar.gz
-chmod +x anssl
-sudo mv anssl /usr/local/bin/
+curl -fsSL https://raw.githubusercontent.com/https-cert/deploy/main/scripts/install.sh | sh
+```
+
+For servers with slow GitHub access, use a GitHub proxy:
+
+```bash
+curl -fsSL https://ghproxy.net/https://raw.githubusercontent.com/https-cert/deploy/main/scripts/install.sh | MIRROR=ghproxy sh
+```
+
+To pin a version or customize paths:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/https-cert/deploy/main/scripts/install.sh | VERSION=v0.6.0 APP_DIR=/opt/anssl sh
+```
+
+By default, anssl is installed into `/opt/anssl` and linked as `/usr/local/bin/anssl`. To uninstall:
+
+```bash
+# Remove the binary and keep config
+curl -fsSL https://raw.githubusercontent.com/https-cert/deploy/main/scripts/install.sh | sh -s -- --uninstall
+
+# Remove the binary and config
+curl -fsSL https://raw.githubusercontent.com/https-cert/deploy/main/scripts/install.sh | sh -s -- --uninstall --purge
 ```
 
 ### 2. Configure
 
-Release archives include a `config.yaml` template. On first install, edit the extracted `config.yaml` and set its `accessKey` and any deployment targets you want to enable.
+The install script copies the packaged `config.yaml` template to `/opt/anssl/config.yaml` and never overwrites an existing config file. On first install, edit that file and set its `accessKey` and any deployment targets you want to enable.
 
 For later updates, replace only the `anssl` executable to avoid overwriting an existing `config.yaml`.
 
@@ -125,13 +143,13 @@ sudo nginx -t && sudo nginx -s reload
 
 ```bash
 # Start daemon
-sudo ./anssl daemon -c config.yaml
+sudo anssl daemon -c /opt/anssl/config.yaml
 
 # Check status
-./anssl status
+anssl status
 
 # View logs
-./anssl log -f
+anssl log -f
 ```
 
 ## HTTP-01 Validation Flow
@@ -149,18 +167,18 @@ sudo ./anssl daemon -c config.yaml
 
 ```bash
 # Daemon management
-./anssl daemon -c config.yaml  # Start daemon
-./anssl status                 # Check status
-./anssl stop                   # Stop
-./anssl restart -c config.yaml # Restart
+anssl daemon -c /opt/anssl/config.yaml  # Start daemon
+anssl status                            # Check status
+anssl stop                              # Stop
+anssl restart -c /opt/anssl/config.yaml # Restart
 
 # Logs
-./anssl log                    # View logs
-./anssl log -f                 # Follow logs
+anssl log                               # View logs
+anssl log -f                            # Follow logs
 
 # Update
-./anssl check-update           # Check updates
-./anssl update                 # Run update
+anssl check-update                      # Check updates
+anssl update                            # Run update
 ```
 
 ## Configuration Reference
@@ -196,18 +214,18 @@ lsof -i :19000
 curl http://localhost:19000/acme-challenge/test-token
 
 # 4. Check logs
-./anssl log -f
+anssl log -f
 ```
 
 ### Permission errors
 
 ```bash
 # Option 1: Use sudo
-sudo ./anssl daemon -c config.yaml
+sudo anssl daemon -c /opt/anssl/config.yaml
 
 # Option 2: Use user-owned directories
-# Update config.yaml: ssl.path: "$HOME/nginx/ssl"
-./anssl daemon -c config.yaml
+# Update /opt/anssl/config.yaml: ssl.path: "$HOME/nginx/ssl"
+anssl daemon -c /opt/anssl/config.yaml
 ```
 
 ### Auto-start on boot (systemd)
@@ -221,7 +239,7 @@ After=network.target
 [Service]
 Type=simple
 User=root
-ExecStart=/usr/local/bin/anssl start -c /etc/anssl/config.yaml
+ExecStart=/usr/local/bin/anssl start -c /opt/anssl/config.yaml
 Restart=always
 RestartSec=10
 

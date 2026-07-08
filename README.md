@@ -16,19 +16,37 @@
 
 ### 1. 安装
 
-从 [GitHub Releases](https://github.com/https-cert/deploy/releases) 下载适合你系统的版本：
+Linux/macOS 推荐使用一键安装脚本，默认安装 [GitHub Releases](https://github.com/https-cert/deploy/releases) 最新版本：
 
 ```bash
-# Linux
-wget https://github.com/https-cert/deploy/releases/latest/download/anssl-linux-amd64.tar.gz
-tar -xzf anssl-linux-amd64.tar.gz
-chmod +x anssl
-sudo mv anssl /usr/local/bin/
+curl -fsSL https://raw.githubusercontent.com/https-cert/deploy/main/scripts/install.sh | sh
+```
+
+国内服务器可使用 GitHub 代理加速下载：
+
+```bash
+curl -fsSL https://ghproxy.net/https://raw.githubusercontent.com/https-cert/deploy/main/scripts/install.sh | MIRROR=ghproxy sh
+```
+
+如需固定版本或修改安装目录：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/https-cert/deploy/main/scripts/install.sh | VERSION=v0.6.0 APP_DIR=/opt/anssl sh
+```
+
+默认安装到 `/opt/anssl`，并创建 `/usr/local/bin/anssl` 软链接。如需卸载：
+
+```bash
+# 卸载程序，保留配置
+curl -fsSL https://raw.githubusercontent.com/https-cert/deploy/main/scripts/install.sh | sh -s -- --uninstall
+
+# 卸载程序并删除配置
+curl -fsSL https://raw.githubusercontent.com/https-cert/deploy/main/scripts/install.sh | sh -s -- --uninstall --purge
 ```
 
 ### 2. 配置
 
-发布包中已包含 `config.yaml` 模板。首次安装时直接编辑解压出来的 `config.yaml`，修改其中的 `accessKey` 和需要启用的部署目标。
+安装脚本会把发布包中的 `config.yaml` 模板复制到 `/opt/anssl/config.yaml`，如果配置文件已存在则不会覆盖。首次安装后直接编辑该文件，修改其中的 `accessKey` 和需要启用的部署目标。
 
 后续更新时只替换 `anssl` 可执行文件即可，避免手动解压覆盖已有的 `config.yaml`。
 
@@ -86,22 +104,13 @@ provider:
       secretKey: "your-tencent-secret-key"
 ```
 
-> #### 已支持的云服务商
->
-> | 服务商 |    name 值     |           认证字段           |
-> | :----: | :------------: | :--------------------------: |
-> | 阿里云 |    `aliyun`    | accessKeyId, accessKeySecret（ESA可选：esaSiteId） |
-> | 七牛云 |    `qiniu`     |   accessKey, accessSecret    |
-> | 腾讯云 | `cloudTencent` |     secretId, secretKey      |
+#### 已支持的云服务商
 
-> #### 阿里云 CAS/ESA 业务分离（无自动识别）
->
-> - 选择“阿里云-CAS 上传证书”业务：调用 CAS `UploadUserCertificate`
-> - 选择“阿里云-ESA 上传证书”业务：调用 ESA `SetCertificate`（需要 `esaSiteId`）
->
-> #### 腾讯云上传证书
->
-> - 选择“腾讯云-上传证书”业务：通过腾讯云官方 Go SDK 调用 SSL `UploadCertificate`（`ssl.tencentcloudapi.com`, `2019-12-05`）
+> | 服务商 |    name 值     |                      认证字段                      |
+> | :----: | :------------: | :------------------------------------------------: |
+> | 阿里云 |    `aliyun`    | accessKeyId, accessKeySecret（ESA可选：esaSiteId） |
+> | 七牛云 |    `qiniu`     |              accessKey, accessSecret               |
+> | 腾讯云 | `cloudTencent` |                secretId, secretKey                 |
 
 ### 3. 配置 Nginx
 
@@ -125,13 +134,13 @@ sudo nginx -t && sudo nginx -s reload
 
 ```bash
 # 启动守护进程
-sudo ./anssl daemon -c config.yaml
+sudo anssl daemon -c /opt/anssl/config.yaml
 
 # 查看状态
-./anssl status
+anssl status
 
 # 查看日志
-./anssl log -f
+anssl log -f
 ```
 
 ## HTTP-01 验证工作流程
@@ -149,36 +158,36 @@ sudo ./anssl daemon -c config.yaml
 
 ```bash
 # 守护进程管理
-./anssl daemon -c config.yaml  # 启动守护进程
-./anssl status                 # 查看状态
-./anssl stop                   # 停止
-./anssl restart -c config.yaml # 重启
+anssl daemon -c /opt/anssl/config.yaml  # 启动守护进程
+anssl status                            # 查看状态
+anssl stop                              # 停止
+anssl restart -c /opt/anssl/config.yaml # 重启
 
 # 日志查看
-./anssl log                    # 查看日志
-./anssl log -f                 # 实时跟踪
+anssl log                               # 查看日志
+anssl log -f                            # 实时跟踪
 
 # 更新
-./anssl check-update           # 检查更新
-./anssl update                 # 执行更新
+anssl check-update                      # 检查更新
+anssl update                            # 执行更新
 ```
 
 ## 配置说明
 
-| 配置项                 | 必填 | 说明                                         |
-| ---------------------- | ---- | -------------------------------------------- |
-| `server.accessKey`     | ✅   | 从 anssl.cn 获取的访问密钥                   |
-| `server.port`          | ❌   | HTTP-01 验证端口，默认 19000                 |
-| `ssl.nginxPath`        | ❌   | Nginx 证书目录，配置后自动部署并重载 Nginx   |
-| `ssl.apachePath`       | ❌   | Apache 证书目录，配置后自动部署并重载 Apache |
-| `ssl.rustFSPath`       | ❌   | RustFS TLS 证书目录，配置后自动部署证书      |
-| `ssl.feiNiuEnabled`    | ❌   | 飞牛 OS 证书部署开关，默认 false             |
-| `ssl.onePanel.url`     | ❌   | 1Panel 面板地址（如 http://localhost:10000） |
-| `ssl.onePanel.apiKey`  | ❌   | 1Panel API 密钥，在面板设置中生成            |
-| `log.maxSizeMB`        | ❌   | 单个日志文件最大体积，默认 20 MB             |
-| `log.maxBackups`       | ❌   | 最多保留的轮转日志数量，默认 5               |
-| `log.maxAgeDays`       | ❌   | 轮转日志最长保留天数，默认 30                |
-| `provider`             | ❌   | 云服务配置（阿里云/七牛云/腾讯云）           |
+| 配置项                | 必填 | 说明                                         |
+| --------------------- | ---- | -------------------------------------------- |
+| `server.accessKey`    | ✅   | 从 anssl.cn 获取的访问密钥                   |
+| `server.port`         | ❌   | HTTP-01 验证端口，默认 19000                 |
+| `ssl.nginxPath`       | ❌   | Nginx 证书目录，配置后自动部署并重载 Nginx   |
+| `ssl.apachePath`      | ❌   | Apache 证书目录，配置后自动部署并重载 Apache |
+| `ssl.rustFSPath`      | ❌   | RustFS TLS 证书目录，配置后自动部署证书      |
+| `ssl.feiNiuEnabled`   | ❌   | 飞牛 OS 证书部署开关，默认 false             |
+| `ssl.onePanel.url`    | ❌   | 1Panel 面板地址（如 http://localhost:10000） |
+| `ssl.onePanel.apiKey` | ❌   | 1Panel API 密钥，在面板设置中生成            |
+| `log.maxSizeMB`       | ❌   | 单个日志文件最大体积，默认 20 MB             |
+| `log.maxBackups`      | ❌   | 最多保留的轮转日志数量，默认 5               |
+| `log.maxAgeDays`      | ❌   | 轮转日志最长保留天数，默认 30                |
+| `provider`            | ❌   | 云服务配置（阿里云/七牛云/腾讯云）           |
 
 ## 故障排除
 
@@ -196,18 +205,18 @@ lsof -i :19000
 curl http://localhost:19000/acme-challenge/test-token
 
 # 4. 查看日志
-./anssl log -f
+anssl log -f
 ```
 
 ### 权限错误
 
 ```bash
 # 方式 1：使用 sudo
-sudo ./anssl daemon -c config.yaml
+sudo anssl daemon -c /opt/anssl/config.yaml
 
 # 方式 2：配置用户目录
-# 修改 config.yaml: ssl.path: "$HOME/nginx/ssl"
-./anssl daemon -c config.yaml
+# 修改 /opt/anssl/config.yaml: ssl.path: "$HOME/nginx/ssl"
+anssl daemon -c /opt/anssl/config.yaml
 ```
 
 ### 开机自启动（systemd）
@@ -221,7 +230,7 @@ After=network.target
 [Service]
 Type=simple
 User=root
-ExecStart=/usr/local/bin/anssl start -c /etc/anssl/config.yaml
+ExecStart=/usr/local/bin/anssl start -c /opt/anssl/config.yaml
 Restart=always
 RestartSec=10
 
