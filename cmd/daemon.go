@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/https-cert/deploy/internal/config"
 	"github.com/https-cert/deploy/internal/updater"
 	"github.com/spf13/cobra"
 )
@@ -84,25 +85,30 @@ func createSupervisorCmd() *cobra.Command {
 
 // runSupervisor 运行守护进程监控器
 func runSupervisor() {
+	if err := config.Init(ConfigFile); err != nil {
+		fmt.Printf("初始化配置失败: %v\n", err)
+		return
+	}
+
 	execPath, err := os.Executable()
 	if err != nil {
 		fmt.Printf("获取可执行文件路径失败: %v\n", err)
 		return
 	}
 
-	supervisorLogFile, err := os.OpenFile(GetLogFile(), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
+	logWriter, err := newRotatingLogWriter(GetLogFile(), logRotationOptionsFromConfig())
 	if err != nil {
 		fmt.Printf("打开日志文件失败: %v\n", err)
 		return
 	}
-	defer supervisorLogFile.Close()
+	defer logWriter.Close()
 
 	logSupervisor := func(format string, args ...interface{}) {
 		msg := fmt.Sprintf("[Supervisor %s] ", time.Now().Format("15:04:05"))
 		msg += fmt.Sprintf(format, args...)
 		msg += "\n"
-		supervisorLogFile.WriteString(msg)
-		supervisorLogFile.Sync()
+		logWriter.Write([]byte(msg))
+		logWriter.Sync()
 	}
 
 	// 将 supervisor 自身的 PID 写入 PID 文件
@@ -156,18 +162,11 @@ func runSupervisor() {
 
 		cmd := exec.Command(execPath, "start", "-c", ConfigFile)
 
-		logFile, err := os.OpenFile(GetLogFile(), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
-		if err != nil {
-			time.Sleep(restartDelay)
-			continue
-		}
-
-		cmd.Stdout = logFile
-		cmd.Stderr = logFile
+		cmd.Stdout = logWriter
+		cmd.Stderr = logWriter
 
 		startTime := time.Now()
 		if err := cmd.Start(); err != nil {
-			logFile.Close()
 			consecutiveFailures++
 			time.Sleep(restartDelay)
 			continue
@@ -178,7 +177,6 @@ func runSupervisor() {
 		childMu.Unlock()
 
 		err = cmd.Wait()
-		logFile.Close()
 
 		childMu.Lock()
 		currentChild = nil

@@ -175,6 +175,9 @@ sudo ./anssl daemon -c config.yaml
 | `ssl.feiNiuEnabled`    | ❌   | 飞牛 OS 证书部署开关，默认 false             |
 | `ssl.onePanel.url`     | ❌   | 1Panel 面板地址（如 http://localhost:10000） |
 | `ssl.onePanel.apiKey`  | ❌   | 1Panel API 密钥，在面板设置中生成            |
+| `log.maxSizeMB`        | ❌   | 单个日志文件最大体积，默认 20 MB             |
+| `log.maxBackups`       | ❌   | 最多保留的轮转日志数量，默认 5               |
+| `log.maxAgeDays`       | ❌   | 轮转日志最长保留天数，默认 30                |
 | `provider`             | ❌   | 云服务配置（阿里云/七牛云/腾讯云）           |
 
 ## 故障排除

@@ -30,6 +30,7 @@ type Configuration struct {
 	Server   *ServerConfig `yaml:"server"`   // Server 服务端连接和本地 HTTP-01 配置
 	SSL      *DeployConfig `yaml:"ssl"`      // SSL 本地部署目标配置
 	Update   *UpdateConfig `yaml:"update"`   // Update 自更新配置
+	Log      *LogConfig    `yaml:"log"`      // Log 日志轮转配置
 	Provider []*Provider   `yaml:"provider"` // Provider 云服务提供商配置
 }
 
@@ -64,6 +65,13 @@ type (
 		CustomURL string `yaml:"customUrl"`
 		// HTTP 代理地址
 		Proxy string `yaml:"proxy"`
+	}
+
+	// LogConfig 日志轮转配置
+	LogConfig struct {
+		MaxSizeMB  int `yaml:"maxSizeMB"`  // MaxSizeMB 单个日志文件最大体积，单位 MB
+		MaxBackups int `yaml:"maxBackups"` // MaxBackups 最多保留的轮转文件数量
+		MaxAgeDays int `yaml:"maxAgeDays"` // MaxAgeDays 轮转文件最长保留天数
 	}
 
 	// ProviderAuth 云服务提供商认证字段集合
@@ -166,7 +174,41 @@ func validateConfig() error {
 	if err := validateProviders(); err != nil {
 		return err
 	}
+	applyLogDefaults()
+	if err := validateLogConfig(); err != nil {
+		return err
+	}
 
+	return nil
+}
+
+// applyLogDefaults 设置日志轮转默认值。
+func applyLogDefaults() {
+	if Config.Log == nil {
+		Config.Log = &LogConfig{}
+	}
+	if Config.Log.MaxSizeMB == 0 {
+		Config.Log.MaxSizeMB = 20
+	}
+	if Config.Log.MaxBackups == 0 {
+		Config.Log.MaxBackups = 5
+	}
+	if Config.Log.MaxAgeDays == 0 {
+		Config.Log.MaxAgeDays = 30
+	}
+}
+
+// validateLogConfig 验证日志轮转配置。
+func validateLogConfig() error {
+	if Config.Log.MaxSizeMB < 0 {
+		return errors.New("log.maxSizeMB 不能小于 0")
+	}
+	if Config.Log.MaxBackups < 0 {
+		return errors.New("log.maxBackups 不能小于 0")
+	}
+	if Config.Log.MaxAgeDays < 0 {
+		return errors.New("log.maxAgeDays 不能小于 0")
+	}
 	return nil
 }
 

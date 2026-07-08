@@ -27,6 +27,14 @@ update:
   # HTTP 代理地址（可选）
   proxy: ""
 
+log:
+  # 单个日志文件最大体积（MB），0 表示使用默认值 20
+  maxSizeMB: 20
+  # 最多保留的轮转日志文件数量，0 表示使用默认值 5
+  maxBackups: 5
+  # 轮转日志最长保留天数，0 表示使用默认值 30
+  maxAgeDays: 30
+
 # 云服务配置（可选）
 # provider:
 #   - name: "aliyun"

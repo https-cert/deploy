@@ -175,6 +175,9 @@ sudo ./anssl daemon -c config.yaml
 | `ssl.feiNiuEnabled`    | ❌       | FeiNiu OS deployment switch, default `false`                 |
 | `ssl.onePanel.url`     | ❌       | 1Panel URL (e.g. `http://localhost:10000`)                   |
 | `ssl.onePanel.apiKey`  | ❌       | 1Panel API key generated from panel settings                 |
+| `log.maxSizeMB`        | ❌       | Max size per log file, default `20` MB                       |
+| `log.maxBackups`       | ❌       | Max rotated log files to keep, default `5`                   |
+| `log.maxAgeDays`       | ❌       | Max age for rotated logs, default `30` days                  |
 | `provider`             | ❌       | Cloud provider config (Alibaba Cloud / Qiniu Cloud / Tencent Cloud) |
 
 ## Troubleshooting
