@@ -13,6 +13,8 @@ INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
 CONFIG_DIR="${CONFIG_DIR:-$APP_DIR}"
 ACTION="install"
 PURGE="false"
+INSTALL_STATE="首次安装完成"
+RUNNING_DETECTED_WITH=""
 
 # log_info 输出普通安装日志。
 log_info() {
@@ -94,6 +96,16 @@ run_privileged() {
 	log_error "当前用户没有写入权限且未安装 sudo，请使用 root 执行"
 }
 
+# run_with_detected_privilege 使用检测运行状态时相同的权限执行命令。
+run_with_detected_privilege() {
+	if [ "$RUNNING_DETECTED_WITH" = "sudo" ]; then
+		sudo "$@"
+		return
+	fi
+
+	"$@"
+}
+
 # detect_platform 识别 release 包使用的系统和架构名。
 detect_platform() {
 	os="$(uname -s | tr '[:upper:]' '[:lower:]')"
@@ -172,13 +184,62 @@ verify_checksum() {
 	log_warn "未找到 sha256sum 或 shasum，跳过校验"
 }
 
+# is_anssl_running 检查已安装的 anssl daemon 是否正在运行。
+is_anssl_running() {
+	anssl_bin="${APP_DIR}/${BIN_NAME}"
+	RUNNING_DETECTED_WITH=""
+
+	if [ ! -x "$anssl_bin" ]; then
+		return 1
+	fi
+
+	if "$anssl_bin" status 2>/dev/null | grep -q "正在运行"; then
+		RUNNING_DETECTED_WITH="direct"
+		return 0
+	fi
+
+	if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then
+		if sudo "$anssl_bin" status 2>/dev/null | grep -q "正在运行"; then
+			RUNNING_DETECTED_WITH="sudo"
+			return 0
+		fi
+	fi
+
+	return 1
+}
+
+# stop_running_anssl 如果旧版本正在运行，先停止 daemon 再继续安装。
+stop_running_anssl() {
+	if [ -f "${APP_DIR}/${BIN_NAME}" ] || [ -f "${CONFIG_DIR}/config.yaml" ]; then
+		INSTALL_STATE="已更新程序，配置已保留"
+	fi
+
+	if ! is_anssl_running; then
+		return
+	fi
+
+	log_info "检测到 anssl 正在运行，正在停止旧版本"
+	if ! run_with_detected_privilege "${APP_DIR}/${BIN_NAME}" stop; then
+		log_error "停止正在运行的 anssl 失败，请手动停止后重试"
+	fi
+
+	sleep 1
+	if is_anssl_running; then
+		log_error "anssl 仍在运行，请手动停止后重试"
+	fi
+
+	INSTALL_STATE="已停止运行中的旧版本并完成安装"
+}
+
 # install_binary 安装 anssl 可执行文件。
 install_binary() {
 	[ -f "$BIN_NAME" ] || log_error "发布包中未找到 ${BIN_NAME}"
 
 	run_privileged mkdir -p "$APP_DIR"
 	run_privileged mkdir -p "$INSTALL_DIR"
-	run_privileged install -m 0755 "$BIN_NAME" "${APP_DIR}/${BIN_NAME}"
+	tmp_bin="${APP_DIR}/${BIN_NAME}.new.$$"
+	run_privileged install -m 0755 "$BIN_NAME" "$tmp_bin"
+	run_privileged mv -f "$tmp_bin" "${APP_DIR}/${BIN_NAME}"
 
 	if [ -e "${INSTALL_DIR}/${BIN_NAME}" ] && [ ! -L "${INSTALL_DIR}/${BIN_NAME}" ]; then
 		log_warn "${INSTALL_DIR}/${BIN_NAME} 已存在且不是软链接，已跳过命令链接"
@@ -259,8 +320,9 @@ print_success_banner() {
   anssl 安装成功
 
   版本: ${version_output}
+  状态: ${INSTALL_STATE}
   程序: ${APP_DIR}/${BIN_NAME}
-  命令: ${INSTALL_DIR}/${BIN_NAME}
+  命令: ${BIN_NAME} (${INSTALL_DIR}/${BIN_NAME})
   配置: ${CONFIG_DIR}/config.yaml
 
   卸载:
@@ -310,6 +372,8 @@ main() {
 	log_info "解压 ${asset_name}"
 	tar -xzf "$asset_name"
 
+	stop_running_anssl
+
 	log_info "安装 ${BIN_NAME} 到 ${APP_DIR}"
 	install_binary
 
@@ -318,7 +382,7 @@ main() {
 
 	print_success_banner
 	printf '%s\n' "下一步：编辑 ${CONFIG_DIR}/config.yaml，填写 server.accessKey 后运行："
-	printf '%s\n' "${INSTALL_DIR}/${BIN_NAME} daemon -c ${CONFIG_DIR}/config.yaml"
+	printf '%s\n' "${BIN_NAME} daemon -c ${CONFIG_DIR}/config.yaml"
 }
 
 main "$@"

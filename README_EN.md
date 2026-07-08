@@ -42,6 +42,8 @@ curl -fsSL https://gh-proxy.com/https://raw.githubusercontent.com/https-cert/dep
 
 The install script copies the packaged `config.yaml` template to `/opt/anssl/config.yaml` and never overwrites an existing config file. On first install, edit that file and set its `accessKey` and any deployment targets you want to enable.
 
+Running the install script again keeps the existing `config.yaml`. If anssl is installed but not running, the script updates the binary directly; if anssl is running, the script stops the old daemon before installing the new version.
+
 For later updates, replace only the `anssl` executable to avoid overwriting an existing `config.yaml`.
 
 `config.yaml` example:

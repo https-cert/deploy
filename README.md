@@ -42,6 +42,8 @@ curl -fsSL https://gh-proxy.com/https://raw.githubusercontent.com/https-cert/dep
 
 安装脚本会把发布包中的 `config.yaml` 模板复制到 `/opt/anssl/config.yaml`，如果配置文件已存在则不会覆盖。首次安装后直接编辑该文件，修改其中的 `accessKey` 和需要启用的部署目标。
 
+重复执行安装脚本时，会保留已有 `config.yaml`。如果已安装但未运行，会直接更新程序；如果检测到 anssl 正在运行，会先停止旧版本，再安装新版本。
+
 后续更新时只替换 `anssl` 可执行文件即可，避免手动解压覆盖已有的 `config.yaml`。
 
 `config.yaml` 示例：
