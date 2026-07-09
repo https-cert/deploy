@@ -2,7 +2,7 @@
 # 首次安装后通常只需要先填写 server.accessKey。
 # 除 server.accessKey 外，其余字段均可按需要启用；留空或 false 表示不启用对应能力。
 server:
-  # 必填。从 anssl.cn 设置 -> 个人资料 中获取，用于客户端连接后端时鉴权。
+  # 必填。从 anssl.cn 控制台 -> 开发者 -> API 凭证 中获取，用于客户端连接后端时鉴权。
   accessKey: "your_access_key_here"
   # 可选。HTTP-01 验证服务端口，默认 19000。
   # Nginx/Apache 反向代理 .well-known/acme-challenge 到该端口后，证书申请验证可自动完成。

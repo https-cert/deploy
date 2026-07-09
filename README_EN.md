@@ -154,8 +154,8 @@ sudo systemctl start anssl
 
 ## FAQ
 
-**Q: Where can I get the AccessKey?**  
-A: Log in to [anssl.cn](https://anssl.cn) → Settings → Profile.
+**Q: Where can I get `server.accessKey`?**  
+A: Log in to [anssl.cn](https://anssl.cn) → Console → Developer → API Credentials.
 
 **Q: Which web servers and panels are supported?**  
 A: Nginx, Apache, RustFS, 1Panel, and FeiNiu OS. Configure certificate directories or panel info in `config.yaml`, and deployment runs automatically (with reload for Nginx/Apache).

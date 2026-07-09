@@ -154,8 +154,8 @@ sudo systemctl start anssl
 
 ## 常见问题
 
-**Q: AccessKey 在哪里获取？**
-A: 登录 [anssl.cn](https://anssl.cn) → 设置 → 个人资料
+**Q: server.accessKey 在哪里获取？**
+A: 登录 [anssl.cn](https://anssl.cn) → 控制台 → 开发者 → API 凭证
 
 **Q: 支持哪些 Web 服务器和管理面板？**
 A: 支持 Nginx、Apache、RustFS、1Panel 和飞牛 OS 自动部署。只需在 `config.yaml` 中配置对应的证书目录或面板信息，即可实现自动部署和服务重载（Nginx 和 Apache）
