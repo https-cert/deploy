@@ -100,8 +100,10 @@ func (c *WSClient) handleMessage(resp *deployPB.NotifyResponse) {
 		}
 
 	case deployPB.Type_CHALLENGE:
-		if businesResp, ok := resp.Data.(*deployPB.NotifyResponse_ExecuteBusinesResponse); ok {
-			go c.handleChallenge(businesResp.ExecuteBusinesResponse)
+		if challengeReq, ok := resp.Data.(*deployPB.NotifyResponse_ChallengeRequest); ok {
+			go c.handleChallenge(resp.RequestId, challengeReq.ChallengeRequest)
+		} else if businesResp, ok := resp.Data.(*deployPB.NotifyResponse_ExecuteBusinesResponse); ok {
+			go c.handleLegacyChallenge(businesResp.ExecuteBusinesResponse)
 		}
 
 	case deployPB.Type_EXECUTE_BUSINES:
@@ -165,8 +167,46 @@ func (c *WSClient) handleUpdate() {
 	updateHandler.HandleUpdate()
 }
 
-// handleChallenge 处理 ACME HTTP-01 challenge
-func (c *WSClient) handleChallenge(resp *deployPB.ExecuteBusinesResponse) {
+// handleChallenge 执行 HTTP-01 challenge 请求并返回同 requestId 的 ACK。
+func (c *WSClient) handleChallenge(requestID string, request *deployPB.ChallengeRequest) {
+	result, message := c.executeChallengeRequest(request)
+	c.sendChallengeResponse(requestID, request, result, message)
+}
+
+// executeChallengeRequest 校验并执行一条设置或删除 challenge 的请求。
+func (c *WSClient) executeChallengeRequest(request *deployPB.ChallengeRequest) (deployPB.ChallengeResponse_Result, string) {
+	if request == nil {
+		return deployPB.ChallengeResponse_CHALLENGE_RESULT_FAILED, "challenge 请求为空"
+	}
+	if request.OperationId <= 0 || request.CertId <= 0 || request.Domain == "" || request.Token == "" {
+		return deployPB.ChallengeResponse_CHALLENGE_RESULT_FAILED, "challenge 请求参数不完整"
+	}
+	if c.httpServer == nil {
+		return deployPB.ChallengeResponse_CHALLENGE_RESULT_FAILED, "HTTP-01 服务未初始化"
+	}
+
+	switch request.Action {
+	case deployPB.ChallengeRequest_CHALLENGE_ACTION_SET:
+		if err := c.httpServer.SetChallenge(request.Token, request.KeyAuth, request.Domain); err != nil {
+			logger.Error("设置 Challenge 失败", "error", err, "operationId", request.OperationId, "certId", request.CertId, "domain", request.Domain)
+			return deployPB.ChallengeResponse_CHALLENGE_RESULT_FAILED, err.Error()
+		}
+		logger.Info("设置 Challenge", "operationId", request.OperationId, "certId", request.CertId, "token", request.Token, "domain", request.Domain)
+		return deployPB.ChallengeResponse_CHALLENGE_RESULT_SUCCESS, "challenge 已缓存"
+	case deployPB.ChallengeRequest_CHALLENGE_ACTION_DELETE:
+		if err := c.httpServer.RemoveChallenge(request.Token); err != nil {
+			logger.Error("删除 Challenge 失败", "error", err, "operationId", request.OperationId, "certId", request.CertId, "domain", request.Domain)
+			return deployPB.ChallengeResponse_CHALLENGE_RESULT_FAILED, err.Error()
+		}
+		logger.Info("删除 Challenge", "operationId", request.OperationId, "certId", request.CertId, "token", request.Token, "domain", request.Domain)
+		return deployPB.ChallengeResponse_CHALLENGE_RESULT_SUCCESS, "challenge 已删除"
+	default:
+		return deployPB.ChallengeResponse_CHALLENGE_RESULT_NOT_SUPPORTED, "不支持的 challenge 操作"
+	}
+}
+
+// handleLegacyChallenge 兼容处理旧服务端复用业务消息发送的 challenge。
+func (c *WSClient) handleLegacyChallenge(resp *deployPB.ExecuteBusinesResponse) {
 	token := resp.ChallengeToken
 	challengeResp := resp.ChallengeResponse
 	domain := resp.Domain
@@ -183,13 +223,19 @@ func (c *WSClient) handleChallenge(resp *deployPB.ExecuteBusinesResponse) {
 
 	// 如果 challengeResp 为空，表示后端要求删除此 challenge（过期/取消）
 	if challengeResp == "" {
-		c.httpServer.RemoveChallenge(token)
+		if err := c.httpServer.RemoveChallenge(token); err != nil {
+			logger.Error("删除旧版 Challenge 失败", "error", err, "token", token, "domain", domain)
+			return
+		}
 		logger.Info("删除Challenge", "token", token, "domain", domain)
 		return
 	}
 
 	// 正常情况：缓存新的 challenge
-	c.httpServer.SetChallenge(token, challengeResp, domain)
+	if err := c.httpServer.SetChallenge(token, challengeResp, domain); err != nil {
+		logger.Error("设置旧版 Challenge 失败", "error", err, "token", token, "domain", domain)
+		return
+	}
 	logger.Info("设置Challenge", "token", token, "domain", domain)
 }
 

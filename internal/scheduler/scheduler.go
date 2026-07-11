@@ -36,9 +36,6 @@ func NewScheduler(ctx context.Context) (*Scheduler, error) {
 		AccessKey: client.GetAccessKey(),
 	})
 
-	// 启动WebSocket客户端连接
-	client.Start()
-
 	// 创建 HTTP-01 验证服务器
 	httpServer := server.NewHTTPServer()
 
@@ -67,6 +64,36 @@ func Start(ctx context.Context) {
 			logger.Error("HTTP-01 验证服务启动失败", "error", err)
 		}
 	}()
+
+	// HTTP 服务启动后再连接平台，避免刚上线就收到 challenge 却无法缓存。
+	readyDeadline := time.NewTimer(5 * time.Second)
+	readyTicker := time.NewTicker(20 * time.Millisecond)
+	waiting := true
+	for waiting {
+		select {
+		case <-ctx.Done():
+			readyTicker.Stop()
+			readyDeadline.Stop()
+			return
+		case <-readyDeadline.C:
+			logger.Error("HTTP-01 验证服务未能在限定时间内启动")
+			waiting = false
+		case <-readyTicker.C:
+			if scheduler.httpServer.IsReady() {
+				waiting = false
+			}
+		}
+	}
+	readyTicker.Stop()
+	if !readyDeadline.Stop() {
+		select {
+		case <-readyDeadline.C:
+		default:
+		}
+	}
+
+	// 即使 HTTP 服务启动失败也保持平台连接，challenge 请求会收到明确失败 ACK。
+	scheduler.client.Start()
 
 	// 等待上下文取消
 	<-ctx.Done()

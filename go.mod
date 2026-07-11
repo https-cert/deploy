@@ -3,6 +3,7 @@ module github.com/https-cert/deploy
 go 1.26
 
 require (
+	connectrpc.com/connect v1.18.1
 	github.com/alibabacloud-go/darabonba-openapi/v2 v2.2.3
 	github.com/alibabacloud-go/tea-utils/v2 v2.0.9
 	github.com/coder/websocket v1.8.15

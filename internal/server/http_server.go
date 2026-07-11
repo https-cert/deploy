@@ -3,15 +3,23 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/https-cert/deploy/internal/config"
 	"github.com/https-cert/deploy/pkg/logger"
+)
+
+var (
+	// ErrHTTPServerNotReady 表示本地 HTTP-01 服务尚未成功监听端口。
+	ErrHTTPServerNotReady = errors.New("HTTP-01 服务尚未启动")
 )
 
 // ChallengeCache 存储 ACME challenge token 和 response 的映射
@@ -36,6 +44,8 @@ type HTTPServer struct {
 	server *http.Server
 	// cache 保存当前等待验证的 HTTP-01 challenge。
 	cache *ChallengeCache
+	// ready 表示 HTTP 服务已经成功监听配置端口。
+	ready atomic.Bool
 }
 
 type healthResponse struct {
@@ -104,11 +114,23 @@ func newChallengeCache() *ChallengeCache {
 
 // Start 启动 HTTP 服务器
 func (s *HTTPServer) Start() error {
-	if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+	listener, err := net.Listen("tcp", s.server.Addr)
+	if err != nil {
+		return fmt.Errorf("HTTP 服务器监听失败: %w", err)
+	}
+	s.ready.Store(true)
+	defer s.ready.Store(false)
+
+	if err := s.server.Serve(listener); err != nil && err != http.ErrServerClosed {
 		return fmt.Errorf("HTTP 服务器启动失败: %w", err)
 	}
 
 	return nil
+}
+
+// IsReady 判断 HTTP-01 服务是否已经成功监听端口。
+func (s *HTTPServer) IsReady() bool {
+	return s != nil && s.ready.Load()
 }
 
 // Stop 停止 HTTP 服务器
@@ -178,14 +200,28 @@ func writeJSON(w http.ResponseWriter, status int, data any) {
 	}
 }
 
-// SetChallenge 设置 challenge token 和 response，10 分钟后过期
-func (s *HTTPServer) SetChallenge(token, response, domain string) {
+// SetChallenge 设置 challenge token 和 response，10 分钟后过期。
+func (s *HTTPServer) SetChallenge(token, response, domain string) error {
+	if !s.IsReady() {
+		return ErrHTTPServerNotReady
+	}
+	if strings.TrimSpace(token) == "" || strings.TrimSpace(response) == "" {
+		return errors.New("challenge token 或 key authorization 为空")
+	}
 	s.cache.Set(token, response, domain, time.Minute*10)
+	return nil
 }
 
-// RemoveChallenge 移除 challenge
-func (s *HTTPServer) RemoveChallenge(token string) {
+// RemoveChallenge 精确移除 challenge token。
+func (s *HTTPServer) RemoveChallenge(token string) error {
+	if !s.IsReady() {
+		return ErrHTTPServerNotReady
+	}
+	if strings.TrimSpace(token) == "" {
+		return errors.New("challenge token 为空")
+	}
 	s.cache.Delete(token)
+	return nil
 }
 
 // cleanupExpiredChallenges 定期清理过期的 challenge

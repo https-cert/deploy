@@ -13,6 +13,14 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
+// httpChallengeServer 描述 WebSocket challenge 处理依赖的本地 HTTP 服务能力。
+type httpChallengeServer interface {
+	// SetChallenge 缓存一条可由 HTTP 端点响应的 challenge。
+	SetChallenge(token, response, domain string) error
+	// RemoveChallenge 精确删除指定 token。
+	RemoveChallenge(token string) error
+}
+
 type WSClient struct {
 	clientId             string
 	serverURL            string
@@ -22,7 +30,7 @@ type WSClient struct {
 	lastDisconnectLogged atomic.Bool
 	systemInfo           *system.SystemInfo
 	systemInfoOnce       sync.Once
-	httpServer           *server.HTTPServer
+	httpServer           httpChallengeServer
 	busyOperations       atomic.Int32
 	conn                 *websocket.Conn
 	connMu               sync.Mutex

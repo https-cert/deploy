@@ -177,3 +177,30 @@ func (c *WSClient) sendExecuteBusinesResponse(requestId string, result deployPB.
 		logger.Error("发送执行业务响应失败", "error", err, "requestId", requestId)
 	}
 }
+
+// sendChallengeResponse 回传 HTTP-01 challenge 设置或删除结果。
+func (c *WSClient) sendChallengeResponse(requestID string, request *deployPB.ChallengeRequest, result deployPB.ChallengeResponse_Result, resultMessage string) {
+	if request == nil || requestID == "" {
+		logger.Error("无法发送 Challenge ACK", "requestId", requestID, "message", resultMessage)
+		return
+	}
+	req := &deployPB.NotifyRequest{
+		AccessKey: c.accessKey,
+		ClientId:  c.clientId,
+		Version:   config.Version,
+		RequestId: requestID,
+		Data: &deployPB.NotifyRequest_ChallengeResponse{
+			ChallengeResponse: &deployPB.ChallengeResponse{
+				OperationId: request.OperationId,
+				CertId:      request.CertId,
+				Domain:      request.Domain,
+				Token:       request.Token,
+				Result:      result,
+				Message:     resultMessage,
+			},
+		},
+	}
+	if err := c.sendNotifyRequest(req); err != nil {
+		logger.Error("发送 Challenge ACK 失败", "error", err, "requestId", requestID, "operationId", request.OperationId)
+	}
+}
