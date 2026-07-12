@@ -18,6 +18,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/https-cert/deploy/internal/config"
@@ -30,7 +31,11 @@ const (
 	downloadTimeout  = 10 * time.Minute
 	downloadRetries  = 3
 	smokeTestTimeout = 15 * time.Second
+	maxUpdateSize    = int64(200 << 20) // 更新包最大 200 MiB
+	updateLockMaxAge = 2 * time.Hour    // 崩溃遗留更新锁的最长保留时间
 )
+
+var updateMu sync.Mutex
 
 // 常见的 GitHub 镜像加速服务
 const (
@@ -113,6 +118,9 @@ func CheckUpdate(ctx context.Context) (*UpdateInfo, error) {
 	if downloadURL == "" {
 		return nil, fmt.Errorf("未找到适合当前系统的二进制文件: %s", binaryName)
 	}
+	if checksumURL == "" {
+		return nil, fmt.Errorf("Release 缺少 checksums.txt，拒绝无校验更新")
+	}
 
 	// 转换下载链接（应用镜像加速）
 	downloadURL = transformDownloadURL(downloadURL)
@@ -133,6 +141,12 @@ func CheckUpdate(ctx context.Context) (*UpdateInfo, error) {
 
 // PerformUpdate 执行更新
 func PerformUpdate(ctx context.Context, info *UpdateInfo) error {
+	if info == nil || !info.HasUpdate || info.DownloadURL == "" || info.ChecksumURL == "" {
+		return fmt.Errorf("更新信息不完整，必须包含更新包和 checksum URL")
+	}
+	updateMu.Lock()
+	defer updateMu.Unlock()
+
 	logger.Info("下载更新中...", "version", info.LatestVersion)
 
 	// 获取当前可执行文件路径
@@ -143,6 +157,11 @@ func PerformUpdate(ctx context.Context, info *UpdateInfo) error {
 	if err := checkExecutableWritable(execPath); err != nil {
 		return err
 	}
+	releaseUpdateLock, err := acquireUpdateLock(execPath)
+	if err != nil {
+		return err
+	}
+	defer releaseUpdateLock()
 
 	// 创建临时目录
 	tempDir, err := os.MkdirTemp("", "anssl-update-*")
@@ -157,24 +176,19 @@ func PerformUpdate(ctx context.Context, info *UpdateInfo) error {
 		return fmt.Errorf("下载新版本失败: %w", err)
 	}
 
+	// 先校验下载包，再解压或执行其中的二进制文件。
+	checksumPath := filepath.Join(tempDir, "checksums.txt")
+	if err := downloadFile(ctx, info.ChecksumURL, checksumPath); err != nil {
+		return fmt.Errorf("下载校验文件失败: %w", err)
+	}
+	if err := verifyChecksum(downloadPath, checksumPath, info.BinaryName); err != nil {
+		return fmt.Errorf("文件校验失败: %w", err)
+	}
+
 	// 解包获取可执行文件路径
 	newBinaryPath, err := extractBinary(downloadPath, tempDir)
 	if err != nil {
 		return fmt.Errorf("解压新版本失败: %w", err)
-	}
-
-	// 下载并验证 checksum（针对下载的压缩包/文件本身进行校验）
-	if info.ChecksumURL != "" {
-		checksumPath := filepath.Join(tempDir, "checksums.txt")
-		if err := downloadFile(ctx, info.ChecksumURL, checksumPath); err != nil {
-			return fmt.Errorf("下载校验文件失败: %w", err)
-		} else {
-			if err := verifyChecksum(downloadPath, checksumPath, info.BinaryName); err != nil {
-				return fmt.Errorf("文件校验失败: %w", err)
-			}
-		}
-	} else {
-		logger.Warn("未找到 checksum 文件，跳过下载文件校验", "binary", info.BinaryName)
 	}
 
 	// 设置可执行权限（Unix 系统）
@@ -208,6 +222,9 @@ func PerformUpdate(ctx context.Context, info *UpdateInfo) error {
 
 // Rollback 回滚到上一次更新保留的备份版本。
 func Rollback() error {
+	updateMu.Lock()
+	defer updateMu.Unlock()
+
 	execPath, err := currentExecutablePath()
 	if err != nil {
 		return err
@@ -215,6 +232,11 @@ func Rollback() error {
 	if err := checkExecutableWritable(execPath); err != nil {
 		return err
 	}
+	releaseUpdateLock, err := acquireUpdateLock(execPath)
+	if err != nil {
+		return err
+	}
+	defer releaseUpdateLock()
 
 	backupPath := backupPathFor(execPath)
 	if _, err := os.Stat(backupPath); err != nil {
@@ -229,6 +251,37 @@ func Rollback() error {
 	}
 	logger.Info("回滚成功", "backup", backupPath)
 	return nil
+}
+
+// acquireUpdateLock prevents separate processes from updating or rolling back the same executable concurrently.
+func acquireUpdateLock(execPath string) (func(), error) {
+	lockPath := execPath + ".update.lock"
+	for attempt := 0; attempt < 2; attempt++ {
+		file, err := os.OpenFile(lockPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+		if err == nil {
+			if _, err := fmt.Fprintf(file, "%d\n", os.Getpid()); err != nil {
+				_ = file.Close()
+				_ = os.Remove(lockPath)
+				return nil, fmt.Errorf("写入更新锁失败: %w", err)
+			}
+			if err := file.Close(); err != nil {
+				_ = os.Remove(lockPath)
+				return nil, fmt.Errorf("关闭更新锁失败: %w", err)
+			}
+			return func() { _ = os.Remove(lockPath) }, nil
+		}
+		if !os.IsExist(err) {
+			return nil, fmt.Errorf("创建更新锁失败: %w", err)
+		}
+		info, statErr := os.Stat(lockPath)
+		if statErr == nil && time.Since(info.ModTime()) <= updateLockMaxAge {
+			return nil, fmt.Errorf("另一个更新或回滚操作正在执行")
+		}
+		if removeErr := os.Remove(lockPath); removeErr != nil && !os.IsNotExist(removeErr) {
+			return nil, fmt.Errorf("清理失效更新锁失败: %w", removeErr)
+		}
+	}
+	return nil, fmt.Errorf("创建更新锁失败")
 }
 
 // currentExecutablePath 返回当前可执行文件的真实路径。
@@ -580,8 +633,10 @@ func downloadFile(ctx context.Context, downloadURL, filepath string) error {
 
 	for attempt := 1; attempt <= downloadRetries; attempt++ {
 		if attempt > 1 {
-			time.Sleep(time.Duration(attempt-1) * time.Second)
-			os.Remove(filepath)
+			if !waitWithContext(ctx, time.Duration(attempt-1)*time.Second) {
+				return ctx.Err()
+			}
+			_ = os.Remove(filepath)
 		}
 
 		if err := downloadFileOnce(ctx, downloadURL, filepath); err != nil {
@@ -596,9 +651,13 @@ func downloadFile(ctx context.Context, downloadURL, filepath string) error {
 	return lastErr
 }
 
-func downloadFileOnce(ctx context.Context, downloadURL, filepath string) error {
+func downloadFileOnce(ctx context.Context, downloadURL, filePath string) error {
 	ctx, cancel := context.WithTimeout(ctx, downloadTimeout)
 	defer cancel()
+	parsedURL, err := url.Parse(downloadURL)
+	if err != nil || parsedURL.Scheme != "https" || parsedURL.Hostname() == "" || parsedURL.User != nil {
+		return fmt.Errorf("更新下载 URL 必须是 HTTPS 且包含合法主机")
+	}
 
 	req, err := http.NewRequestWithContext(ctx, "GET", downloadURL, nil)
 	if err != nil {
@@ -606,6 +665,16 @@ func downloadFileOnce(ctx context.Context, downloadURL, filepath string) error {
 	}
 
 	client := getHTTPClient()
+	originalRedirect := client.CheckRedirect
+	client.CheckRedirect = func(nextReq *http.Request, via []*http.Request) error {
+		if !strings.EqualFold(parsedURL.Scheme, nextReq.URL.Scheme) || !strings.EqualFold(parsedURL.Host, nextReq.URL.Host) {
+			return fmt.Errorf("拒绝跨主机更新下载重定向")
+		}
+		if originalRedirect != nil {
+			return originalRedirect(nextReq, via)
+		}
+		return nil
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return err
@@ -615,19 +684,54 @@ func downloadFileOnce(ctx context.Context, downloadURL, filepath string) error {
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("下载失败，状态码: %d", resp.StatusCode)
 	}
+	if resp.ContentLength > maxUpdateSize {
+		return fmt.Errorf("更新包超过大小限制")
+	}
 
-	out, err := os.Create(filepath)
+	out, err := os.CreateTemp(filepath.Dir(filePath), ".anssl-update-download-*")
 	if err != nil {
 		return err
 	}
-	defer out.Close()
+	tempPath := out.Name()
+	completed := false
+	defer func() {
+		_ = out.Close()
+		if !completed {
+			_ = os.Remove(tempPath)
+		}
+	}()
 
-	_, err = io.Copy(out, resp.Body)
+	written, err := io.Copy(out, io.LimitReader(resp.Body, maxUpdateSize+1))
 	if err != nil {
 		return err
 	}
+	if written > maxUpdateSize {
+		return fmt.Errorf("更新包超过大小限制")
+	}
+	if err := out.Sync(); err != nil {
+		return err
+	}
+	if err := out.Close(); err != nil {
+		return err
+	}
+	if err := os.Rename(tempPath, filePath); err != nil {
+		return err
+	}
+	completed = true
 
 	return nil
+}
+
+// waitWithContext waits for a retry delay without blocking shutdown.
+func waitWithContext(ctx context.Context, delay time.Duration) bool {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
+	}
 }
 
 // extractBinary 从下载的文件中提取可执行文件。
@@ -756,14 +860,20 @@ func verifyChecksum(binaryPath, checksumPath, binaryName string) error {
 	var expectedChecksum string
 	for _, line := range lines {
 		parts := strings.Fields(line)
-		if len(parts) >= 2 && parts[1] == binaryName {
-			expectedChecksum = parts[0]
+		if len(parts) >= 2 && strings.TrimPrefix(parts[1], "*") == binaryName {
+			expectedChecksum = strings.TrimSpace(parts[0])
 			break
 		}
 	}
 
 	if expectedChecksum == "" {
 		return fmt.Errorf("在校验文件中未找到 %s 的校验和", binaryName)
+	}
+	if len(expectedChecksum) != sha256.Size*2 {
+		return fmt.Errorf("校验和格式无效")
+	}
+	if _, err := hex.DecodeString(expectedChecksum); err != nil {
+		return fmt.Errorf("校验和格式无效: %w", err)
 	}
 
 	// 计算下载文件的 SHA256
@@ -781,7 +891,7 @@ func verifyChecksum(binaryPath, checksumPath, binaryName string) error {
 	actualChecksum := hex.EncodeToString(hash.Sum(nil))
 
 	// 比较
-	if actualChecksum != expectedChecksum {
+	if !strings.EqualFold(actualChecksum, expectedChecksum) {
 		return fmt.Errorf("校验和不匹配\n期望: %s\n实际: %s", expectedChecksum, actualChecksum)
 	}
 
@@ -808,27 +918,33 @@ func replaceExecutable(newPath, oldPath string) error {
 		return nil
 	}
 
-	// Unix 系统：先删除旧文件，再移动新文件
-	// 注意：即使进程正在运行，删除文件也不会影响当前进程（inode 仍然存在）
-	// 但是需要保留权限，所以先获取权限
+	// Unix 系统在同一目录中准备临时文件，再用 rename 原子替换旧文件。
 	oldInfo, err := os.Stat(oldPath)
 	if err != nil {
 		return err
 	}
-	oldMode := oldInfo.Mode()
-
-	// 删除旧文件（进程仍在运行，inode 保留）
-	if err := os.Remove(oldPath); err != nil {
+	stagedFile, err := os.CreateTemp(filepath.Dir(oldPath), ".anssl-replace-*")
+	if err != nil {
 		return err
 	}
-
-	// 移动新文件到目标位置（原子操作）
-	if err := os.Rename(newPath, oldPath); err != nil {
+	stagedPath := stagedFile.Name()
+	if err := stagedFile.Close(); err != nil {
+		_ = os.Remove(stagedPath)
 		return err
 	}
-
-	// 设置正确的权限
-	return os.Chmod(oldPath, oldMode)
+	if err := copyFile(newPath, stagedPath); err != nil {
+		_ = os.Remove(stagedPath)
+		return err
+	}
+	if err := os.Chmod(stagedPath, oldInfo.Mode().Perm()); err != nil {
+		_ = os.Remove(stagedPath)
+		return err
+	}
+	if err := os.Rename(stagedPath, oldPath); err != nil {
+		_ = os.Remove(stagedPath)
+		return err
+	}
+	return nil
 }
 
 // copyFile 复制文件
@@ -839,7 +955,7 @@ func copyFile(src, dst string) error {
 	}
 	defer source.Close()
 
-	destination, err := os.Create(dst)
+	destination, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
 	if err != nil {
 		return err
 	}
@@ -849,11 +965,14 @@ func copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
+	if err := destination.Sync(); err != nil {
+		return err
+	}
 
 	// 复制权限
 	sourceInfo, err := os.Stat(src)
 	if err != nil {
 		return err
 	}
-	return os.Chmod(dst, sourceInfo.Mode())
+	return os.Chmod(dst, sourceInfo.Mode().Perm())
 }

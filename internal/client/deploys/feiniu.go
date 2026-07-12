@@ -1,11 +1,15 @@
 package deploys
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -14,11 +18,29 @@ import (
 	"github.com/https-cert/deploy/pkg/logger"
 )
 
+const feiniuCommandTimeout = 30 * time.Second
+
+var feiniuNginxConfigFile = "/usr/trim/etc/network_gateway_cert.conf"
+
 // DeployToFeiNiu 部署证书到飞牛目录
 func (cd *CertDeployer) DeployToFeiNiu(sourceDir, feiNiuPath, domain string) error {
+	canonicalDomain, safeDomain, err := NormalizeDeploymentDomain(domain)
+	if err != nil {
+		return err
+	}
+	domain = canonicalDomain
+	if safeDomain == "" {
+		return fmt.Errorf("生成飞牛安全域名失败")
+	}
+	feiniuDeploymentMu.Lock()
+	defer feiniuDeploymentMu.Unlock()
+
 	// 飞牛目标目录：/usr/trim/var/trim_connect/ssls/{域名}/{当前时间秒单位}
 	timestamp := time.Now().Unix()
-	domainDir := filepath.Join(feiNiuPath, domain)
+	domainDir, err := SafeJoinUnderBase(feiNiuPath, safeDomain)
+	if err != nil {
+		return err
+	}
 	targetDir := filepath.Join(domainDir, fmt.Sprintf("%d", timestamp))
 
 	// 检查域名目录是否存在，如果存在则删除
@@ -27,8 +49,8 @@ func (cd *CertDeployer) DeployToFeiNiu(sourceDir, feiNiuPath, domain string) err
 		if err := os.RemoveAll(domainDir); err != nil {
 			if isPermissionError(err) {
 				logger.Warn("普通权限删除失败，尝试使用 sudo", "error", err)
-				cmd := exec.Command("sudo", "rm", "-rf", domainDir)
-				if output, err := cmd.CombinedOutput(); err != nil {
+				output, err := runFeiniuCommand(feiniuCommandTimeout, "sudo", "rm", "-rf", domainDir)
+				if err != nil {
 					return fmt.Errorf("删除旧证书目录失败: %w, output: %s", err, string(output))
 				}
 			} else {
@@ -53,8 +75,8 @@ func (cd *CertDeployer) DeployToFeiNiu(sourceDir, feiNiuPath, domain string) err
 		dst  string
 		desc string
 	}{
-		{filepath.Join(sourceDir, "cert.pem"), filepath.Join(targetDir, domain+".crt"), "证书文件"},
-		{filepath.Join(sourceDir, "privateKey.key"), filepath.Join(targetDir, domain+".key"), "私钥文件"},
+		{filepath.Join(sourceDir, "cert.pem"), filepath.Join(targetDir, safeDomain+".crt"), "证书文件"},
+		{filepath.Join(sourceDir, "privateKey.key"), filepath.Join(targetDir, safeDomain+".key"), "私钥文件"},
 	}
 
 	for _, file := range certFiles {
@@ -65,7 +87,11 @@ func (cd *CertDeployer) DeployToFeiNiu(sourceDir, feiNiuPath, domain string) err
 		}
 
 		// 复制文件
-		if err := CopyFileWithMode(file.src, file.dst, 0755); err != nil {
+		mode := os.FileMode(0644)
+		if strings.HasSuffix(file.dst, ".key") {
+			mode = 0600
+		}
+		if err := CopyFileWithMode(file.src, file.dst, mode); err != nil {
 			if isPermissionError(err) {
 				return fmt.Errorf("复制%s失败: 权限不足\n\n请在飞牛系统上执行以下命令修复权限:\n  sudo chown -R $USER %s\n\n原始错误: %w", file.desc, feiNiuPath, err)
 			}
@@ -99,19 +125,17 @@ func (cd *CertDeployer) DeployToFeiNiu(sourceDir, feiNiuPath, domain string) err
 		logger.Warn("重启飞牛服务失败（可能需要手动重启）", "error", err)
 	}
 
-	logger.Info("证书已部署到飞牛目录", "path", targetDir, "cert", domain+".crt", "key", domain+".key")
+	logger.Info("证书已部署到飞牛目录", "path", targetDir, "cert", safeDomain+".crt", "key", safeDomain+".key")
 	return nil
 }
 
 // changeGroupToRoot 修改目录和文件的组为 root
 func changeGroupToRoot(targetDir string) error {
 	// 尝试使用 chgrp 修改组为 root
-	cmd := exec.Command("chgrp", "-R", "root", targetDir)
-	if _, err := cmd.CombinedOutput(); err != nil {
+	if _, err := runFeiniuCommand(feiniuCommandTimeout, "chgrp", "-R", "root", targetDir); err != nil {
 		// 如果普通权限失败，尝试使用 sudo
 		logger.Warn("普通权限修改组失败，尝试使用 sudo", "error", err)
-		cmd = exec.Command("sudo", "chgrp", "-R", "root", targetDir)
-		if output, err := cmd.CombinedOutput(); err != nil {
+		if output, err := runFeiniuCommand(feiniuCommandTimeout, "sudo", "chgrp", "-R", "root", targetDir); err != nil {
 			return fmt.Errorf("修改组为root失败: %w, output: %s", err, string(output))
 		}
 	}
@@ -121,9 +145,13 @@ func changeGroupToRoot(targetDir string) error {
 
 // updateFeiniuDatabase 更新飞牛OS数据库证书信息
 func updateFeiniuDatabase(domain, certPath string, validFrom, validTo int64) error {
+	safeDomain := SanitizeDomain(domain)
+	if safeDomain == "" {
+		return fmt.Errorf("飞牛证书域名无效")
+	}
 	// 获取证书文件路径
-	certFile := filepath.Join(certPath, domain+".crt")
-	keyFile := filepath.Join(certPath, domain+".key")
+	certFile := filepath.Join(certPath, safeDomain+".crt")
+	keyFile := filepath.Join(certPath, safeDomain+".key")
 	issuerFile := "" // 不使用 issuer_certificate.crt
 
 	// 获取当前时间戳（毫秒）
@@ -133,16 +161,15 @@ func updateFeiniuDatabase(domain, certPath string, validFrom, validTo int64) err
 	encryptType := "RSA" // 默认
 	issuedBy := "Let's Encrypt"
 
-	cmd := exec.Command("openssl", "x509", "-in", certFile, "-noout", "-text")
-	if output, err := cmd.CombinedOutput(); err == nil {
+	output, opensslErr := runFeiniuCommand(feiniuCommandTimeout, "openssl", "x509", "-in", certFile, "-noout", "-text")
+	if opensslErr == nil {
 		outputStr := string(output)
 		// 检测加密类型
 		if strings.Contains(outputStr, "ECDSA") || strings.Contains(outputStr, "ECC") {
 			encryptType = "ECDSA"
 		}
 		// 获取颁发者
-		cmd = exec.Command("openssl", "x509", "-in", certFile, "-noout", "-issuer")
-		if issuerOutput, err := cmd.CombinedOutput(); err == nil {
+		if issuerOutput, err := runFeiniuCommand(feiniuCommandTimeout, "openssl", "x509", "-in", certFile, "-noout", "-issuer"); err == nil {
 			issuerStr := string(issuerOutput)
 			// 提取颁发者名称（取最后一个等号后的内容）
 			parts := strings.Split(issuerStr, "=")
@@ -152,118 +179,177 @@ func updateFeiniuDatabase(domain, certPath string, validFrom, validTo int64) err
 		}
 	}
 
-	// 检查证书是否已存在
-	checkSQL := fmt.Sprintf("SELECT domain FROM cert WHERE domain = '%s';", domain)
-	cmd = exec.Command("psql", "-t", "-A", "-U", "postgres", "-d", "trim_connect", "-c", checkSQL)
-	output, err := cmd.CombinedOutput()
-
-	if err == nil && strings.TrimSpace(string(output)) != "" {
-		// 证书存在，执行UPDATE
-		updateSQL := fmt.Sprintf(`UPDATE cert SET
-			valid_from = %d,
-			valid_to = %d,
-			encrypt_type = '%s',
-			issued_by = '%s',
-			last_renew_time = %d,
-			des = '由anssl自动部署的证书',
-			private_key = '%s',
-			certificate = '%s',
-			issuer_certificate = '%s',
-			status = 'suc',
-			updated_time = %d
-			WHERE domain = '%s';`,
-			validFrom, validTo, encryptType, issuedBy, currentTime,
-			keyFile, certFile, issuerFile, currentTime, domain)
-
-		cmd = exec.Command("psql", "-U", "postgres", "-d", "trim_connect", "-c", updateSQL)
-		if output, err := cmd.CombinedOutput(); err != nil {
-			return fmt.Errorf("更新数据库失败: %w, output: %s", err, string(output))
-		}
-		logger.Info("已更新飞牛数据库证书信息", "domain", domain)
-	} else {
-		// 证书不存在，执行INSERT
-		// 获取下一个ID
-		getIDSQL := "SELECT COALESCE(MAX(id), 0) + 1 FROM cert;"
-		cmd = exec.Command("psql", "-t", "-A", "-U", "postgres", "-d", "trim_connect", "-c", getIDSQL)
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			return fmt.Errorf("获取下一个ID失败: %w", err)
-		}
-		nextID := strings.TrimSpace(string(output))
-
-		insertSQL := fmt.Sprintf(`INSERT INTO cert VALUES (
-			%s, '%s', '*%s,%s', %d, %d, '%s', '%s', %d,
-			'由anssl自动部署的证书', 0, null, 'upload', null,
-			'%s', '%s', '%s', 'suc', %d, %d);`,
-			nextID, domain, domain, domain, validFrom, validTo, encryptType, issuedBy, currentTime,
-			keyFile, certFile, issuerFile, currentTime, currentTime)
-
-		cmd = exec.Command("psql", "-U", "postgres", "-d", "trim_connect", "-c", insertSQL)
-		if output, err := cmd.CombinedOutput(); err != nil {
-			return fmt.Errorf("插入数据库失败: %w, output: %s", err, string(output))
-		}
-		logger.Info("已插入飞牛数据库证书信息", "domain", domain)
+	variables := map[string]string{
+		"domain":       domain,
+		"valid_from":   strconv.FormatInt(validFrom, 10),
+		"valid_to":     strconv.FormatInt(validTo, 10),
+		"encrypt_type": encryptType,
+		"issued_by":    issuedBy,
+		"current_time": strconv.FormatInt(currentTime, 10),
+		"private_key":  keyFile,
+		"certificate":  certFile,
+		"issuer":       issuerFile,
 	}
-
+	output, err := runFeiniuPSQL(variables, feiniuUpsertSQL)
+	if err != nil {
+		return fmt.Errorf("更新飞牛数据库失败: %w, output: %s", err, strings.TrimSpace(string(output)))
+	}
+	logger.Info("已更新飞牛数据库证书信息", "domain", domain)
 	return nil
+}
+
+const feiniuUpsertSQL = `
+BEGIN;
+LOCK TABLE cert IN EXCLUSIVE MODE;
+SELECT EXISTS(SELECT 1 FROM cert WHERE domain = :'domain') AS cert_exists \gset
+\if :cert_exists
+UPDATE cert SET
+    valid_from = :'valid_from'::bigint,
+    valid_to = :'valid_to'::bigint,
+    encrypt_type = :'encrypt_type',
+    issued_by = :'issued_by',
+    last_renew_time = :'current_time'::bigint,
+    des = '由anssl自动部署的证书',
+    private_key = :'private_key',
+    certificate = :'certificate',
+    issuer_certificate = :'issuer',
+    status = 'suc',
+    updated_time = :'current_time'::bigint
+WHERE domain = :'domain';
+\else
+INSERT INTO cert VALUES (
+    (SELECT COALESCE(MAX(id), 0) + 1 FROM cert),
+    :'domain', '*' || :'domain' || ',' || :'domain',
+    :'valid_from'::bigint, :'valid_to'::bigint, :'encrypt_type', :'issued_by', :'current_time'::bigint,
+    '由anssl自动部署的证书', 0, null, 'upload', null,
+    :'private_key', :'certificate', :'issuer', 'suc', :'current_time'::bigint, :'current_time'::bigint
+);
+\endif
+COMMIT;
+`
+
+// runFeiniuPSQL executes a parameterized psql script with a strict timeout and transaction errors enabled.
+func runFeiniuPSQL(variables map[string]string, script string) ([]byte, error) {
+	args := buildFeiniuPSQLArgs(variables)
+
+	ctx, cancel := context.WithTimeout(context.Background(), feiniuCommandTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "psql", args...)
+	cmd.Stdin = strings.NewReader(script)
+	output, err := cmd.CombinedOutput()
+	if ctx.Err() == context.DeadlineExceeded {
+		return output, fmt.Errorf("psql 执行超时")
+	}
+	return output, err
+}
+
+// buildFeiniuPSQLArgs keeps all untrusted SQL values in psql variables instead of SQL source text.
+func buildFeiniuPSQLArgs(variables map[string]string) []string {
+	args := []string{"-X", "--set=ON_ERROR_STOP=1", "-U", "postgres", "-d", "trim_connect"}
+	keys := make([]string, 0, len(variables))
+	for key := range variables {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		args = append(args, "--set="+key+"="+variables[key])
+	}
+	return args
 }
 
 // updateFeiniuNginxConfig 更新飞牛OS Nginx配置文件
 func updateFeiniuNginxConfig(domain, certPath string) error {
-	configFile := "/usr/trim/etc/network_gateway_cert.conf"
-	certFile := filepath.Join(certPath, domain+".crt")
-	keyFile := filepath.Join(certPath, domain+".key")
+	return updateFeiniuNginxConfigFile(feiniuNginxConfigFile, domain, certPath)
+}
 
-	// 备份配置文件
-	backupFile := fmt.Sprintf("%s.%d.bak", configFile, time.Now().Unix())
-	cmd := exec.Command("cp", "-fL", configFile, backupFile)
-	if err := cmd.Run(); err != nil {
-		logger.Warn("备份Nginx配置失败", "error", err)
+// updateFeiniuNginxConfigFile updates a Feiniu gateway certificate JSON file atomically.
+func updateFeiniuNginxConfigFile(configFile, domain, certPath string) error {
+	safeDomain := SanitizeDomain(domain)
+	if safeDomain == "" {
+		return fmt.Errorf("飞牛证书域名无效")
 	}
+	certFile := filepath.Join(certPath, safeDomain+".crt")
+	keyFile := filepath.Join(certPath, safeDomain+".key")
 
-	// 读取配置文件
-	content, err := os.ReadFile(configFile)
+	resolvedConfigFile, err := filepath.EvalSymlinks(configFile)
+	if err != nil {
+		return fmt.Errorf("解析Nginx配置路径失败: %w", err)
+	}
+	content, err := os.ReadFile(resolvedConfigFile)
 	if err != nil {
 		return fmt.Errorf("读取Nginx配置失败: %w", err)
 	}
 
-	// 新的证书配置条目
-	newEntry := fmt.Sprintf(`{"host":"%s","cert":"%s","key":"%s"},`, domain, certFile, keyFile)
-
-	contentStr := string(content)
-	var newContent string
-
-	// 检查域名是否已存在
-	if strings.Contains(contentStr, `"host":"`+domain+`"`) {
-		// 已存在，替换旧配置
-		// 使用正则表达式替换（简化处理，直接字符串查找替换）
-		lines := strings.Split(contentStr, "\n")
-		for i, line := range lines {
-			if strings.Contains(line, `"host":"`+domain+`"`) {
-				lines[i] = newEntry
+	var entries []map[string]any
+	if err := json.Unmarshal(content, &entries); err != nil {
+		return fmt.Errorf("解析Nginx配置失败，原文件未修改: %w", err)
+	}
+	replacement := map[string]any{"host": domain, "cert": certFile, "key": keyFile}
+	found := false
+	for index, entry := range entries {
+		if host, ok := entry["host"].(string); ok && host == domain {
+			updated := make(map[string]any, len(entry)+3)
+			for key, value := range entry {
+				updated[key] = value
 			}
+			updated["host"] = domain
+			updated["cert"] = certFile
+			updated["key"] = keyFile
+			entries[index] = updated
+			found = true
 		}
-		newContent = strings.Join(lines, "\n")
-	} else {
-		// 不存在，添加到数组开头
-		// 移除开头的 [
-		contentStr = strings.TrimLeft(contentStr, "[\n ")
-		newContent = "[" + newEntry + "\n" + contentStr
 	}
+	if !found {
+		entries = append([]map[string]any{replacement}, entries...)
+	}
+	newContent, err := json.MarshalIndent(entries, "", "  ")
+	if err != nil {
+		return fmt.Errorf("序列化Nginx配置失败: %w", err)
+	}
+	newContent = append(newContent, '\n')
 
-	// 写回配置文件
-	if err := os.WriteFile(configFile, []byte(newContent), 0644); err != nil {
+	info, err := os.Stat(resolvedConfigFile)
+	if err != nil {
+		return fmt.Errorf("读取Nginx配置权限失败: %w", err)
+	}
+	backupFile := fmt.Sprintf("%s.%d.bak", resolvedConfigFile, time.Now().UnixNano())
+	if err := CopyFileWithMode(resolvedConfigFile, backupFile, info.Mode().Perm()); err != nil {
+		return fmt.Errorf("备份Nginx配置失败: %w", err)
+	}
+	if err := writeFileAtomically(resolvedConfigFile, newContent, info.Mode().Perm()); err != nil {
 		return fmt.Errorf("写入Nginx配置失败: %w", err)
-	}
-
-	// 验证配置是否包含新证书路径
-	verifyContent, _ := os.ReadFile(configFile)
-	if !strings.Contains(string(verifyContent), certPath) {
-		return fmt.Errorf("验证Nginx配置失败：未找到证书路径")
 	}
 
 	logger.Info("已更新飞牛Nginx配置", "domain", domain)
 	return nil
+}
+
+// writeFileAtomically writes data through a same-directory temporary file and rename.
+func writeFileAtomically(path string, data []byte, mode os.FileMode) (err error) {
+	tempFile, err := os.CreateTemp(filepath.Dir(path), ".anssl-config-*")
+	if err != nil {
+		return err
+	}
+	tempPath := tempFile.Name()
+	defer func() {
+		_ = tempFile.Close()
+		if err != nil {
+			_ = os.Remove(tempPath)
+		}
+	}()
+	if err = tempFile.Chmod(mode); err != nil {
+		return err
+	}
+	if _, err = tempFile.Write(data); err != nil {
+		return err
+	}
+	if err = tempFile.Sync(); err != nil {
+		return err
+	}
+	if err = tempFile.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tempPath, path)
 }
 
 // reloadFeiniuServices 重启飞牛OS相关服务
@@ -271,12 +357,10 @@ func reloadFeiniuServices() error {
 	services := []string{"webdav.service", "smbftpd.service", "trim_nginx.service"}
 
 	for _, service := range services {
-		cmd := exec.Command("systemctl", "restart", service)
-		if output, err := cmd.CombinedOutput(); err != nil {
+		if output, err := runFeiniuCommand(feiniuCommandTimeout, "systemctl", "restart", service); err != nil {
 			logger.Warn("重启服务失败", "service", service, "error", err, "output", string(output))
 			// 尝试使用 sudo
-			cmd = exec.Command("sudo", "systemctl", "restart", service)
-			if output, err := cmd.CombinedOutput(); err != nil {
+			if output, err := runFeiniuCommand(feiniuCommandTimeout, "sudo", "systemctl", "restart", service); err != nil {
 				logger.Warn("使用sudo重启服务也失败", "service", service, "error", err, "output", string(output))
 			}
 		} else {
@@ -285,6 +369,18 @@ func reloadFeiniuServices() error {
 	}
 
 	return nil
+}
+
+// runFeiniuCommand executes a Feiniu system command with a bounded timeout.
+func runFeiniuCommand(timeout time.Duration, name string, args ...string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, name, args...)
+	output, err := cmd.CombinedOutput()
+	if ctx.Err() == context.DeadlineExceeded {
+		return output, fmt.Errorf("命令执行超时: %s", name)
+	}
+	return output, err
 }
 
 // isPermissionError 检查错误是否为权限错误
@@ -318,36 +414,12 @@ func (cd *CertDeployer) DeployCertificateToFeiNiu(domain, url string) error {
 		return fmt.Errorf("未启用飞牛部署 (ssl.feiNiuEnabled)")
 	}
 
-	// 创建certs目录
-	if err := os.MkdirAll(CertsDir, 0755); err != nil {
-		return fmt.Errorf("创建证书目录失败: %w", err)
+	canonicalDomain, _, extractDir, cleanup, err := cd.prepareCertificateArchive(domain, url)
+	if err != nil {
+		return err
 	}
-
-	safeDomain := SanitizeDomain(domain)
-	fileName := fmt.Sprintf("%s_certificates.tar", safeDomain)
-	tarFile := filepath.Join(CertsDir, fileName)
-
-	// 下载tar文件
-	if err := cd.downloadFunc(url, tarFile); err != nil {
-		return fmt.Errorf("下载证书失败: %w", err)
-	}
-
-	logger.Info("证书下载完成", "file", tarFile)
-
-	defer func() {
-		if _, err := os.Stat(tarFile); err == nil {
-			os.Remove(tarFile)
-		}
-	}()
-
-	folderName := safeDomain
-	extractDir := filepath.Join(CertsDir, folderName)
-
-	if err := ExtractTar(tarFile, extractDir); err != nil {
-		os.RemoveAll(extractDir)
-		return fmt.Errorf("解压证书失败: %w", err)
-	}
-	defer os.RemoveAll(extractDir)
+	defer cleanup()
+	domain = canonicalDomain
 
 	// 部署到飞牛目录（使用固定路径）
 	if err := cd.DeployToFeiNiu(extractDir, FeiNiuFixedPath, domain); err != nil {

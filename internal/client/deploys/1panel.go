@@ -148,36 +148,12 @@ func (cd *CertDeployer) DeployCertificateTo1Panel(domain, url string) error {
 		return fmt.Errorf("未配置1Panel (ssl.onePanel.url)")
 	}
 
-	// 创建certs目录
-	if err := os.MkdirAll(CertsDir, 0755); err != nil {
-		return fmt.Errorf("创建证书目录失败: %w", err)
+	canonicalDomain, _, extractDir, cleanup, err := cd.prepareCertificateArchive(domain, url)
+	if err != nil {
+		return err
 	}
-
-	safeDomain := SanitizeDomain(domain)
-	fileName := fmt.Sprintf("%s_certificates.tar", safeDomain)
-	tarFile := filepath.Join(CertsDir, fileName)
-
-	// 下载tar文件
-	if err := cd.downloadFunc(url, tarFile); err != nil {
-		return fmt.Errorf("下载证书失败: %w", err)
-	}
-
-	logger.Info("证书下载完成", "file", tarFile)
-
-	defer func() {
-		if _, err := os.Stat(tarFile); err == nil {
-			os.Remove(tarFile)
-		}
-	}()
-
-	folderName := safeDomain
-	extractDir := filepath.Join(CertsDir, folderName)
-
-	if err := ExtractTar(tarFile, extractDir); err != nil {
-		os.RemoveAll(extractDir)
-		return fmt.Errorf("解压证书失败: %w", err)
-	}
-	defer os.RemoveAll(extractDir)
+	defer cleanup()
+	domain = canonicalDomain
 
 	// 部署到 1Panel
 	if err := cd.DeployTo1Panel(extractDir, domain); err != nil {

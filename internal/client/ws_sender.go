@@ -14,6 +14,9 @@ import (
 
 // sendNotifyRequest 发送 NotifyRequest 消息（基础发送方法）
 func (c *WSClient) sendNotifyRequest(req *deployPB.NotifyRequest) error {
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
+
 	c.connMu.Lock()
 	conn := c.conn
 	c.connMu.Unlock()

@@ -45,7 +45,12 @@ type HTTPServer struct {
 	// cache 保存当前等待验证的 HTTP-01 challenge。
 	cache *ChallengeCache
 	// ready 表示 HTTP 服务已经成功监听配置端口。
-	ready atomic.Bool
+	ready         atomic.Bool
+	cleanupCtx    context.Context    // cleanupCtx controls the expiry cleanup loop.
+	cancelCleanup context.CancelFunc // cancelCleanup stops the expiry cleanup loop.
+	cleanupWG     sync.WaitGroup     // cleanupWG waits for the expiry cleanup loop.
+	stopOnce      sync.Once          // stopOnce makes Stop idempotent.
+	stopErr       error              // stopErr stores the first shutdown result.
 }
 
 type healthResponse struct {
@@ -81,6 +86,7 @@ func NewHTTPServer() *HTTPServer {
 	s := &HTTPServer{
 		cache: newChallengeCache(),
 	}
+	s.cleanupCtx, s.cancelCleanup = context.WithCancel(context.Background())
 
 	// 注册 ACME challenge 处理器
 	mux.HandleFunc("/healthz", s.handleHealthz)
@@ -99,6 +105,7 @@ func NewHTTPServer() *HTTPServer {
 	}
 
 	// 启动清理过期 challenge 的定时任务
+	s.cleanupWG.Add(1)
 	go s.cleanupExpiredChallenges()
 
 	return s
@@ -136,7 +143,15 @@ func (s *HTTPServer) IsReady() bool {
 // Stop 停止 HTTP 服务器
 func (s *HTTPServer) Stop(ctx context.Context) error {
 	logger.Info("正在停止 HTTP-01 验证服务")
-	return s.server.Shutdown(ctx)
+	s.stopOnce.Do(func() {
+		s.cancelCleanup()
+		s.stopErr = s.server.Shutdown(ctx)
+		s.cleanupWG.Wait()
+	})
+	if s.stopErr == http.ErrServerClosed {
+		return nil
+	}
+	return s.stopErr
 }
 
 // handleHealthz 返回 HTTP-01 验证服务健康状态。
@@ -169,11 +184,15 @@ func (s *HTTPServer) handleDebugChallenges(w http.ResponseWriter, r *http.Reques
 
 // handleACMEChallenge 处理 ACME HTTP-01 challenge 请求
 func (s *HTTPServer) handleACMEChallenge(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
 	// 从 URL 中提取 token
 	// URL 格式: /acme-challenge/{token}
 	token := strings.TrimPrefix(r.URL.Path, "/acme-challenge/")
 
-	if token == "" {
+	if !validChallengeToken(token) {
 		http.NotFound(w, r)
 		return
 	}
@@ -205,8 +224,8 @@ func (s *HTTPServer) SetChallenge(token, response, domain string) error {
 	if !s.IsReady() {
 		return ErrHTTPServerNotReady
 	}
-	if strings.TrimSpace(token) == "" || strings.TrimSpace(response) == "" {
-		return errors.New("challenge token 或 key authorization 为空")
+	if !validChallengeToken(token) || strings.TrimSpace(response) == "" || len(response) > 16*1024 {
+		return errors.New("challenge token 或 key authorization 无效")
 	}
 	s.cache.Set(token, response, domain, time.Minute*10)
 	return nil
@@ -217,8 +236,8 @@ func (s *HTTPServer) RemoveChallenge(token string) error {
 	if !s.IsReady() {
 		return ErrHTTPServerNotReady
 	}
-	if strings.TrimSpace(token) == "" {
-		return errors.New("challenge token 为空")
+	if !validChallengeToken(token) {
+		return errors.New("challenge token 无效")
 	}
 	s.cache.Delete(token)
 	return nil
@@ -226,12 +245,31 @@ func (s *HTTPServer) RemoveChallenge(token string) error {
 
 // cleanupExpiredChallenges 定期清理过期的 challenge
 func (s *HTTPServer) cleanupExpiredChallenges() {
+	defer s.cleanupWG.Done()
 	ticker := time.NewTicker(10 * time.Minute)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		s.cache.CleanExpired()
+	for {
+		select {
+		case <-s.cleanupCtx.Done():
+			return
+		case <-ticker.C:
+			s.cache.CleanExpired()
+		}
 	}
+}
+
+// validChallengeToken validates the URL-safe token format used by ACME HTTP-01.
+func validChallengeToken(token string) bool {
+	if token == "" || len(token) > 256 || strings.Contains(token, "/") {
+		return false
+	}
+	for _, r := range token {
+		if (r < 'a' || r > 'z') && (r < 'A' || r > 'Z') && (r < '0' || r > '9') && r != '-' && r != '_' {
+			return false
+		}
+	}
+	return true
 }
 
 // ChallengeCache 方法

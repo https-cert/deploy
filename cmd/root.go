@@ -4,8 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
-	"syscall"
 
 	"github.com/spf13/cobra"
 )
@@ -79,32 +77,19 @@ func GetLogFile() string {
 // IsRunning 检查守护进程是否在运行
 func IsRunning() bool {
 	pidFile := GetPIDFile()
-	data, err := os.ReadFile(pidFile)
+	record, err := readPIDRecord(pidFile)
 	if err != nil {
 		return false
 	}
-
-	pidStr := strings.TrimSpace(string(data))
-	pid, err := strconv.Atoi(pidStr)
-	if err != nil {
-		return false
-	}
-
-	process, err := os.FindProcess(pid)
-	if err != nil {
-		return false
-	}
-
-	err = process.Signal(syscall.Signal(0))
-	return err == nil
+	return supervisorProcessMatches(record)
 }
 
 // GetPID 获取守护进程PID
 func GetPID() string {
 	pidFile := GetPIDFile()
-	data, err := os.ReadFile(pidFile)
+	record, err := readPIDRecord(pidFile)
 	if err != nil {
 		return "unknown"
 	}
-	return strings.TrimSpace(string(data))
+	return strconv.Itoa(record.PID)
 }

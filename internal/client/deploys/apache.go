@@ -19,7 +19,10 @@ func (cd *CertDeployer) DeployToApache(sourceDir, apachePath, folderName, safeDo
 	}
 
 	// 复制证书文件到 Apache 目录
-	targetDir := filepath.Join(apachePath, folderName)
+	targetDir, err := SafeJoinUnderBase(apachePath, folderName)
+	if err != nil {
+		return err
+	}
 
 	// 发布目录和生成配置必须作为一个事务处理，避免配置生成失败时覆盖旧证书目录。
 	if err := publishDirectoryWithRollback(sourceDir, targetDir, func() error {
@@ -44,36 +47,13 @@ func (cd *CertDeployer) DeployCertificateToApache(domain, url string) error {
 		return fmt.Errorf("未配置 Apache SSL 目录 (ssl.apachePath)")
 	}
 
-	// 创建certs目录
-	if err := os.MkdirAll(CertsDir, 0755); err != nil {
-		return fmt.Errorf("创建证书目录失败: %w", err)
+	canonicalDomain, safeDomain, extractDir, cleanup, err := cd.prepareCertificateArchive(domain, url)
+	if err != nil {
+		return err
 	}
-
-	safeDomain := SanitizeDomain(domain)
-	fileName := fmt.Sprintf("%s_certificates.tar", safeDomain)
-	tarFile := filepath.Join(CertsDir, fileName)
-
-	// 下载tar文件
-	if err := cd.downloadFunc(url, tarFile); err != nil {
-		return fmt.Errorf("下载证书失败: %w", err)
-	}
-
-	logger.Info("证书下载完成", "file", tarFile)
-
-	defer func() {
-		if _, err := os.Stat(tarFile); err == nil {
-			os.Remove(tarFile)
-		}
-	}()
-
+	defer cleanup()
+	domain = canonicalDomain
 	folderName := safeDomain
-	extractDir := filepath.Join(CertsDir, folderName)
-
-	if err := ExtractTar(tarFile, extractDir); err != nil {
-		os.RemoveAll(extractDir)
-		return fmt.Errorf("解压证书失败: %w", err)
-	}
-	defer os.RemoveAll(extractDir)
 
 	// 部署到 Apache 目录
 	if err := cd.DeployToApache(extractDir, apachePath, folderName, safeDomain); err != nil {
@@ -101,7 +81,13 @@ func (cd *CertDeployer) DeployCertificateToApache(domain, url string) error {
 
 // GenerateApacheSSLConfig 生成 Apache SSL 配置文件
 func GenerateApacheSSLConfig(apachePath, folderName, safeDomain string) error {
-	certDir := filepath.Join(apachePath, folderName)
+	if err := ValidateSafeDomainName(safeDomain); err != nil {
+		return fmt.Errorf("Apache 域名无效: %w", err)
+	}
+	certDir, err := SafeJoinUnderBase(apachePath, folderName)
+	if err != nil {
+		return err
+	}
 	// 配置文件名包含域名，避免多域名冲突
 	configFileName := fmt.Sprintf("%s.ssl.conf", safeDomain)
 	configFile := filepath.Join(certDir, configFileName)

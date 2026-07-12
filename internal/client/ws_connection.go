@@ -89,8 +89,7 @@ func (c *WSClient) connect() error {
 		return fmt.Errorf("WebSocket连接失败: %w", err)
 	}
 
-	// 设置 WebSocket 读取限制为无限制，避免大消息被截断
-	conn.SetReadLimit(-1)
+	conn.SetReadLimit(maxWSMessageSize)
 
 	c.connMu.Lock()
 	c.conn = conn
@@ -141,7 +140,9 @@ func (c *WSClient) StartWSNotify() {
 			}
 
 			c.reconnectDelay = reconnectDelay
-			time.Sleep(reconnectDelay)
+			if !waitForContext(c.ctx, reconnectDelay) {
+				return
+			}
 			continue
 		}
 
@@ -162,7 +163,9 @@ func (c *WSClient) StartWSNotify() {
 			c.lastDisconnectLogged.Store(true)
 		}
 
-		time.Sleep(c.reconnectDelay)
+		if !waitForContext(c.ctx, c.reconnectDelay) {
+			return
+		}
 	}
 }
 
@@ -213,6 +216,9 @@ func NewWSClient(ctx context.Context) (*WSClient, error) {
 		ctx:            ctx,
 		accessKey:      cfg.Server.AccessKey,
 		reconnectDelay: minReconnectDelay,
+		done:           make(chan struct{}),
+		operationSem:   make(chan struct{}, maxConcurrentOps),
+		domainLocks:    make(map[string]*domainOperationLock),
 		protojsonMarshaler: protojson.MarshalOptions{
 			UseProtoNames:   false, // 使用 camelCase 而非 snake_case
 			EmitUnpopulated: false, // 不输出零值字段

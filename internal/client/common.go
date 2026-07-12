@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -12,17 +13,34 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"github.com/https-cert/deploy/internal/config"
 )
 
 // 共享常量
 const (
 	downloadTimeout      = 30 * time.Second
+	maxDownloadSize      = int64(64 << 20)  // 证书归档最大下载大小
 	minReconnectDelay    = 1 * time.Second  // 最小重连延迟
 	maxReconnectDelay    = 30 * time.Second // 最大重连延迟
 	fastReconnectAttempt = 3                // 快速重连尝试次数
 	heartbeatInterval    = 10 * time.Second // 应用层心跳间隔
+	maxWSMessageSize     = int64(16 << 20)  // WebSocket 单条消息最大 16 MiB
+	maxConcurrentOps     = 8                // 客户端最多并发执行的业务任务数
 	// tcpKeepaliveInterval = 15 * time.Second // TCP keepalive 间隔
 )
+
+// waitForContext waits for a duration and returns false when the context is canceled first.
+func waitForContext(ctx context.Context, delay time.Duration) bool {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
+	}
+}
 
 // 共享变量
 var (
@@ -40,9 +58,11 @@ type ClientInterface interface {
 
 // DownloadFile 公共的文件下载函数，可被所有客户端复用
 func DownloadFile(ctx context.Context, httpClient *http.Client, accessKey, downloadURL, filePath string) error {
-	// 使用 net/url 安全地构建下载 URL
 	u, err := url.Parse(downloadURL)
 	if err != nil {
+		return fmt.Errorf("解析下载 URL 失败: %w", err)
+	}
+	if err := validateDownloadURL(u); err != nil {
 		return err
 	}
 
@@ -60,7 +80,22 @@ func DownloadFile(ctx context.Context, httpClient *http.Client, accessKey, downl
 		return err
 	}
 
-	resp, err := httpClient.Do(req)
+	if httpClient == nil {
+		httpClient = &http.Client{}
+	}
+	clientCopy := *httpClient
+	originalRedirect := clientCopy.CheckRedirect
+	clientCopy.CheckRedirect = func(nextReq *http.Request, via []*http.Request) error {
+		if !sameDownloadOrigin(req.URL, nextReq.URL) {
+			return fmt.Errorf("拒绝跨主机下载重定向")
+		}
+		if originalRedirect != nil {
+			return originalRedirect(nextReq, via)
+		}
+		return nil
+	}
+
+	resp, err := clientCopy.Do(req)
 	if err != nil {
 		return err
 	}
@@ -72,6 +107,9 @@ func DownloadFile(ctx context.Context, httpClient *http.Client, accessKey, downl
 	}
 	if err := ensureDownloadContentType(resp); err != nil {
 		return err
+	}
+	if resp.ContentLength > maxDownloadSize {
+		return fmt.Errorf("下载文件超过大小限制")
 	}
 
 	// 确保目标目录存在
@@ -94,8 +132,12 @@ func DownloadFile(ctx context.Context, httpClient *http.Client, accessKey, downl
 	}()
 
 	// 复制数据到临时文件
-	if _, err := io.Copy(tmpFile, resp.Body); err != nil {
+	written, err := io.Copy(tmpFile, io.LimitReader(resp.Body, maxDownloadSize+1))
+	if err != nil {
 		return err
+	}
+	if written > maxDownloadSize {
+		return fmt.Errorf("下载文件超过大小限制")
 	}
 
 	// 确保数据刷盘
@@ -118,6 +160,43 @@ func DownloadFile(ctx context.Context, httpClient *http.Client, accessKey, downl
 
 	completed = true
 	return nil
+}
+
+// validateDownloadURL enforces the supported download schemes and local HTTP policy.
+func validateDownloadURL(u *url.URL) error {
+	if u == nil || u.Hostname() == "" || u.User != nil {
+		return fmt.Errorf("下载 URL 必须包含合法主机且不能包含用户凭据")
+	}
+	switch strings.ToLower(u.Scheme) {
+	case "https":
+		return nil
+	case "http":
+		cfg := config.GetConfig()
+		if cfg != nil && cfg.Server != nil && cfg.Server.Env == "local" && isLoopbackHost(u.Hostname()) {
+			return nil
+		}
+		return fmt.Errorf("生产环境只允许 HTTPS 下载 URL")
+	default:
+		return fmt.Errorf("不支持的下载 URL 协议: %s", u.Scheme)
+	}
+}
+
+// isLoopbackHost reports whether a hostname identifies the local machine.
+func isLoopbackHost(host string) bool {
+	host = strings.Trim(host, "[]")
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
+// sameDownloadOrigin prevents credentials in the query string crossing download hosts.
+func sameDownloadOrigin(first, next *url.URL) bool {
+	if first == nil || next == nil {
+		return false
+	}
+	return strings.EqualFold(first.Scheme, next.Scheme) && strings.EqualFold(first.Host, next.Host)
 }
 
 func ensureDownloadContentType(resp *http.Response) error {

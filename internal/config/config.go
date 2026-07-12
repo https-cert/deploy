@@ -3,6 +3,8 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net"
+	"net/url"
 	"os"
 	"slices"
 	"strings"
@@ -167,8 +169,18 @@ func validateConfig() error {
 		if Config.Update.Mirror == "custom" && Config.Update.CustomURL == "" {
 			return errors.New("使用 custom 镜像源时，customUrl 不能为空")
 		}
+		if Config.Update.Mirror == "custom" {
+			if err := validateUpdateURL("update.customUrl", Config.Update.CustomURL, false); err != nil {
+				return err
+			}
+		}
 	} else {
 		Config.Update.Mirror = defaultUpdateMirror
+	}
+	if Config.Update.Proxy != "" {
+		if err := validateProxyURL(Config.Update.Proxy); err != nil {
+			return err
+		}
 	}
 
 	if err := validateProviders(); err != nil {
@@ -180,6 +192,47 @@ func validateConfig() error {
 	}
 
 	return nil
+}
+
+// validateUpdateURL validates an update mirror URL and permits local HTTP only in local mode.
+func validateUpdateURL(name, rawURL string, allowPath bool) error {
+	parsed, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil || parsed.Hostname() == "" || parsed.User != nil {
+		return fmt.Errorf("%s 必须是包含主机名且不含用户凭据的合法 URL", name)
+	}
+	if !allowPath && parsed.RawQuery != "" {
+		return fmt.Errorf("%s 不能包含查询参数", name)
+	}
+	if parsed.Scheme == "https" {
+		return nil
+	}
+	if parsed.Scheme == "http" && Config.Server.Env == envLocal && isLoopbackHostname(parsed.Hostname()) {
+		return nil
+	}
+	return fmt.Errorf("%s 只允许 HTTPS，本地环境可使用回环 HTTP", name)
+}
+
+// validateProxyURL validates supported HTTP and SOCKS proxy URL forms.
+func validateProxyURL(rawURL string) error {
+	parsed, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil || parsed.Hostname() == "" {
+		return errors.New("update.proxy 必须是包含主机名的合法 URL")
+	}
+	switch strings.ToLower(parsed.Scheme) {
+	case "http", "https", "socks5", "socks5h":
+		return nil
+	default:
+		return fmt.Errorf("update.proxy 不支持协议: %s", parsed.Scheme)
+	}
+}
+
+// isLoopbackHostname reports whether a hostname resolves syntactically to a loopback address.
+func isLoopbackHostname(host string) bool {
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(strings.Trim(host, "[]"))
+	return ip != nil && ip.IsLoopback()
 }
 
 // applyLogDefaults 设置日志轮转默认值。

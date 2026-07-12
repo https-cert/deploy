@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 
 	"github.com/https-cert/deploy/internal/config"
@@ -20,8 +21,11 @@ import (
 )
 
 const (
-	CertsDir        = "certs"                           // 证书临时存储目录
-	FeiNiuFixedPath = "/usr/trim/var/trim_connect/ssls" // 飞牛固定部署路径
+	CertsDir            = "certs"                           // 证书临时存储目录
+	FeiNiuFixedPath     = "/usr/trim/var/trim_connect/ssls" // 飞牛固定部署路径
+	maxArchiveFileSize  = int64(16 << 20)                   // 单个证书归档条目最大 16 MiB
+	maxArchiveTotalSize = int64(64 << 20)                   // 证书归档解压后最大 64 MiB
+	maxArchiveEntries   = 256                               // 证书归档最多允许 256 个条目
 )
 
 // Deployer 证书部署器接口（为未来扩展预留）
@@ -34,6 +38,16 @@ type CertDeployer struct {
 	downloadFunc func(url, filePath string) error // 证书下载函数
 }
 
+type publishTargetLock struct {
+	mu   sync.Mutex // mu serializes publication for one target path.
+	refs int        // refs tracks active users of the lock.
+}
+
+var (
+	publishLocksMu sync.Mutex
+	publishLocks   = make(map[string]*publishTargetLock)
+)
+
 // NewCertDeployer 创建证书部署器
 func NewCertDeployer(downloadFunc func(url, filePath string) error) *CertDeployer {
 	return &CertDeployer{
@@ -41,24 +55,92 @@ func NewCertDeployer(downloadFunc func(url, filePath string) error) *CertDeploye
 	}
 }
 
-// SanitizeDomain 处理泛域名，将 * 转换为 _
+// prepareCertificateArchive validates a domain, downloads its archive and returns a temporary extraction directory.
+func (cd *CertDeployer) prepareCertificateArchive(domain, downloadURL string) (canonicalDomain, safeDomain, extractDir string, cleanup func(), err error) {
+	canonicalDomain, safeDomain, err = NormalizeDeploymentDomain(domain)
+	if err != nil {
+		return "", "", "", nil, err
+	}
+	if cd == nil || cd.downloadFunc == nil {
+		return "", "", "", nil, fmt.Errorf("证书下载函数未初始化")
+	}
+	if err := os.MkdirAll(CertsDir, 0755); err != nil {
+		return "", "", "", nil, fmt.Errorf("创建证书目录失败: %w", err)
+	}
+
+	archivePath, err := newTemporaryArchivePath(safeDomain)
+	if err != nil {
+		return "", "", "", nil, err
+	}
+	extractDir, err = os.MkdirTemp(CertsDir, "."+safeDomain+"-extract-*")
+	if err != nil {
+		_ = os.Remove(archivePath)
+		return "", "", "", nil, fmt.Errorf("创建临时解压目录失败: %w", err)
+	}
+
+	cleanup = func() {
+		_ = os.Remove(archivePath)
+		_ = os.RemoveAll(extractDir)
+	}
+	if err := cd.downloadFunc(downloadURL, archivePath); err != nil {
+		cleanup()
+		return "", "", "", nil, fmt.Errorf("下载证书失败: %w", err)
+	}
+	logger.Info("证书下载完成", "file", archivePath)
+	if err := ExtractTar(archivePath, extractDir); err != nil {
+		cleanup()
+		return "", "", "", nil, fmt.Errorf("解压证书失败: %w", err)
+	}
+	return canonicalDomain, safeDomain, extractDir, cleanup, nil
+}
+
+// newTemporaryArchivePath creates a unique archive path below the certificate directory.
+func newTemporaryArchivePath(safeDomain string) (string, error) {
+	tempFile, err := os.CreateTemp(CertsDir, "."+safeDomain+"-archive-*")
+	if err != nil {
+		return "", fmt.Errorf("创建临时归档文件失败: %w", err)
+	}
+	path := tempFile.Name()
+	if err := tempFile.Close(); err != nil {
+		_ = os.Remove(path)
+		return "", fmt.Errorf("关闭临时归档文件失败: %w", err)
+	}
+	if err := os.Remove(path); err != nil {
+		return "", fmt.Errorf("清理临时归档文件失败: %w", err)
+	}
+	return path, nil
+}
+
+// SanitizeDomain returns the filesystem-safe representation of a valid deployment domain.
 func SanitizeDomain(domain string) string {
-	return strings.ReplaceAll(domain, "*", "_")
+	_, safeName, err := NormalizeDeploymentDomain(domain)
+	if err != nil {
+		return ""
+	}
+	return safeName
 }
 
 // DeployCertificate 部署证书（同时部署到所有配置的目标）
 func (cd *CertDeployer) DeployCertificate(domain, url string) error {
+	if cd == nil || cd.downloadFunc == nil {
+		return fmt.Errorf("证书下载函数未初始化")
+	}
+	canonicalDomain, safeDomain, err := NormalizeDeploymentDomain(domain)
+	if err != nil {
+		return err
+	}
+	domain = canonicalDomain
+
 	// 创建certs目录
 	if err := os.MkdirAll(CertsDir, 0755); err != nil {
 		return fmt.Errorf("创建证书目录失败: %w", err)
 	}
 
-	// 处理泛域名，将 * 转换为 _
-	safeDomain := SanitizeDomain(domain)
-
 	// 文件名格式为 {domain}_certificates.tar
-	fileName := fmt.Sprintf("%s_certificates.tar", safeDomain)
-	tarFile := filepath.Join(CertsDir, fileName)
+	tarFile, err := newTemporaryArchivePath(safeDomain)
+	if err != nil {
+		return err
+	}
 
 	// 下载tar文件
 	if err := cd.downloadFunc(url, tarFile); err != nil {
@@ -90,7 +172,10 @@ func (cd *CertDeployer) DeployCertificate(domain, url string) error {
 
 	// 证书文件夹名（使用处理后的安全域名）
 	folderName := safeDomain
-	extractDir := filepath.Join(CertsDir, folderName)
+	extractDir, err := os.MkdirTemp(CertsDir, "."+folderName+"-extract-*")
+	if err != nil {
+		return err
+	}
 
 	// 1. 解压tar文件
 	if err := ExtractTar(tarFile, extractDir); err != nil {
@@ -180,10 +265,23 @@ const (
 // ExtractTar 解压证书压缩包。
 // 当前证书包标准格式为 tar；这里兼容 tar.gz 和旧版 zip，避免前后端版本短暂不一致时部署失败。
 func ExtractTar(tarFile, extractDir string) error {
-	// 创建解压目录
+	cleanExtractDir := filepath.Clean(extractDir)
+	if strings.TrimSpace(extractDir) == "" || cleanExtractDir == "." || cleanExtractDir == string(filepath.Separator) || filepath.VolumeName(cleanExtractDir) != "" && filepath.Dir(cleanExtractDir) == cleanExtractDir {
+		return fmt.Errorf("解压目录不安全")
+	}
+	// 解压目录只保存本次归档内容，避免遗留符号链接影响文件创建。
+	if err := os.RemoveAll(extractDir); err != nil {
+		return fmt.Errorf("清理解压目录失败: %w", err)
+	}
 	if err := os.MkdirAll(extractDir, 0755); err != nil {
 		return fmt.Errorf("创建解压目录失败: %w", err)
 	}
+	completed := false
+	defer func() {
+		if !completed {
+			_ = os.RemoveAll(extractDir)
+		}
+	}()
 
 	// 打开tar文件
 	reader, err := os.Open(tarFile)
@@ -198,6 +296,7 @@ func ExtractTar(tarFile, extractDir string) error {
 		return fmt.Errorf("读取压缩包文件头失败: %w", err)
 	}
 
+	var extractErr error
 	switch detectArchiveFormat(header) {
 	case archiveFormatTarGzip:
 		gzipReader, err := gzip.NewReader(bufferedReader)
@@ -205,12 +304,17 @@ func ExtractTar(tarFile, extractDir string) error {
 			return fmt.Errorf("打开gzip压缩tar失败: %w", err)
 		}
 		defer gzipReader.Close()
-		return extractTarReader(tar.NewReader(gzipReader), extractDir, archiveHeaderSummary(header))
+		extractErr = extractTarReader(tar.NewReader(gzipReader), extractDir, archiveHeaderSummary(header))
 	case archiveFormatZip:
-		return extractZipArchive(tarFile, extractDir)
+		extractErr = extractZipArchive(tarFile, extractDir)
 	default:
-		return extractTarReader(tar.NewReader(bufferedReader), extractDir, archiveHeaderSummary(header))
+		extractErr = extractTarReader(tar.NewReader(bufferedReader), extractDir, archiveHeaderSummary(header))
 	}
+	if extractErr != nil {
+		return extractErr
+	}
+	completed = true
+	return nil
 }
 
 func detectArchiveFormat(header []byte) string {
@@ -251,6 +355,8 @@ func archiveHeaderSummary(header []byte) string {
 func extractTarReader(tarReader *tar.Reader, extractDir, headerSummary string) error {
 	// 解压所有文件
 	firstEntry := true
+	var totalSize int64
+	entryCount := 0
 	for {
 		header, err := tarReader.Next()
 		if errors.Is(err, io.EOF) {
@@ -263,6 +369,14 @@ func extractTarReader(tarReader *tar.Reader, extractDir, headerSummary string) e
 			return fmt.Errorf("读取tar文件失败: %w", err)
 		}
 		firstEntry = false
+		entryCount++
+		if entryCount > maxArchiveEntries {
+			return fmt.Errorf("证书归档条目数量超过限制: %d", maxArchiveEntries)
+		}
+		if header.Size < 0 || header.Size > maxArchiveFileSize || totalSize > maxArchiveTotalSize-header.Size {
+			return fmt.Errorf("证书归档解压大小超过限制")
+		}
+		totalSize += header.Size
 
 		if err := extractTarFile(header, tarReader, extractDir); err != nil {
 			return err
@@ -281,10 +395,10 @@ func extractTarFile(header *tar.Header, reader io.Reader, extractDir string) err
 		return err
 	}
 
-	mode := os.FileMode(header.Mode)
+	mode := archiveFileMode(header.Name, os.FileMode(header.Mode))
 	switch header.Typeflag {
 	case tar.TypeDir:
-		return os.MkdirAll(targetPath, mode)
+		return os.MkdirAll(targetPath, 0755)
 	case tar.TypeReg, tar.TypeRegA:
 		// 继续处理普通文件
 	default:
@@ -305,7 +419,7 @@ func extractTarFile(header *tar.Header, reader io.Reader, extractDir string) err
 	defer outFile.Close()
 
 	// 复制文件内容
-	if _, err := io.Copy(outFile, reader); err != nil {
+	if _, err := io.CopyN(outFile, reader, header.Size); err != nil {
 		return fmt.Errorf("复制文件内容失败: %w", err)
 	}
 
@@ -318,13 +432,20 @@ func extractTarFile(header *tar.Header, reader io.Reader, extractDir string) err
 }
 
 func safeArchiveTarget(extractDir, entryName string) (string, error) {
-	// 使用 filepath.Rel 安全地检查路径
+	if filepath.IsAbs(entryName) || filepath.VolumeName(entryName) != "" || strings.Contains(entryName, "\\") || (len(entryName) >= 3 && entryName[1] == ':' && (entryName[2] == '/' || entryName[2] == '\\')) {
+		return "", fmt.Errorf("不安全的文件路径: %s", entryName)
+	}
+	cleanEntry := filepath.Clean(entryName)
+	if cleanEntry == "." || cleanEntry == ".." || strings.HasPrefix(cleanEntry, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("不安全的文件路径: %s", entryName)
+	}
+
 	targetPath := filepath.Join(extractDir, entryName)
 
 	// 清理路径并检查符号链接
 	cleanTarget := filepath.Clean(targetPath)
 	rel, err := filepath.Rel(extractDir, cleanTarget)
-	if err != nil || strings.HasPrefix(rel, "..") || strings.Contains(rel, ".."+string(filepath.Separator)) {
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		return "", fmt.Errorf("不安全的文件路径: %s", entryName)
 	}
 
@@ -338,7 +459,16 @@ func extractZipArchive(zipFile, extractDir string) error {
 	}
 	defer reader.Close()
 
+	if len(reader.File) > maxArchiveEntries {
+		return fmt.Errorf("证书归档条目数量超过限制: %d", maxArchiveEntries)
+	}
+	var totalSize int64
 	for _, file := range reader.File {
+		entrySize := int64(file.UncompressedSize64)
+		if entrySize < 0 || entrySize > maxArchiveFileSize || totalSize > maxArchiveTotalSize-entrySize {
+			return fmt.Errorf("证书归档解压大小超过限制")
+		}
+		totalSize += entrySize
 		if err := extractZipFile(file, extractDir); err != nil {
 			return err
 		}
@@ -379,17 +509,14 @@ func extractZipFile(file *zip.File, extractDir string) error {
 	}
 	defer reader.Close()
 
-	mode := info.Mode().Perm()
-	if mode == 0 {
-		mode = 0644
-	}
+	mode := archiveFileMode(file.Name, info.Mode())
 	outFile, err := os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
 	if err != nil {
 		return fmt.Errorf("创建文件失败: %w", err)
 	}
 	defer outFile.Close()
 
-	if _, err := io.Copy(outFile, reader); err != nil {
+	if _, err := io.CopyN(outFile, reader, int64(file.UncompressedSize64)); err != nil {
 		return fmt.Errorf("复制文件内容失败: %w", err)
 	}
 
@@ -398,6 +525,14 @@ func extractZipFile(file *zip.File, extractDir string) error {
 	}
 
 	return nil
+}
+
+// archiveFileMode returns a conservative permission mode for extracted certificate files.
+func archiveFileMode(name string, _ os.FileMode) os.FileMode {
+	if strings.EqualFold(filepath.Base(name), "privateKey.key") || strings.HasSuffix(strings.ToLower(name), ".key") {
+		return 0600
+	}
+	return 0644
 }
 
 // CopyDirectory 复制整个目录
@@ -440,6 +575,8 @@ func publishDirectoryWithRollback(sourceDir, targetDir string, afterPublish func
 	if sourceDir == "" || targetDir == "" {
 		return fmt.Errorf("源目录和目标目录不能为空")
 	}
+	releaseTarget := lockPublishTarget(targetDir)
+	defer releaseTarget()
 
 	if err := os.MkdirAll(filepath.Dir(targetDir), 0755); err != nil {
 		return fmt.Errorf("创建目标父目录失败: %w", err)
@@ -499,6 +636,29 @@ func publishDirectoryWithRollback(sourceDir, targetDir string, afterPublish func
 
 	logger.Info("证书目录已发布", "path", targetDir)
 	return nil
+}
+
+// lockPublishTarget acquires a reference-counted lock for one final deployment target.
+func lockPublishTarget(targetDir string) func() {
+	publishLocksMu.Lock()
+	entry := publishLocks[targetDir]
+	if entry == nil {
+		entry = &publishTargetLock{}
+		publishLocks[targetDir] = entry
+	}
+	entry.refs++
+	publishLocksMu.Unlock()
+
+	entry.mu.Lock()
+	return func() {
+		entry.mu.Unlock()
+		publishLocksMu.Lock()
+		entry.refs--
+		if entry.refs == 0 {
+			delete(publishLocks, targetDir)
+		}
+		publishLocksMu.Unlock()
+	}
 }
 
 // moveDirectory 移动目录，跨设备时回退为复制后删除源目录。

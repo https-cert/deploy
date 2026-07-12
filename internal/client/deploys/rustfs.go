@@ -16,12 +16,12 @@ func (cd *CertDeployer) DeployToRustFS(sourceDir, rustFSPath, safeDomain string)
 	}
 
 	// RustFS 目标目录（使用域名作为子目录）
-	targetDir := filepath.Join(rustFSPath, safeDomain)
-	stagingDir := targetDir + ".prepare"
-	if err := os.RemoveAll(stagingDir); err != nil {
-		return fmt.Errorf("清理RustFS临时目录失败: %w", err)
+	targetDir, err := SafeJoinUnderBase(rustFSPath, safeDomain)
+	if err != nil {
+		return err
 	}
-	if err := os.MkdirAll(stagingDir, 0755); err != nil {
+	stagingDir, err := os.MkdirTemp(filepath.Dir(targetDir), filepath.Base(targetDir)+".prepare-*")
+	if err != nil {
 		return fmt.Errorf("创建RustFS临时目录失败: %w", err)
 	}
 	defer os.RemoveAll(stagingDir)
@@ -59,36 +59,12 @@ func (cd *CertDeployer) DeployCertificateToRustFS(domain, url string) error {
 		return fmt.Errorf("未配置 RustFS TLS 目录 (ssl.rustFSPath)")
 	}
 
-	// 创建certs目录
-	if err := os.MkdirAll(CertsDir, 0755); err != nil {
-		return fmt.Errorf("创建证书目录失败: %w", err)
+	canonicalDomain, safeDomain, extractDir, cleanup, err := cd.prepareCertificateArchive(domain, url)
+	if err != nil {
+		return err
 	}
-
-	safeDomain := SanitizeDomain(domain)
-	fileName := fmt.Sprintf("%s_certificates.tar", safeDomain)
-	tarFile := filepath.Join(CertsDir, fileName)
-
-	// 下载tar文件
-	if err := cd.downloadFunc(url, tarFile); err != nil {
-		return fmt.Errorf("下载证书失败: %w", err)
-	}
-
-	logger.Info("证书下载完成", "file", tarFile)
-
-	defer func() {
-		if _, err := os.Stat(tarFile); err == nil {
-			os.Remove(tarFile)
-		}
-	}()
-
-	folderName := safeDomain
-	extractDir := filepath.Join(CertsDir, folderName)
-
-	if err := ExtractTar(tarFile, extractDir); err != nil {
-		os.RemoveAll(extractDir)
-		return fmt.Errorf("解压证书失败: %w", err)
-	}
-	defer os.RemoveAll(extractDir)
+	defer cleanup()
+	domain = canonicalDomain
 
 	// 部署到 RustFS 目录
 	if err := cd.DeployToRustFS(extractDir, rustFSPath, safeDomain); err != nil {

@@ -66,36 +66,12 @@ func (cd *CertDeployer) DeployToOpenVPNAS(sourceDir string) error {
 
 // DeployCertificateToOpenVPNAS 仅部署证书到 OpenVPN-AS。
 func (cd *CertDeployer) DeployCertificateToOpenVPNAS(domain, url string) error {
-	if domain == "" {
-		return fmt.Errorf("域名不能为空")
+	canonicalDomain, _, extractDir, cleanup, err := cd.prepareCertificateArchive(domain, url)
+	if err != nil {
+		return err
 	}
-
-	if err := os.MkdirAll(CertsDir, 0755); err != nil {
-		return fmt.Errorf("创建证书目录失败: %w", err)
-	}
-
-	safeDomain := SanitizeDomain(domain)
-	fileName := fmt.Sprintf("%s_certificates.tar", safeDomain)
-	tarFile := filepath.Join(CertsDir, fileName)
-
-	if err := cd.downloadFunc(url, tarFile); err != nil {
-		return fmt.Errorf("下载证书失败: %w", err)
-	}
-
-	logger.Info("证书下载完成", "file", tarFile)
-
-	defer func() {
-		if _, err := os.Stat(tarFile); err == nil {
-			_ = os.Remove(tarFile)
-		}
-	}()
-
-	extractDir := filepath.Join(CertsDir, safeDomain)
-	if err := ExtractTar(tarFile, extractDir); err != nil {
-		_ = os.RemoveAll(extractDir)
-		return fmt.Errorf("解压证书失败: %w", err)
-	}
-	defer os.RemoveAll(extractDir)
+	defer cleanup()
+	domain = canonicalDomain
 
 	if err := cd.DeployToOpenVPNAS(extractDir); err != nil {
 		return err

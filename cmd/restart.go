@@ -16,6 +16,12 @@ func CreateRestartCmd() *cobra.Command {
 		Short: "重启守护进程",
 		Long:  "重启证书部署守护进程",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			releaseLock, err := acquireDaemonStartLock()
+			if err != nil {
+				return err
+			}
+			defer releaseLock()
+
 			if IsRunning() {
 				if err := StopDaemon(); err != nil {
 					return fmt.Errorf("停止守护进程失败: %w", err)

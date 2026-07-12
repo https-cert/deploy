@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -74,6 +75,7 @@ func Start(ctx context.Context) {
 		case <-ctx.Done():
 			readyTicker.Stop()
 			readyDeadline.Stop()
+			scheduler.stop()
 			return
 		case <-readyDeadline.C:
 			logger.Error("HTTP-01 验证服务未能在限定时间内启动")
@@ -117,6 +119,11 @@ func (s *Scheduler) stop() {
 		} else {
 			logger.Info("WebSocket 客户端已关闭")
 		}
+		waitCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		if err := s.client.Wait(waitCtx); err != nil && !errors.Is(err, context.DeadlineExceeded) {
+			logger.Warn("等待 WebSocket 客户端退出失败", "error", err)
+		}
+		cancel()
 	}
 
 	// 停止 HTTP 服务器

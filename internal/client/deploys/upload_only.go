@@ -2,7 +2,6 @@ package deploys
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 
 	"github.com/https-cert/deploy/pkg/logger"
@@ -17,60 +16,48 @@ func UploadOnlyBaseDir() string {
 
 // UploadOnlyTargetDir 返回指定域名的“仅上传”保存目录。
 func UploadOnlyTargetDir(domain string) string {
-	return filepath.Join(UploadOnlyBaseDir(), SanitizeDomain(domain))
+	_, safeDomain, err := NormalizeDeploymentDomain(domain)
+	if err != nil {
+		return ""
+	}
+	_, err = SafeJoinUnderBase(UploadOnlyBaseDir(), safeDomain)
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(UploadOnlyBaseDir(), safeDomain)
 }
 
 // DeployToUploadOnly 仅将证书保留到客户端本地目录，不执行额外部署动作。
 func (cd *CertDeployer) DeployToUploadOnly(sourceDir, domain string) error {
-	if domain == "" {
-		return fmt.Errorf("域名不能为空")
+	canonicalDomain, _, err := NormalizeDeploymentDomain(domain)
+	if err != nil {
+		return err
 	}
-	if err := ValidateCertificateFiles(sourceDir, domain); err != nil {
+	if err := ValidateCertificateFiles(sourceDir, canonicalDomain); err != nil {
 		return err
 	}
 
-	targetDir := UploadOnlyTargetDir(domain)
+	targetDir := UploadOnlyTargetDir(canonicalDomain)
+	if targetDir == "" {
+		return fmt.Errorf("生成 UploadOnly 目标目录失败")
+	}
 
 	if err := PublishDirectoryWithRollback(sourceDir, targetDir); err != nil {
 		return fmt.Errorf("保存证书到本地目录失败: %w", err)
 	}
 
-	logger.Info("证书已保存到本地上传目录", "domain", domain, "path", targetDir)
+	logger.Info("证书已保存到本地上传目录", "domain", canonicalDomain, "path", targetDir)
 	return nil
 }
 
 // DeployCertificateToUploadOnly 下载证书并保留到本地目录。
 func (cd *CertDeployer) DeployCertificateToUploadOnly(domain, url string) error {
-	if domain == "" {
-		return fmt.Errorf("域名不能为空")
+	canonicalDomain, _, extractDir, cleanup, err := cd.prepareCertificateArchive(domain, url)
+	if err != nil {
+		return err
 	}
-
-	if err := os.MkdirAll(CertsDir, 0o755); err != nil {
-		return fmt.Errorf("创建证书目录失败: %w", err)
-	}
-
-	safeDomain := SanitizeDomain(domain)
-	fileName := fmt.Sprintf("%s_certificates.tar", safeDomain)
-	tarFile := filepath.Join(CertsDir, fileName)
-
-	if err := cd.downloadFunc(url, tarFile); err != nil {
-		return fmt.Errorf("下载证书失败: %w", err)
-	}
-
-	logger.Info("证书下载完成", "file", tarFile)
-
-	defer func() {
-		if _, err := os.Stat(tarFile); err == nil {
-			_ = os.Remove(tarFile)
-		}
-	}()
-
-	extractDir := filepath.Join(CertsDir, safeDomain)
-	if err := ExtractTar(tarFile, extractDir); err != nil {
-		_ = os.RemoveAll(extractDir)
-		return fmt.Errorf("解压证书失败: %w", err)
-	}
-	defer os.RemoveAll(extractDir)
+	defer cleanup()
+	domain = canonicalDomain
 
 	if err := cd.DeployToUploadOnly(extractDir, domain); err != nil {
 		return err

@@ -7,8 +7,6 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
-	"strconv"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -25,6 +23,12 @@ func CreateDaemonCmd() *cobra.Command {
 		Short: "启动守护进程（后台运行）",
 		Long:  "在后台启动证书部署守护进程，进程崩溃或更新后将自动重启",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			releaseLock, err := acquireDaemonStartLock()
+			if err != nil {
+				return err
+			}
+			defer releaseLock()
+
 			// 检查是否已经在运行，如果是则先停止
 			if IsRunning() {
 				fmt.Println("守护进程已在运行，正在重启...")
@@ -113,7 +117,7 @@ func runSupervisor() {
 
 	// 将 supervisor 自身的 PID 写入 PID 文件
 	pidFile := GetPIDFile()
-	if err := os.WriteFile(pidFile, []byte(strconv.Itoa(os.Getpid())), 0600); err != nil {
+	if err := writePIDRecord(pidFile, pidFileRecord{PID: os.Getpid(), Executable: execPath, StartedAt: time.Now()}); err != nil {
 		fmt.Printf("写入PID文件失败: %v\n", err)
 		return
 	}
@@ -239,30 +243,37 @@ func getHomeDir() string {
 func StopDaemon() error {
 	// 保留 stop marker 作为备用停止机制
 	stopMarker := filepath.Join(getHomeDir(), ".anssl-stop")
-	os.WriteFile(stopMarker, []byte("stop"), 0600)
+	if err := os.WriteFile(stopMarker, []byte("stop"), 0600); err != nil {
+		return fmt.Errorf("写入停止标记失败: %w", err)
+	}
 
 	pidFile := GetPIDFile()
-	data, err := os.ReadFile(pidFile)
+	record, err := readPIDRecord(pidFile)
 	if err != nil {
+		_ = os.Remove(stopMarker)
 		return fmt.Errorf("读取PID文件失败: %w", err)
 	}
-
-	pidStr := strings.TrimSpace(string(data))
-	pid, err := strconv.Atoi(pidStr)
-	if err != nil {
-		return fmt.Errorf("无效的PID: %w", err)
+	if !supervisorProcessMatches(record) {
+		if removeErr := os.Remove(pidFile); removeErr != nil && !os.IsNotExist(removeErr) {
+			return fmt.Errorf("PID 文件不是当前 supervisor 且清理失败: %w", removeErr)
+		}
+		_ = os.Remove(stopMarker)
+		return fmt.Errorf("PID 文件不是当前 anssl supervisor，未发送停止信号")
 	}
 
-	process, err := os.FindProcess(pid)
+	process, err := os.FindProcess(record.PID)
 	if err != nil {
+		_ = os.Remove(stopMarker)
 		return fmt.Errorf("查找进程失败: %w", err)
 	}
 
 	// 发送 SIGTERM，supervisor 的信号处理会级联杀掉 worker
 	if err := process.Signal(syscall.SIGTERM); err != nil {
 		// 进程可能已经退出
-		os.Remove(pidFile)
-		os.Remove(stopMarker)
+		if removeErr := os.Remove(pidFile); removeErr != nil && !os.IsNotExist(removeErr) {
+			return fmt.Errorf("清理 PID 文件失败: %w", removeErr)
+		}
+		_ = os.Remove(stopMarker)
 		return nil
 	}
 
@@ -271,18 +282,21 @@ func StopDaemon() error {
 		time.Sleep(1 * time.Second)
 		if err := process.Signal(syscall.Signal(0)); err != nil {
 			// 进程已退出
-			os.Remove(pidFile)
-			os.Remove(stopMarker)
+			_ = os.Remove(pidFile)
+			_ = os.Remove(stopMarker)
 			return nil
 		}
 	}
 
 	// 超时，强制杀死
-	process.Signal(syscall.SIGKILL)
+	if err := process.Signal(syscall.SIGKILL); err != nil {
+		_ = os.Remove(stopMarker)
+		return fmt.Errorf("强制停止守护进程失败: %w", err)
+	}
 	time.Sleep(500 * time.Millisecond)
 
-	os.Remove(pidFile)
-	os.Remove(stopMarker)
+	_ = os.Remove(pidFile)
+	_ = os.Remove(stopMarker)
 
 	return nil
 }

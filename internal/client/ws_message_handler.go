@@ -90,32 +90,59 @@ func (c *WSClient) handleWSMessages() error {
 
 // handleMessage 处理单个消息（消息分发）
 func (c *WSClient) handleMessage(resp *deployPB.NotifyResponse) {
+	if resp == nil {
+		logger.Warn("忽略空 WebSocket 消息")
+		return
+	}
 	switch resp.Type {
 	case deployPB.Type_UNKNOWN:
 		return
 
 	case deployPB.Type_CONNECT:
 		if connectReq, ok := resp.Data.(*deployPB.NotifyResponse_ConnectRequest); ok {
-			go c.handleConnect(resp.RequestId, connectReq.ConnectRequest)
+			if connectReq.ConnectRequest == nil {
+				logger.Warn("连接测试消息缺少 payload", "requestId", resp.RequestId)
+				c.sendConnectResponse(resp.RequestId, "", false)
+				return
+			}
+			requestID := resp.RequestId
+			data := connectReq.ConnectRequest
+			c.runOperation("connect", func() { c.sendConnectResponse(requestID, data.Provider, false) }, func() {
+				c.handleConnect(requestID, data)
+			})
+		} else {
+			logger.Warn("连接测试消息类型不匹配", "requestId", resp.RequestId)
 		}
 
 	case deployPB.Type_CHALLENGE:
 		if challengeReq, ok := resp.Data.(*deployPB.NotifyResponse_ChallengeRequest); ok {
-			go c.handleChallenge(resp.RequestId, challengeReq.ChallengeRequest)
+			requestID := resp.RequestId
+			request := challengeReq.ChallengeRequest
+			c.runOperation("challenge", func() {
+				c.sendChallengeResponse(requestID, request, deployPB.ChallengeResponse_CHALLENGE_RESULT_FAILED, "客户端业务并发已达上限")
+			}, func() { c.handleChallenge(requestID, request) })
 		} else if businesResp, ok := resp.Data.(*deployPB.NotifyResponse_ExecuteBusinesResponse); ok {
-			go c.handleLegacyChallenge(businesResp.ExecuteBusinesResponse)
+			c.runOperation("legacy-challenge", nil, func() { c.handleLegacyChallenge(businesResp.ExecuteBusinesResponse) })
+		} else {
+			logger.Warn("Challenge 消息类型不匹配", "requestId", resp.RequestId)
 		}
 
 	case deployPB.Type_EXECUTE_BUSINES:
 		if businesResp, ok := resp.Data.(*deployPB.NotifyResponse_ExecuteBusinesResponse); ok {
-			go c.handleExecuteBusines(resp.RequestId, businesResp.ExecuteBusinesResponse)
+			requestID := resp.RequestId
+			c.runOperation("execute-business", func() {
+				c.sendExecuteBusinesResponse(requestID, deployPB.ExecuteBusinesRequest_REQUEST_RESULT_FAILED)
+			}, func() { c.handleExecuteBusines(requestID, businesResp.ExecuteBusinesResponse) })
+		} else {
+			logger.Warn("业务消息类型不匹配", "requestId", resp.RequestId)
 		}
 
 	case deployPB.Type_UPDATE_VERSION:
-		go c.handleUpdate()
+		c.runOperation("update", nil, c.handleUpdate)
 
 	case deployPB.Type_GET_PROVIDER:
-		go c.handleGetProvider(resp.RequestId)
+		requestID := resp.RequestId
+		c.runOperation("get-provider", nil, func() { c.handleGetProvider(requestID) })
 
 	default:
 		logger.Warn("未知的消息类型", "type", resp.Type)
@@ -124,6 +151,10 @@ func (c *WSClient) handleMessage(resp *deployPB.NotifyResponse) {
 
 // handleConnect 处理连接测试
 func (c *WSClient) handleConnect(requestId string, data *deployPB.ConnectRequest) {
+	if data == nil {
+		c.sendConnectResponse(requestId, "", false)
+		return
+	}
 	// 标记开始执行业务操作
 	c.busyOperations.Add(1)
 	defer c.busyOperations.Add(-1)
@@ -178,8 +209,12 @@ func (c *WSClient) executeChallengeRequest(request *deployPB.ChallengeRequest) (
 	if request == nil {
 		return deployPB.ChallengeResponse_CHALLENGE_RESULT_FAILED, "challenge 请求为空"
 	}
-	if request.OperationId <= 0 || request.CertId <= 0 || request.Domain == "" || request.Token == "" {
+	canonicalDomain, _, err := deploys.NormalizeDeploymentDomain(request.Domain)
+	if request.OperationId <= 0 || request.CertId <= 0 || request.Token == "" {
 		return deployPB.ChallengeResponse_CHALLENGE_RESULT_FAILED, "challenge 请求参数不完整"
+	}
+	if err != nil {
+		return deployPB.ChallengeResponse_CHALLENGE_RESULT_FAILED, err.Error()
 	}
 	if c.httpServer == nil {
 		return deployPB.ChallengeResponse_CHALLENGE_RESULT_FAILED, "HTTP-01 服务未初始化"
@@ -187,18 +222,18 @@ func (c *WSClient) executeChallengeRequest(request *deployPB.ChallengeRequest) (
 
 	switch request.Action {
 	case deployPB.ChallengeRequest_CHALLENGE_ACTION_SET:
-		if err := c.httpServer.SetChallenge(request.Token, request.KeyAuth, request.Domain); err != nil {
-			logger.Error("设置 Challenge 失败", "error", err, "operationId", request.OperationId, "certId", request.CertId, "domain", request.Domain)
+		if err := c.httpServer.SetChallenge(request.Token, request.KeyAuth, canonicalDomain); err != nil {
+			logger.Error("设置 Challenge 失败", "error", err, "operationId", request.OperationId, "certId", request.CertId, "domain", canonicalDomain)
 			return deployPB.ChallengeResponse_CHALLENGE_RESULT_FAILED, err.Error()
 		}
-		logger.Info("设置 Challenge", "operationId", request.OperationId, "certId", request.CertId, "token", request.Token, "domain", request.Domain)
+		logger.Info("设置 Challenge", "operationId", request.OperationId, "certId", request.CertId, "token", request.Token, "domain", canonicalDomain)
 		return deployPB.ChallengeResponse_CHALLENGE_RESULT_SUCCESS, "challenge 已缓存"
 	case deployPB.ChallengeRequest_CHALLENGE_ACTION_DELETE:
 		if err := c.httpServer.RemoveChallenge(request.Token); err != nil {
-			logger.Error("删除 Challenge 失败", "error", err, "operationId", request.OperationId, "certId", request.CertId, "domain", request.Domain)
+			logger.Error("删除 Challenge 失败", "error", err, "operationId", request.OperationId, "certId", request.CertId, "domain", canonicalDomain)
 			return deployPB.ChallengeResponse_CHALLENGE_RESULT_FAILED, err.Error()
 		}
-		logger.Info("删除 Challenge", "operationId", request.OperationId, "certId", request.CertId, "token", request.Token, "domain", request.Domain)
+		logger.Info("删除 Challenge", "operationId", request.OperationId, "certId", request.CertId, "token", request.Token, "domain", canonicalDomain)
 		return deployPB.ChallengeResponse_CHALLENGE_RESULT_SUCCESS, "challenge 已删除"
 	default:
 		return deployPB.ChallengeResponse_CHALLENGE_RESULT_NOT_SUPPORTED, "不支持的 challenge 操作"
@@ -207,6 +242,10 @@ func (c *WSClient) executeChallengeRequest(request *deployPB.ChallengeRequest) (
 
 // handleLegacyChallenge 兼容处理旧服务端复用业务消息发送的 challenge。
 func (c *WSClient) handleLegacyChallenge(resp *deployPB.ExecuteBusinesResponse) {
+	if resp == nil {
+		logger.Warn("忽略空旧版 Challenge 消息")
+		return
+	}
 	token := resp.ChallengeToken
 	challengeResp := resp.ChallengeResponse
 	domain := resp.Domain
@@ -241,13 +280,25 @@ func (c *WSClient) handleLegacyChallenge(resp *deployPB.ExecuteBusinesResponse) 
 
 // handleExecuteBusines 处理执行业务
 func (c *WSClient) handleExecuteBusines(requestId string, resp *deployPB.ExecuteBusinesResponse) {
+	if resp == nil {
+		logger.Error("业务消息缺少 payload", "requestId", requestId)
+		c.sendExecuteBusinesResponse(requestId, deployPB.ExecuteBusinesRequest_REQUEST_RESULT_FAILED)
+		return
+	}
 	// 标记开始执行业务操作
 	c.busyOperations.Add(1)
 	defer c.busyOperations.Add(-1)
 
+	canonicalDomain, _, err := deploys.NormalizeDeploymentDomain(resp.Domain)
+	if err != nil {
+		logger.Error("业务域名无效", "error", err, "requestId", requestId)
+		c.sendExecuteBusinesResponse(requestId, deployPB.ExecuteBusinesRequest_REQUEST_RESULT_FAILED)
+		return
+	}
+
 	providerName := resp.Provider
 	executeBusinesType := resp.ExecuteBusinesType
-	domain := resp.Domain
+	domain := canonicalDomain
 	downloadURL := resp.Url
 	cert := resp.Cert
 	key := resp.Key
@@ -257,6 +308,8 @@ func (c *WSClient) handleExecuteBusines(requestId string, resp *deployPB.Execute
 		c.sendExecuteBusinesResponse(requestId, deployPB.ExecuteBusinesRequest_REQUEST_RESULT_FAILED)
 		return
 	}
+	releaseDomain := c.lockDomain(domain)
+	defer releaseDomain()
 
 	// 上传证书备注
 	remark := domain + "_" + time.Now().Format(time.DateTime)
