@@ -102,7 +102,6 @@ func (c *WSClient) handleMessage(resp *deployPB.NotifyResponse) {
 		// 后端建立连接后会发送不带 payload 的欢迎通知；这不是连接测试请求。
 		// 只有携带 connectRequest 时才执行 provider 连接测试。
 		if resp.Data == nil {
-			logger.Debug("收到 WebSocket 连接确认通知", "requestId", resp.RequestId)
 			return
 		}
 		if connectReq, ok := resp.Data.(*deployPB.NotifyResponse_ConnectRequest); ok {
