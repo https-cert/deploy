@@ -15,7 +15,8 @@ import (
 
 // BusinessExecutor 业务执行器，封装可复用的业务逻辑
 type BusinessExecutor struct {
-	downloadFile func(downloadURL, filePath string) error
+	downloadFile                      func(downloadURL, filePath string) error // downloadFile 下载本地部署所需的证书压缩包。
+	deploymentResourceDeployerFactory deploymentResourceDeployerFactory        // deploymentResourceDeployerFactory 允许测试替换云厂商适配器构造逻辑。
 }
 
 // NewBusinessExecutor 创建业务执行器
@@ -58,15 +59,11 @@ func (be *BusinessExecutor) ExecuteBusiness(providerName string, executeBusinesT
 		}
 
 	case "aliyun":
-		// 阿里云 CAS 与 ESA 业务显式分离，不做自动识别
-		switch executeBusinesType {
-		case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_UPLOAD_CERT:
-			return be.handleAliyunCertificateProvider(domain, remark, cert, key, aliyun.ServiceCAS)
-		case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_OSS:
-			return be.handleAliyunCertificateProvider(domain, remark, cert, key, aliyun.ServiceESA)
-		default:
+		// 证书中心上传与固定资源部署分别通过独立业务路径执行。
+		if executeBusinesType != deployPB.ExecuteBusinesType_EXECUTE_BUSINES_UPLOAD_CERT {
 			return fmt.Errorf("不支持的业务类型: %d", executeBusinesType)
 		}
+		return be.handleCertificateProvider(providerName, domain, remark, cert, key)
 
 	case "qiniu":
 		// 上传证书到云服务商
@@ -219,42 +216,6 @@ func (be *BusinessExecutor) handleCertificateProvider(providerName, domain, rema
 	return nil
 }
 
-// handleAliyunCertificateProvider 处理阿里云证书上传（CAS/ESA 显式分离）
-func (be *BusinessExecutor) handleAliyunCertificateProvider(domain, remark, cert, key, service string) error {
-	providerHandler, err := be.getAliyunProvider(service)
-	if err != nil {
-		logger.Error("创建阿里云提供商实例失败", "service", service, "error", err)
-		return err
-	}
-
-	if err := providerHandler.UploadCertificate(remark, domain, cert, key); err != nil {
-		logger.Error("上传阿里云证书失败", "service", service, "error", err)
-		return err
-	}
-
-	logger.Info("阿里云证书上传成功", "service", service, "remark", remark, "domain", domain)
-	return nil
-}
-
-func (be *BusinessExecutor) getAliyunProvider(service string) (providers.ProviderHandler, error) {
-	providerConfig := config.GetProvider("aliyun")
-	if providerConfig == nil {
-		return nil, fmt.Errorf("未配置【阿里云】提供商配置")
-	}
-
-	accessKeyId := providerConfig.GetAccessKeyId()
-	accessKeySecret := providerConfig.GetAccessKeySecret()
-	if accessKeyId == "" || accessKeySecret == "" {
-		return nil, fmt.Errorf("阿里云配置不完整: accessKeyId 或 accessKeySecret 为空")
-	}
-
-	options := &aliyun.Options{
-		Service:   service,
-		ESASiteID: providerConfig.GetESASiteID(),
-	}
-	return aliyun.New(accessKeyId, accessKeySecret, options)
-}
-
 // getCloudTencentProvider 获取腾讯云 provider
 func (be *BusinessExecutor) getCloudTencentProvider() (*cloud_tencent.Provider, error) {
 	providerConfig := config.GetProvider("cloudTencent")
@@ -279,6 +240,13 @@ func (be *BusinessExecutor) getProviderHandler(providerName string) (providers.P
 	}
 
 	switch providerName {
+	case "aliyun":
+		accessKeyID := providerConfig.GetAccessKeyId()
+		accessKeySecret := providerConfig.GetAccessKeySecret()
+		if accessKeyID == "" || accessKeySecret == "" {
+			return nil, fmt.Errorf("阿里云配置不完整: accessKeyId 或 accessKeySecret 为空")
+		}
+		return aliyun.New(accessKeyID, accessKeySecret)
 	case "qiniu":
 		accessKey := providerConfig.GetAccessKey()
 		accessSecret := providerConfig.GetAccessSecret()

@@ -3,13 +3,19 @@ package client
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/coder/websocket"
 	"github.com/https-cert/deploy/internal/client/deploys"
+	"github.com/https-cert/deploy/internal/client/providers"
+	"github.com/https-cert/deploy/internal/config"
 	"github.com/https-cert/deploy/pb/deployPB"
 	"github.com/https-cert/deploy/pkg/logger"
 )
+
+// deploymentResourceExecutionTimeout 为后端 60 秒等待窗口预留 ACK 发送时间。
+const deploymentResourceExecutionTimeout = 55 * time.Second
 
 // handleWSMessages 处理 WebSocket 消息循环
 func (c *WSClient) handleWSMessages() error {
@@ -136,7 +142,11 @@ func (c *WSClient) handleMessage(resp *deployPB.NotifyResponse) {
 		if businesResp, ok := resp.Data.(*deployPB.NotifyResponse_ExecuteBusinesResponse); ok {
 			requestID := resp.RequestId
 			c.runOperation("execute-business", func() {
-				c.sendExecuteBusinesResponse(requestID, deployPB.ExecuteBusinesRequest_REQUEST_RESULT_FAILED)
+				c.sendExecuteBusinesResponse(requestID, executeBusinessACK{
+					Result:    deployPB.ExecuteBusinesRequest_REQUEST_RESULT_FAILED,
+					Message:   "客户端业务并发已达上限",
+					Retryable: true,
+				})
 			}, func() { c.handleExecuteBusines(requestID, businesResp.ExecuteBusinesResponse) })
 		} else {
 			logger.Warn("业务消息类型不匹配", "requestId", resp.RequestId)
@@ -181,20 +191,37 @@ func (c *WSClient) handleConnect(requestId string, data *deployPB.ConnectRequest
 func (c *WSClient) handleGetProvider(requestId string) {
 	logger.Info("收到【获取提供商信息】请求", "requestID", requestId)
 
-	// 使用共享函数获取提供商信息
-	providerInfos := GetProviderInfo()
+	c.sendGetProviderResponse(requestId, buildProviderDirectory(GetProviderInfo(), config.GetDeploymentResourceDirectory()))
+}
 
-	// 转换为 protobuf 格式
-	var providers []*deployPB.GetProviderResponse_Provider
-	for _, p := range providerInfos {
-		providers = append(providers, &deployPB.GetProviderResponse_Provider{
-			Name:   p.Name,
-			Remark: p.Remark,
-		})
+// buildProviderDirectory 将脱敏资源按明确业务挂到所属 provider，且不暴露私有定位字段。
+func buildProviderDirectory(providerInfos []ProviderInfo, directory []config.DeploymentResourceDirectoryEntry) []*deployPB.GetProviderResponse_Provider {
+	responseProviders := make([]*deployPB.GetProviderResponse_Provider, 0, len(providerInfos))
+	for _, providerInfo := range providerInfos {
+		provider := &deployPB.GetProviderResponse_Provider{
+			Name:   providerInfo.Name,
+			Remark: providerInfo.Remark,
+		}
+		businesses := make(map[deployPB.ExecuteBusinesType]*deployPB.GetProviderResponse_Provider_Business)
+		for _, entry := range directory {
+			if entry.Provider != providerInfo.Name {
+				continue
+			}
+			business := businesses[entry.ExecuteBusinesType]
+			if business == nil {
+				business = &deployPB.GetProviderResponse_Provider_Business{ExecuteBusinesType: entry.ExecuteBusinesType}
+				businesses[entry.ExecuteBusinesType] = business
+				provider.Businesses = append(provider.Businesses, business)
+			}
+			business.Resources = append(business.Resources, &deployPB.DeployResource{
+				TargetRef: entry.TargetRef,
+				Label:     entry.Label,
+				Domain:    entry.Domain,
+			})
+		}
+		responseProviders = append(responseProviders, provider)
 	}
-
-	// 发送响应
-	c.sendGetProviderResponse(requestId, providers)
+	return responseProviders
 }
 
 // handleUpdate 处理版本更新
@@ -283,67 +310,154 @@ func (c *WSClient) handleLegacyChallenge(resp *deployPB.ExecuteBusinesResponse) 
 	logger.Info("设置Challenge", "token", token, "domain", domain)
 }
 
-// handleExecuteBusines 处理执行业务
-func (c *WSClient) handleExecuteBusines(requestId string, resp *deployPB.ExecuteBusinesResponse) {
+// handleExecuteBusines 处理执行业务并返回结构化 ACK。
+func (c *WSClient) handleExecuteBusines(requestID string, resp *deployPB.ExecuteBusinesResponse) {
 	if resp == nil {
-		logger.Error("业务消息缺少 payload", "requestId", requestId)
-		c.sendExecuteBusinesResponse(requestId, deployPB.ExecuteBusinesRequest_REQUEST_RESULT_FAILED)
+		logger.Error("业务消息缺少 payload", "requestId", requestID)
+		c.sendExecuteBusinesResponse(requestID, executeBusinessACK{
+			Result:    deployPB.ExecuteBusinesRequest_REQUEST_RESULT_FAILED,
+			Message:   "业务消息缺少 payload",
+			Retryable: false,
+		})
 		return
 	}
 	// 标记开始执行业务操作
 	c.busyOperations.Add(1)
 	defer c.busyOperations.Add(-1)
 
+	if c.businessExecutor == nil {
+		logger.Error("业务执行器未初始化", "requestId", requestID)
+		c.sendExecuteBusinesResponse(requestID, executeBusinessACK{
+			Result:    deployPB.ExecuteBusinesRequest_REQUEST_RESULT_FAILED,
+			Message:   "客户端业务执行器未初始化",
+			Retryable: false,
+		})
+		return
+	}
+
+	var ack executeBusinessACK
+	if config.IsDeploymentResourceBusiness(resp.ExecuteBusinesType) {
+		ack = c.executeDeploymentResourceBusiness(requestID, resp)
+	} else {
+		ack = c.executeLegacyBusiness(requestID, resp)
+	}
+	c.sendExecuteBusinesResponse(requestID, ack)
+}
+
+// executeDeploymentResourceBusiness 按 provider、明确业务和 targetRef 锁定并执行精确资源部署。
+func (c *WSClient) executeDeploymentResourceBusiness(requestID string, resp *deployPB.ExecuteBusinesResponse) executeBusinessACK {
+	providerName := strings.TrimSpace(resp.Provider)
+	targetRef := strings.TrimSpace(resp.TargetRef)
+	if providerName == "" || targetRef == "" {
+		return executeBusinessACK{
+			Result:    deployPB.ExecuteBusinesRequest_REQUEST_RESULT_FAILED,
+			Message:   "资源部署请求缺少 provider 或 targetRef",
+			Retryable: false,
+		}
+	}
+
+	releaseTarget := c.lockOperation("deployment-resource\x00" + providerName + "\x00" + resp.ExecuteBusinesType.String() + "\x00" + targetRef)
+	defer releaseTarget()
+
+	remarkName := strings.TrimSpace(resp.Domain)
+	if remarkName == "" {
+		remarkName = targetRef
+	}
+	remark := remarkName + "_" + time.Now().Format(time.DateTime)
+	logger.Info("收到资源部署业务通知", "provider", providerName, "business", resp.ExecuteBusinesType.String(), "targetRef", targetRef, "requestId", requestID)
+
+	baseContext := c.ctx
+	if baseContext == nil {
+		baseContext = context.Background()
+	}
+	executionContext, cancel := context.WithTimeout(baseContext, deploymentResourceExecutionTimeout)
+	defer cancel()
+
+	result, err := c.businessExecutor.ExecuteWithContext(executionContext, BusinessRequest{
+		ProviderName:       providerName,
+		ExecuteBusinesType: resp.ExecuteBusinesType,
+		TargetRef:          targetRef,
+		Domain:             resp.Domain,
+		DownloadURL:        resp.Url,
+		Remark:             remark,
+		CertificatePEM:     resp.Cert,
+		PrivateKeyPEM:      resp.Key,
+	})
+	if err != nil {
+		message, retryable, providerRequestID := providers.DeploymentErrorInfo(err)
+		logger.Error("资源部署业务执行失败", "error", err, "provider", providerName, "business", resp.ExecuteBusinesType.String(), "targetRef", targetRef, "requestId", requestID, "providerRequestId", providerRequestID)
+		return executeBusinessACK{
+			Result:            deployPB.ExecuteBusinesRequest_REQUEST_RESULT_FAILED,
+			Message:           message,
+			Retryable:         retryable,
+			ProviderRequestID: providerRequestID,
+		}
+	}
+
+	return executeBusinessACK{
+		Result:            deployPB.ExecuteBusinesRequest_REQUEST_RESULT_SUCCESS,
+		Message:           result.Message,
+		Retryable:         false,
+		ProviderRequestID: result.RequestID,
+	}
+}
+
+// executeLegacyBusiness 保留已有本地部署和仅上传业务，并继续按规范域名串行。
+func (c *WSClient) executeLegacyBusiness(requestID string, resp *deployPB.ExecuteBusinesResponse) executeBusinessACK {
 	canonicalDomain, _, err := deploys.NormalizeDeploymentDomain(resp.Domain)
 	if err != nil {
-		logger.Error("业务域名无效", "error", err, "requestId", requestId)
-		c.sendExecuteBusinesResponse(requestId, deployPB.ExecuteBusinesRequest_REQUEST_RESULT_FAILED)
-		return
+		logger.Error("业务域名无效", "error", err, "requestId", requestID)
+		return executeBusinessACK{
+			Result:    deployPB.ExecuteBusinesRequest_REQUEST_RESULT_FAILED,
+			Message:   "业务域名无效: " + err.Error(),
+			Retryable: false,
+		}
+	}
+	if canonicalDomain == "" {
+		return executeBusinessACK{
+			Result:    deployPB.ExecuteBusinesRequest_REQUEST_RESULT_FAILED,
+			Message:   "域名不能为空",
+			Retryable: false,
+		}
 	}
 
-	providerName := resp.Provider
-	executeBusinesType := resp.ExecuteBusinesType
-	domain := canonicalDomain
-	downloadURL := resp.Url
-	cert := resp.Cert
-	key := resp.Key
-
-	if domain == "" {
-		logger.Error("域名不能为空")
-		c.sendExecuteBusinesResponse(requestId, deployPB.ExecuteBusinesRequest_REQUEST_RESULT_FAILED)
-		return
-	}
-	releaseDomain := c.lockDomain(domain)
+	releaseDomain := c.lockOperation("domain\x00" + canonicalDomain)
 	defer releaseDomain()
 
-	// 上传证书备注
-	remark := domain + "_" + time.Now().Format(time.DateTime)
-
-	logger.Info("收到执行业务通知", "provider", providerName, "executeBusinesType", executeBusinesType, "domain", domain)
-
-	var result deployPB.ExecuteBusinesRequest_RequestResult
+	providerName := resp.Provider
+	remark := canonicalDomain + "_" + time.Now().Format(time.DateTime)
+	logger.Info("收到执行业务通知", "provider", providerName, "executeBusinesType", resp.ExecuteBusinesType, "domain", canonicalDomain)
 
 	if providerName == "" {
 		// 如果没有指定提供商，使用默认行为：部署到所有配置的目标
 		deployer := deploys.NewCertDeployer(c.downloadFile)
-		if err := deployer.DeployCertificate(domain, downloadURL); err != nil {
-			logger.Error("证书部署失败", "error", err, "domain", domain)
-			result = deployPB.ExecuteBusinesRequest_REQUEST_RESULT_FAILED
-		} else {
-			logger.Info("证书部署成功", "domain", domain)
-			result = deployPB.ExecuteBusinesRequest_REQUEST_RESULT_SUCCESS
+		if err := deployer.DeployCertificate(canonicalDomain, resp.Url); err != nil {
+			logger.Error("证书部署失败", "error", err, "domain", canonicalDomain)
+			return executeBusinessACK{
+				Result:    deployPB.ExecuteBusinesRequest_REQUEST_RESULT_FAILED,
+				Message:   "本地证书部署失败: " + err.Error(),
+				Retryable: true,
+			}
 		}
-	} else {
-		// 根据提供商执行相应的业务逻辑
-		err := c.businessExecutor.ExecuteBusiness(providerName, executeBusinesType, domain, downloadURL, remark, cert, key)
-		if err != nil {
-			logger.Error("业务执行失败", "error", err, "provider", providerName, "domain", domain)
-			result = deployPB.ExecuteBusinesRequest_REQUEST_RESULT_FAILED
-		} else {
-			result = deployPB.ExecuteBusinesRequest_REQUEST_RESULT_SUCCESS
+		logger.Info("证书部署成功", "domain", canonicalDomain)
+		return executeBusinessACK{
+			Result:    deployPB.ExecuteBusinesRequest_REQUEST_RESULT_SUCCESS,
+			Message:   "本地证书部署成功",
+			Retryable: false,
 		}
 	}
 
-	// 发送执行业务响应
-	c.sendExecuteBusinesResponse(requestId, result)
+	if err := c.businessExecutor.ExecuteBusiness(providerName, resp.ExecuteBusinesType, canonicalDomain, resp.Url, remark, resp.Cert, resp.Key); err != nil {
+		logger.Error("业务执行失败", "error", err, "provider", providerName, "domain", canonicalDomain)
+		return executeBusinessACK{
+			Result:    deployPB.ExecuteBusinesRequest_REQUEST_RESULT_FAILED,
+			Message:   "业务执行失败: " + err.Error(),
+			Retryable: true,
+		}
+	}
+	return executeBusinessACK{
+		Result:    deployPB.ExecuteBusinesRequest_REQUEST_RESULT_SUCCESS,
+		Message:   "业务执行成功",
+		Retryable: false,
+	}
 }

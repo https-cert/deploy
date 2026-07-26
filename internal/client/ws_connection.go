@@ -218,7 +218,7 @@ func NewWSClient(ctx context.Context) (*WSClient, error) {
 		reconnectDelay: minReconnectDelay,
 		done:           make(chan struct{}),
 		operationSem:   make(chan struct{}, maxConcurrentOps),
-		domainLocks:    make(map[string]*domainOperationLock),
+		operationLocks: make(map[string]*resourceOperationLock),
 		protojsonMarshaler: protojson.MarshalOptions{
 			UseProtoNames:   false, // 使用 camelCase 而非 snake_case
 			EmitUnpopulated: false, // 不输出零值字段

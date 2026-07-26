@@ -7,6 +7,8 @@ SDK：https://github.com/TencentCloud/tencentcloud-sdk-go
 package cloud_tencent
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -28,27 +30,41 @@ var _ providers.ProviderHandler = (*Provider)(nil)
 
 // sslClient 定义腾讯云 SSL SDK 的最小调用集合，便于测试替换。
 type sslClient interface {
-	DescribeCertificates(request *ssl.DescribeCertificatesRequest) (*ssl.DescribeCertificatesResponse, error)
-	UploadCertificate(request *ssl.UploadCertificateRequest) (*ssl.UploadCertificateResponse, error)
+	DescribeCertificatesWithContext(ctx context.Context, request *ssl.DescribeCertificatesRequest) (*ssl.DescribeCertificatesResponse, error)
+	UploadCertificateWithContext(ctx context.Context, request *ssl.UploadCertificateRequest) (*ssl.UploadCertificateResponse, error)
 }
 
 // clientFactory 负责构建腾讯云 SSL SDK 客户端。
 type clientFactory func(secretID, secretKey string) (sslClient, error)
 
-// Provider 腾讯云 SSL Provider。
+// Provider 腾讯云 SSL 证书和云资源部署 Provider。
 type Provider struct {
-	SecretId  string
-	SecretKey string
-	client    sslClient
-	newClient clientFactory
+	SecretId     string           // SecretId 腾讯云 API SecretId，禁止写入日志。
+	SecretKey    string           // SecretKey 腾讯云 API SecretKey，禁止写入日志。
+	client       sslClient        // client 缓存 SSL SDK 客户端。
+	newClient    clientFactory    // newClient 创建 SSL SDK 客户端。
+	cdnClient    cdnClient        // cdnClient 缓存 CDN SDK 客户端。
+	teoClient    teoClient        // teoClient 缓存 EdgeOne SDK 客户端。
+	newCDNClient cdnClientFactory // newCDNClient 创建 CDN SDK 客户端。
+	newTEOClient teoClientFactory // newTEOClient 创建 EdgeOne SDK 客户端。
+	newCOSClient cosClientFactory // newCOSClient 创建绑定到指定 Bucket 的 COS SDK 客户端。
+}
+
+// certificateUploadResult 保留腾讯云 SSL 上传接口返回的证书和请求标识。
+type certificateUploadResult struct {
+	CertificateID string // CertificateID 是后续 CDN 或 EdgeOne 绑定所需的证书 ID。
+	RequestID     string // RequestID 是 SSL 上传请求 ID。
 }
 
 // New 创建腾讯云 Provider 实例。
 func New(secretId, secretKey string) *Provider {
 	return &Provider{
-		SecretId:  strings.TrimSpace(secretId),
-		SecretKey: strings.TrimSpace(secretKey),
-		newClient: defaultClientFactory,
+		SecretId:     strings.TrimSpace(secretId),
+		SecretKey:    strings.TrimSpace(secretKey),
+		newClient:    defaultClientFactory,
+		newCDNClient: defaultCDNClientFactory,
+		newTEOClient: defaultTEOClientFactory,
+		newCOSClient: defaultCOSClientFactory,
 	}
 }
 
@@ -68,6 +84,9 @@ func defaultClientFactory(secretID, secretKey string) (sslClient, error) {
 func (p *Provider) getClient() (sslClient, error) {
 	if p.client != nil {
 		return p.client, nil
+	}
+	if p.newClient == nil {
+		p.newClient = defaultClientFactory
 	}
 
 	client, err := p.newClient(p.SecretId, p.SecretKey)
@@ -89,7 +108,7 @@ func (p *Provider) TestConnection() (bool, error) {
 	request.Offset = tencentcommon.Uint64Ptr(0)
 	request.Limit = tencentcommon.Uint64Ptr(1)
 
-	_, err = client.DescribeCertificates(request)
+	_, err = client.DescribeCertificatesWithContext(context.Background(), request)
 	if err != nil {
 		return false, wrapTencentSDKError("DescribeCertificates", err)
 	}
@@ -98,11 +117,23 @@ func (p *Provider) TestConnection() (bool, error) {
 
 // UploadCertificate 上传证书到腾讯云 SSL 证书服务。
 func (p *Provider) UploadCertificate(name, domain, cert, key string) error {
+	_, err := p.uploadCertificateWithContext(context.Background(), name, domain, cert, key)
+	if err != nil {
+		var sdkError *tencenterrors.TencentCloudSDKError
+		if errors.As(err, &sdkError) {
+			return wrapTencentSDKError("UploadCertificate", err)
+		}
+	}
+	return err
+}
+
+// uploadCertificateWithContext 上传证书并保留后续云产品绑定所需的 CertificateId 和请求 ID。
+func (p *Provider) uploadCertificateWithContext(ctx context.Context, name, domain, cert, key string) (certificateUploadResult, error) {
 	_ = domain
 
 	client, err := p.getClient()
 	if err != nil {
-		return err
+		return certificateUploadResult{}, err
 	}
 
 	request := ssl.NewUploadCertificateRequest()
@@ -116,40 +147,28 @@ func (p *Provider) UploadCertificate(name, domain, cert, key string) error {
 		request.Alias = tencentcommon.StringPtr(trimmedName)
 	}
 
-	response, err := client.UploadCertificate(request)
+	response, err := client.UploadCertificateWithContext(ctx, request)
 	if err != nil {
-		return wrapTencentSDKError("UploadCertificate", err)
+		return certificateUploadResult{}, err
 	}
 	if response == nil || response.Response == nil {
-		return fmt.Errorf("腾讯云上传证书返回格式异常: 缺少 Response 字段")
+		return certificateUploadResult{}, fmt.Errorf("腾讯云上传证书返回格式异常: 缺少 Response 字段")
 	}
 
 	certificateID := strings.TrimSpace(stringValue(response.Response.CertificateId))
 	repeatCertID := strings.TrimSpace(stringValue(response.Response.RepeatCertId))
-	if certificateID == "" && repeatCertID == "" {
-		requestID := strings.TrimSpace(stringValue(response.Response.RequestId))
-		return fmt.Errorf("腾讯云上传证书返回缺少证书ID: requestId=%s", requestID)
+	if certificateID == "" {
+		certificateID = repeatCertID
+	}
+	requestID := strings.TrimSpace(stringValue(response.Response.RequestId))
+	if certificateID == "" {
+		return certificateUploadResult{}, fmt.Errorf("腾讯云上传证书返回缺少证书ID: requestId=%s", requestID)
 	}
 
-	return nil
-}
-
-// DeployToOSS 当前不支持该业务类型。
-func (p *Provider) DeployToOSS(certID string, domain string) (string, error) {
-	_, _ = certID, domain
-	return "", fmt.Errorf("不支持 OSS 证书部署业务")
-}
-
-// DeployToCDN 当前不支持该业务类型。
-func (p *Provider) DeployToCDN(certID string, domain string) (string, error) {
-	_, _ = certID, domain
-	return "", fmt.Errorf("不支持 CDN 证书部署业务")
-}
-
-// DeployToDCND 当前不支持该业务类型。
-func (p *Provider) DeployToDCND(certID string, domain string) (string, error) {
-	_, _ = certID, domain
-	return "", fmt.Errorf("暂不支持 DCND 证书部署业务")
+	return certificateUploadResult{
+		CertificateID: certificateID,
+		RequestID:     requestID,
+	}, nil
 }
 
 // stringValue 安全读取 SDK 字符串指针字段。

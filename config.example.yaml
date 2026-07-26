@@ -46,11 +46,15 @@ log:
   # 可选。轮转日志最长保留天数，0 表示使用默认值 30。
   maxAgeDays: 30
 
-# 可选。云服务 provider 配置。未配置则不启用云服务上传。
+# 可选。云服务 provider 配置。未配置则不启用云服务证书上传与部署。
 # 支持的 name：
-# - aliyun：阿里云。CAS 上传证书使用 accessKeyId/accessKeySecret；ESA 业务额外需要 esaSiteId。
-# - qiniu：七牛云。使用 accessKey/accessSecret。
-# - cloudTencent：腾讯云。使用 secretId/secretKey，通过腾讯云 SSL UploadCertificate 上传。
+# - aliyun：阿里云。支持 CAS 上传，以及 CDN、DCDN、ESA、OSS 自定义域名的精确证书部署。
+# - qiniu：七牛云。支持证书中心上传，以及 CDN、DCDN 域名的精确证书部署。
+# - cloudTencent：腾讯云。支持 SSL 上传，以及 CDN、EdgeOne、COS 自定义域名的精确证书部署。
+# 在 provider 下直接使用 cdn、dcdn、esa、oss、edgeOne、cos 配置对应产品资源。
+# targetRef 由客户端根据资源定位字段自动生成，不需要手工填写。
+# 配置任一自动部署资源时必须同时填写该 provider 的完整认证信息，否则客户端会拒绝启动。
+# Bucket、Region、Endpoint、SiteId、ZoneId 和认证信息只保存在本机，不会上报到服务端。
 # provider:
 #   - name: "aliyun"
 #     remark: "阿里云"
@@ -59,8 +63,22 @@ log:
 #       accessKeyId: "your-aliyun-access-key-id"
 #       # 阿里云 AccessKey Secret。
 #       accessKeySecret: "your-aliyun-access-key-secret"
-#       # 阿里云 ESA 业务专用字段，仅执行 ESA 上传证书时需要。
-#       esaSiteId: "your-esa-site-id"
+#     cdn:
+#       - label: "官网 CDN" # 可选，留空时使用 domain。
+#         domain: "www.example.com"
+#     dcdn:
+#       - label: "API DCDN"
+#         domain: "api.example.com"
+#     esa:
+#       - label: "应用 ESA"
+#         domain: "app.example.com" # 精确 ESA RecordName。
+#         siteId: "your-esa-site-id"
+#     oss:
+#       - label: "静态资源 OSS"
+#         domain: "static.example.com"
+#         region: "cn-hangzhou"
+#         bucket: "your-oss-bucket"
+#         endpoint: "https://oss-cn-hangzhou.aliyuncs.com" # 可选，只允许 HTTPS Origin。
 #
 #   - name: "qiniu"
 #     remark: "七牛云"
@@ -69,6 +87,12 @@ log:
 #       accessKey: "your-qiniu-access-key"
 #       # 七牛云 SecretKey。
 #       accessSecret: "your-qiniu-access-secret"
+#     cdn:
+#       - label: "官网 CDN"
+#         domain: "www.example.com"
+#     dcdn:
+#       - label: "API DCDN"
+#         domain: "api.example.com"
 #
 #   - name: "cloudTencent"
 #     remark: "腾讯云"
@@ -77,3 +101,15 @@ log:
 #       secretId: "your-tencent-secret-id"
 #       # 腾讯云 SecretKey。
 #       secretKey: "your-tencent-secret-key"
+#     cdn:
+#       - label: "官网 CDN"
+#         domain: "www.example.com"
+#     edgeOne:
+#       - label: "应用 EdgeOne"
+#         domain: "app.example.com" # 精确 EdgeOne Host。
+#         zoneId: "your-edgeone-zone-id"
+#     cos:
+#       - label: "静态资源 COS"
+#         domain: "static.example.com"
+#         region: "ap-guangzhou"
+#         bucket: "your-cos-bucket-1250000000" # 必须包含 APPID。

@@ -23,37 +23,37 @@ type httpChallengeServer interface {
 }
 
 type WSClient struct {
-	clientId             string                          // clientId 是本机客户端唯一标识。
-	serverURL            string                          // serverURL 是 deploy 服务基础地址。
-	httpClient           *http.Client                    // httpClient 复用证书下载连接。
-	ctx                  context.Context                 // ctx 控制客户端完整生命周期。
-	accessKey            string                          // accessKey 是服务端鉴权令牌。
-	lastDisconnectLogged atomic.Bool                     // lastDisconnectLogged 标记是否需要记录重连成功。
-	systemInfo           *system.SystemInfo              // systemInfo 缓存本机系统信息。
-	systemInfoOnce       sync.Once                       // systemInfoOnce 保证系统信息只采集一次。
-	httpServer           httpChallengeServer             // httpServer 提供 HTTP-01 challenge 能力。
-	busyOperations       atomic.Int32                    // busyOperations 记录正在执行的业务数量。
-	conn                 *websocket.Conn                 // conn 是当前 WebSocket 连接。
-	connMu               sync.Mutex                      // connMu 保护连接替换和关闭。
-	writeMu              sync.Mutex                      // writeMu 保证 WebSocket 只有一个并发写入者。
-	reconnectDelay       time.Duration                   // reconnectDelay 是当前重连退避时间。
-	businessExecutor     *BusinessExecutor               // businessExecutor 执行部署和 provider 业务。
-	protojsonMarshaler   protojson.MarshalOptions        // protojsonMarshaler 序列化 WebSocket 消息。
-	protojsonUnmarshaler protojson.UnmarshalOptions      // protojsonUnmarshaler 反序列化 WebSocket 消息。
-	startOnce            sync.Once                       // startOnce 保证连接循环只启动一次。
-	started              atomic.Bool                     // started 标记连接循环是否已经启动。
-	done                 chan struct{}                   // done 在连接循环完全退出时关闭。
-	operationSem         chan struct{}                   // operationSem 限制并发业务数量。
-	operationOnce        sync.Once                       // operationOnce 惰性初始化并发限制器。
-	domainLocksMu        sync.Mutex                      // domainLocksMu 保护域名锁表。
-	domainLocks          map[string]*domainOperationLock // domainLocks 保存正在使用的同域名串行锁。
-	systemInfoErr        error                           // systemInfoErr 缓存系统信息采集错误。
+	clientId             string                            // clientId 是本机客户端唯一标识。
+	serverURL            string                            // serverURL 是 deploy 服务基础地址。
+	httpClient           *http.Client                      // httpClient 复用证书下载连接。
+	ctx                  context.Context                   // ctx 控制客户端完整生命周期。
+	accessKey            string                            // accessKey 是服务端鉴权令牌。
+	lastDisconnectLogged atomic.Bool                       // lastDisconnectLogged 标记是否需要记录重连成功。
+	systemInfo           *system.SystemInfo                // systemInfo 缓存本机系统信息。
+	systemInfoOnce       sync.Once                         // systemInfoOnce 保证系统信息只采集一次。
+	httpServer           httpChallengeServer               // httpServer 提供 HTTP-01 challenge 能力。
+	busyOperations       atomic.Int32                      // busyOperations 记录正在执行的业务数量。
+	conn                 *websocket.Conn                   // conn 是当前 WebSocket 连接。
+	connMu               sync.Mutex                        // connMu 保护连接替换和关闭。
+	writeMu              sync.Mutex                        // writeMu 保证 WebSocket 只有一个并发写入者。
+	reconnectDelay       time.Duration                     // reconnectDelay 是当前重连退避时间。
+	businessExecutor     *BusinessExecutor                 // businessExecutor 执行部署和 provider 业务。
+	protojsonMarshaler   protojson.MarshalOptions          // protojsonMarshaler 序列化 WebSocket 消息。
+	protojsonUnmarshaler protojson.UnmarshalOptions        // protojsonUnmarshaler 反序列化 WebSocket 消息。
+	startOnce            sync.Once                         // startOnce 保证连接循环只启动一次。
+	started              atomic.Bool                       // started 标记连接循环是否已经启动。
+	done                 chan struct{}                     // done 在连接循环完全退出时关闭。
+	operationSem         chan struct{}                     // operationSem 限制并发业务数量。
+	operationOnce        sync.Once                         // operationOnce 惰性初始化并发限制器。
+	operationLocksMu     sync.Mutex                        // operationLocksMu 保护资源操作锁表。
+	operationLocks       map[string]*resourceOperationLock // operationLocks 保存正在使用的资源串行锁。
+	systemInfoErr        error                             // systemInfoErr 缓存系统信息采集错误。
 }
 
-// domainOperationLock serializes operations that target the same canonical domain.
-type domainOperationLock struct {
-	mu   sync.Mutex // mu serializes operations for one domain.
-	refs int        // refs tracks users so idle locks can be removed.
+// resourceOperationLock 串行化同一个本地部署域名或精确部署资源的操作。
+type resourceOperationLock struct {
+	mu   sync.Mutex // mu 串行化同一个资源键的操作。
+	refs int        // refs 记录使用者数量，以便清理空闲锁。
 }
 
 // Start starts the WebSocket lifecycle loop once.
@@ -117,29 +117,29 @@ func (c *WSClient) runOperation(name string, onBusy func(), operation func()) {
 	}
 }
 
-// lockDomain acquires a reference-counted lock for one canonical deployment domain.
-func (c *WSClient) lockDomain(domain string) func() {
-	c.domainLocksMu.Lock()
-	if c.domainLocks == nil {
-		c.domainLocks = make(map[string]*domainOperationLock)
+// lockOperation 获取一个按资源键引用计数的串行锁。
+func (c *WSClient) lockOperation(resourceKey string) func() {
+	c.operationLocksMu.Lock()
+	if c.operationLocks == nil {
+		c.operationLocks = make(map[string]*resourceOperationLock)
 	}
-	entry := c.domainLocks[domain]
+	entry := c.operationLocks[resourceKey]
 	if entry == nil {
-		entry = &domainOperationLock{}
-		c.domainLocks[domain] = entry
+		entry = &resourceOperationLock{}
+		c.operationLocks[resourceKey] = entry
 	}
 	entry.refs++
-	c.domainLocksMu.Unlock()
+	c.operationLocksMu.Unlock()
 
 	entry.mu.Lock()
 	return func() {
 		entry.mu.Unlock()
-		c.domainLocksMu.Lock()
+		c.operationLocksMu.Lock()
 		entry.refs--
 		if entry.refs == 0 {
-			delete(c.domainLocks, domain)
+			delete(c.operationLocks, resourceKey)
 		}
-		c.domainLocksMu.Unlock()
+		c.operationLocksMu.Unlock()
 	}
 }
 

@@ -81,7 +81,6 @@ type (
 		// 阿里云认证字段
 		AccessKeyId     string `yaml:"accessKeyId,omitempty"`
 		AccessKeySecret string `yaml:"accessKeySecret,omitempty"`
-		ESASiteID       string `yaml:"esaSiteId,omitempty"`
 		// 腾讯云认证字段
 		SecretId  string `yaml:"secretId,omitempty"`
 		SecretKey string `yaml:"secretKey,omitempty"`
@@ -92,9 +91,15 @@ type (
 
 	// Provider 云服务提供商配置
 	Provider struct {
-		Name   string        `yaml:"name"`   // Name 提供商内部名称
-		Remark string        `yaml:"remark"` // Remark 提供商展示备注
-		Auth   *ProviderAuth `yaml:"auth"`   // Auth 提供商认证配置
+		Name    string           `yaml:"name"`    // Name 提供商内部名称
+		Remark  string           `yaml:"remark"`  // Remark 提供商展示备注
+		Auth    *ProviderAuth    `yaml:"auth"`    // Auth 提供商认证配置
+		CDN     []*CDNConfig     `yaml:"cdn"`     // CDN 精确域名部署资源
+		DCDN    []*DCDNConfig    `yaml:"dcdn"`    // DCDN 精确域名部署资源
+		ESA     []*ESAConfig     `yaml:"esa"`     // ESA Record 部署资源
+		OSS     []*OSSConfig     `yaml:"oss"`     // OSS 自定义域名部署资源
+		EdgeOne []*EdgeOneConfig `yaml:"edgeOne"` // EdgeOne Host 部署资源
+		COS     []*COSConfig     `yaml:"cos"`     // COS 自定义域名部署资源
 	}
 )
 
@@ -301,6 +306,7 @@ func prepareDir(name, path string) error {
 // validateProviders 验证 provider 列表中不包含空名称或重复名称
 func validateProviders() error {
 	providerNames := make(map[string]struct{}, len(Config.Provider))
+	targetRefs := make(map[string]string)
 	for _, provider := range Config.Provider {
 		if provider == nil {
 			return errors.New("provider 配置不能为空")
@@ -315,6 +321,14 @@ func validateProviders() error {
 			return fmt.Errorf("provider.name 不能重复: %s", name)
 		}
 		providerNames[name] = struct{}{}
+
+		provider.Name = name
+		if err := validateDeploymentResources(provider, targetRefs); err != nil {
+			return err
+		}
+		if err := validateDeploymentResourceCredentials(provider); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -349,14 +363,6 @@ func (p *Provider) GetAccessKeyId() string {
 func (p *Provider) GetAccessKeySecret() string {
 	if p.Auth != nil {
 		return p.Auth.AccessKeySecret
-	}
-	return ""
-}
-
-// GetESASiteID 获取阿里云 ESA SiteId
-func (p *Provider) GetESASiteID() string {
-	if p.Auth != nil {
-		return p.Auth.ESASiteID
 	}
 	return ""
 }
