@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -68,16 +69,27 @@ type COSConfig struct {
 	Bucket string `yaml:"bucket"`          // Bucket 包含 APPID 的完整 COS Bucket 名称
 }
 
+// CLBConfig 描述一个阿里云 CLB HTTPS 监听器部署资源。
+type CLBConfig struct {
+	Label          string `yaml:"label,omitempty"` // Label 控制台展示名称，留空时使用规范化域名
+	Domain         string `yaml:"domain"`          // Domain 监听器默认或 SNI 扩展绑定的精确域名
+	Region         string `yaml:"region"`          // Region CLB 实例所在地域 ID
+	LoadBalancerID string `yaml:"loadBalancerId"`  // LoadBalancerID CLB 实例 ID
+	ListenerPort   int    `yaml:"listenerPort"`    // ListenerPort CLB HTTPS 监听端口
+}
+
 // DeploymentResource 描述从固定业务配置中解析出的精确部署资源。
 type DeploymentResource struct {
-	TargetRef string // TargetRef 客户端根据资源身份自动生成的不透明稳定引用
-	Label     string // Label 控制台展示名称
-	Domain    string // Domain 资源绑定的精确域名
-	Region    string // Region 对象存储地域
-	Endpoint  string // Endpoint OSS API Origin 覆盖值
-	Bucket    string // Bucket 对象存储 Bucket 名称
-	SiteID    string // SiteID 阿里云 ESA Site ID
-	ZoneID    string // ZoneID 腾讯云 EdgeOne Zone ID
+	TargetRef      string // TargetRef 客户端根据资源身份自动生成的不透明稳定引用
+	Label          string // Label 控制台展示名称
+	Domain         string // Domain 资源绑定的精确域名
+	Region         string // Region 对象存储地域
+	Endpoint       string // Endpoint OSS API Origin 覆盖值
+	Bucket         string // Bucket 对象存储 Bucket 名称
+	SiteID         string // SiteID 阿里云 ESA Site ID
+	ZoneID         string // ZoneID 腾讯云 EdgeOne Zone ID
+	LoadBalancerID string // LoadBalancerID 负载均衡实例 ID
+	ListenerPort   int    // ListenerPort 负载均衡监听端口
 }
 
 // DeploymentResourceDirectoryEntry 是可上报给后端的脱敏部署资源目录项。
@@ -141,7 +153,8 @@ func IsDeploymentResourceBusiness(business deployPB.ExecuteBusinesType) bool {
 		deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ESA,
 		deployPB.ExecuteBusinesType_EXECUTE_BUSINES_EDGEONE,
 		deployPB.ExecuteBusinesType_EXECUTE_BUSINES_COS,
-		deployPB.ExecuteBusinesType_EXECUTE_BUSINES_OSS_CUSTOM_DOMAIN:
+		deployPB.ExecuteBusinesType_EXECUTE_BUSINES_OSS_CUSTOM_DOMAIN,
+		deployPB.ExecuteBusinesType_EXECUTE_BUSINES_CLB:
 		return true
 	default:
 		return false
@@ -180,6 +193,9 @@ func validateProviderBusinessFields(provider *Provider) error {
 			unsupported = append(unsupported, "cos")
 		}
 	case ProviderTencentCloud:
+		if len(provider.CLB) > 0 {
+			unsupported = append(unsupported, "clb")
+		}
 		if len(provider.DCDN) > 0 {
 			unsupported = append(unsupported, "dcdn")
 		}
@@ -190,6 +206,9 @@ func validateProviderBusinessFields(provider *Provider) error {
 			unsupported = append(unsupported, "oss")
 		}
 	case ProviderQiniu:
+		if len(provider.CLB) > 0 {
+			unsupported = append(unsupported, "clb")
+		}
 		if len(provider.ESA) > 0 {
 			unsupported = append(unsupported, "esa")
 		}
@@ -298,7 +317,7 @@ func normalizeDeploymentResources(provider *Provider, business deployPB.ExecuteB
 			if err := normalizeResourceLabelAndDomain(&resource.Label, &resource.Domain, path); err != nil {
 				return err
 			}
-			resource.Region = strings.TrimSpace(resource.Region)
+			resource.Region = strings.ToLower(strings.TrimSpace(resource.Region))
 			resource.Bucket = strings.TrimSpace(resource.Bucket)
 			resource.Endpoint = strings.TrimSpace(resource.Endpoint)
 			if resource.Region == "" || resource.Bucket == "" {
@@ -342,6 +361,33 @@ func normalizeDeploymentResources(provider *Provider, business deployPB.ExecuteB
 				return fmt.Errorf("%s.bucket 必须使用完整 bucket-appid 格式", path)
 			}
 		}
+	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_CLB:
+		for index, resource := range provider.CLB {
+			path := fmt.Sprintf("provider[%s].clb[%d]", provider.Name, index)
+			if resource == nil {
+				return fmt.Errorf("%s 不能为空", path)
+			}
+			if err := normalizeResourceLabelAndDomain(&resource.Label, &resource.Domain, path); err != nil {
+				return err
+			}
+			if strings.HasPrefix(resource.Domain, "*.") {
+				return fmt.Errorf("%s.domain 必须是精确域名，不能使用泛域名", path)
+			}
+			resource.Region = strings.ToLower(strings.TrimSpace(resource.Region))
+			resource.LoadBalancerID = strings.TrimSpace(resource.LoadBalancerID)
+			if err := validateCLBRegion(resource.Region); err != nil {
+				return fmt.Errorf("%s.region 无效: %w", path, err)
+			}
+			if resource.LoadBalancerID == "" {
+				return fmt.Errorf("%s.loadBalancerId 不能为空", path)
+			}
+			if strings.IndexFunc(resource.LoadBalancerID, func(r rune) bool { return unicode.IsSpace(r) || unicode.IsControl(r) }) >= 0 {
+				return fmt.Errorf("%s.loadBalancerId 不能包含空白或控制字符", path)
+			}
+			if resource.ListenerPort < minPort || resource.ListenerPort > maxPort {
+				return fmt.Errorf("%s.listenerPort 必须在 %d-%d 之间", path, minPort, maxPort)
+			}
+		}
 	}
 	return nil
 }
@@ -375,6 +421,7 @@ func deploymentBusinesses(providerName string) []deployPB.ExecuteBusinesType {
 			deployPB.ExecuteBusinesType_EXECUTE_BUSINES_DCDN,
 			deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ESA,
 			deployPB.ExecuteBusinesType_EXECUTE_BUSINES_OSS_CUSTOM_DOMAIN,
+			deployPB.ExecuteBusinesType_EXECUTE_BUSINES_CLB,
 		}
 	case ProviderTencentCloud:
 		return []deployPB.ExecuteBusinesType{
@@ -399,37 +446,43 @@ func deploymentResources(provider *Provider, business deployPB.ExecuteBusinesTyp
 	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_CDN:
 		for _, resource := range provider.CDN {
 			if resource != nil {
-				resources = append(resources, newDeploymentResource(provider.Name, business, resource.Label, resource.Domain, "", "", "", "", ""))
+				resources = append(resources, newDeploymentResource(provider.Name, business, resource.Label, resource.Domain, "", "", "", "", "", "", 0))
 			}
 		}
 	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_DCDN:
 		for _, resource := range provider.DCDN {
 			if resource != nil {
-				resources = append(resources, newDeploymentResource(provider.Name, business, resource.Label, resource.Domain, "", "", "", "", ""))
+				resources = append(resources, newDeploymentResource(provider.Name, business, resource.Label, resource.Domain, "", "", "", "", "", "", 0))
 			}
 		}
 	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ESA:
 		for _, resource := range provider.ESA {
 			if resource != nil {
-				resources = append(resources, newDeploymentResource(provider.Name, business, resource.Label, resource.Domain, "", "", "", resource.SiteID, ""))
+				resources = append(resources, newDeploymentResource(provider.Name, business, resource.Label, resource.Domain, "", "", "", resource.SiteID, "", "", 0))
 			}
 		}
 	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_OSS_CUSTOM_DOMAIN:
 		for _, resource := range provider.OSS {
 			if resource != nil {
-				resources = append(resources, newDeploymentResource(provider.Name, business, resource.Label, resource.Domain, resource.Region, resource.Endpoint, resource.Bucket, "", ""))
+				resources = append(resources, newDeploymentResource(provider.Name, business, resource.Label, resource.Domain, resource.Region, resource.Endpoint, resource.Bucket, "", "", "", 0))
 			}
 		}
 	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_EDGEONE:
 		for _, resource := range provider.EdgeOne {
 			if resource != nil {
-				resources = append(resources, newDeploymentResource(provider.Name, business, resource.Label, resource.Domain, "", "", "", "", resource.ZoneID))
+				resources = append(resources, newDeploymentResource(provider.Name, business, resource.Label, resource.Domain, "", "", "", "", resource.ZoneID, "", 0))
 			}
 		}
 	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_COS:
 		for _, resource := range provider.COS {
 			if resource != nil {
-				resources = append(resources, newDeploymentResource(provider.Name, business, resource.Label, resource.Domain, resource.Region, "", resource.Bucket, "", ""))
+				resources = append(resources, newDeploymentResource(provider.Name, business, resource.Label, resource.Domain, resource.Region, "", resource.Bucket, "", "", "", 0))
+			}
+		}
+	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_CLB:
+		for _, resource := range provider.CLB {
+			if resource != nil {
+				resources = append(resources, newDeploymentResource(provider.Name, business, resource.Label, resource.Domain, resource.Region, "", "", "", "", resource.LoadBalancerID, resource.ListenerPort))
 			}
 		}
 	}
@@ -437,7 +490,7 @@ func deploymentResources(provider *Provider, business deployPB.ExecuteBusinesTyp
 }
 
 // newDeploymentResource 创建统一执行资源并根据规范化定位字段生成稳定引用。
-func newDeploymentResource(provider string, business deployPB.ExecuteBusinesType, label, domain, region, endpoint, bucket, siteID, zoneID string) DeploymentResource {
+func newDeploymentResource(provider string, business deployPB.ExecuteBusinesType, label, domain, region, endpoint, bucket, siteID, zoneID, loadBalancerID string, listenerPort int) DeploymentResource {
 	identityParts := []string{provider, business.String()}
 	switch business {
 	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ESA:
@@ -447,26 +500,41 @@ func newDeploymentResource(provider string, business deployPB.ExecuteBusinesType
 		identityParts = append(identityParts, region, bucket)
 	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_EDGEONE:
 		identityParts = append(identityParts, zoneID)
+	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_CLB:
+		identityParts = append(identityParts, region, loadBalancerID, strconv.Itoa(listenerPort))
 	}
 	identityParts = append(identityParts, domain)
 	digest := sha256.Sum256([]byte(strings.ToLower(strings.Join(identityParts, "\x00"))))
 	prefix := strings.ToLower(strings.TrimPrefix(business.String(), "EXECUTE_BUSINES_"))
 	return DeploymentResource{
-		TargetRef: fmt.Sprintf("%s-%x", prefix, digest[:12]),
-		Label:     label,
-		Domain:    domain,
-		Region:    region,
-		Endpoint:  endpoint,
-		Bucket:    bucket,
-		SiteID:    siteID,
-		ZoneID:    zoneID,
+		TargetRef:      fmt.Sprintf("%s-%x", prefix, digest[:12]),
+		Label:          label,
+		Domain:         domain,
+		Region:         region,
+		Endpoint:       endpoint,
+		Bucket:         bucket,
+		SiteID:         siteID,
+		ZoneID:         zoneID,
+		LoadBalancerID: loadBalancerID,
+		ListenerPort:   listenerPort,
 	}
 }
 
 // hasDeploymentResources 判断 provider 是否配置了任一明确业务资源。
 func hasDeploymentResources(provider *Provider) bool {
 	return len(provider.CDN) > 0 || len(provider.DCDN) > 0 || len(provider.ESA) > 0 ||
-		len(provider.OSS) > 0 || len(provider.EdgeOne) > 0 || len(provider.COS) > 0
+		len(provider.OSS) > 0 || len(provider.EdgeOne) > 0 || len(provider.COS) > 0 || len(provider.CLB) > 0
+}
+
+// validateCLBRegion 校验阿里云地域为单个安全 DNS 标签，避免将任意文本带入 OpenAPI 请求。
+func validateCLBRegion(region string) error {
+	if region == "" {
+		return errors.New("不能为空")
+	}
+	if len(region) > 63 || !dnsLabelPattern.MatchString(strings.ToLower(region)) {
+		return errors.New("必须是小写字母、数字或连字符组成的地域 ID")
+	}
+	return nil
 }
 
 // normalizeDeploymentDomain 将域名规范化为小写且不带末尾点的 DNS 名称。

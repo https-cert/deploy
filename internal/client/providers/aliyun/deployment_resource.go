@@ -24,13 +24,15 @@ const (
 	aliyunCDNEndpoint  = "cdn.aliyuncs.com"
 	aliyunDCDNEndpoint = "dcdn.aliyuncs.com"
 	aliyunESAEndpoint  = "esa.cn-hangzhou.aliyuncs.com"
+	aliyunSLBEndpoint  = "slb.aliyuncs.com"
 
 	aliyunCDNVersion  = "2018-05-10"
 	aliyunDCDNVersion = "2018-01-15"
 	aliyunESAVersion  = "2024-09-10"
+	aliyunSLBVersion  = "2014-05-15"
 )
 
-// deploymentAPI 是 CDN、DCDN 和 ESA 资源部署共用的最小 OpenAPI 调用接口。
+// deploymentAPI 是 CDN、DCDN、ESA 和 CLB 资源部署共用的最小 OpenAPI 调用接口。
 // 通过接口隔离 SDK，可以在单元测试中验证精确资源路由而不访问云端。
 type deploymentAPI interface {
 	// Call 发起一次带 context 的阿里云控制面请求。
@@ -129,7 +131,7 @@ func (e *cloudAPIError) GetRequestId() *string {
 
 // newOpenAPIDeploymentAPI 为阿里云资源部署产品构建独立的 OpenAPI 客户端。
 func newOpenAPIDeploymentAPI(accessKeyID, accessKeySecret string) (deploymentAPI, error) {
-	endpoints := []string{aliyunCDNEndpoint, aliyunDCDNEndpoint, aliyunESAEndpoint}
+	endpoints := []string{aliyunCDNEndpoint, aliyunDCDNEndpoint, aliyunESAEndpoint, aliyunSLBEndpoint}
 	clients := make(map[string]*openapi.Client, len(endpoints))
 	for _, endpoint := range endpoints {
 		client, err := buildOpenAPIClient(accessKeyID, accessKeySecret, endpoint)
@@ -274,6 +276,8 @@ func (p *Provider) DeployCertificate(ctx context.Context, certificate providers.
 		return p.deployESA(ctx, certificate, resource)
 	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_OSS_CUSTOM_DOMAIN:
 		return p.deployOSS(ctx, certificate, resource)
+	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_CLB:
+		return p.deployCLB(ctx, certificate, resource)
 	default:
 		return providers.DeploymentResult{}, providers.NewDeploymentError("阿里云不支持该部署业务", false, "", nil)
 	}
@@ -299,6 +303,14 @@ func validateAliyunDeploymentResource(business deployPB.ExecuteBusinesType, reso
 	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_OSS_CUSTOM_DOMAIN:
 		if strings.TrimSpace(resource.Region) == "" || strings.TrimSpace(resource.Bucket) == "" {
 			return fmt.Errorf("OSS 目标缺少地域或 Bucket")
+		}
+		return nil
+	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_CLB:
+		if strings.TrimSpace(resource.Region) == "" || strings.TrimSpace(resource.LoadBalancerID) == "" {
+			return fmt.Errorf("CLB 目标缺少地域或负载均衡实例")
+		}
+		if resource.ListenerPort < 1 || resource.ListenerPort > 65535 {
+			return fmt.Errorf("CLB 监听端口无效")
 		}
 		return nil
 	default:

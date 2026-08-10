@@ -71,14 +71,16 @@ func (be *BusinessExecutor) executeDeploymentResource(ctx context.Context, reque
 	}
 
 	resource := providers.DeploymentResource{
-		TargetRef: configuredResource.TargetRef,
-		Label:     configuredResource.Label,
-		Domain:    configuredResource.Domain,
-		Region:    configuredResource.Region,
-		Endpoint:  configuredResource.Endpoint,
-		Bucket:    configuredResource.Bucket,
-		SiteID:    configuredResource.SiteID,
-		ZoneID:    configuredResource.ZoneID,
+		TargetRef:      configuredResource.TargetRef,
+		Label:          configuredResource.Label,
+		Domain:         configuredResource.Domain,
+		Region:         configuredResource.Region,
+		Endpoint:       configuredResource.Endpoint,
+		Bucket:         configuredResource.Bucket,
+		SiteID:         configuredResource.SiteID,
+		ZoneID:         configuredResource.ZoneID,
+		LoadBalancerID: configuredResource.LoadBalancerID,
+		ListenerPort:   configuredResource.ListenerPort,
 	}
 	certificate := providers.CertificateMaterial{
 		Name:           request.Remark,
