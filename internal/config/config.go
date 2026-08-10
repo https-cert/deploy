@@ -100,7 +100,7 @@ type (
 		OSS     []*OSSConfig     `yaml:"oss"`     // OSS 自定义域名部署资源
 		EdgeOne []*EdgeOneConfig `yaml:"edgeOne"` // EdgeOne Host 部署资源
 		COS     []*COSConfig     `yaml:"cos"`     // COS 自定义域名部署资源
-		CLB     []*CLBConfig     `yaml:"clb"`     // 阿里云 CLB HTTPS 监听器部署资源
+		CLB     []*CLBConfig     `yaml:"clb"`     // 阿里云或腾讯云 CLB 监听器部署资源
 	}
 )
 

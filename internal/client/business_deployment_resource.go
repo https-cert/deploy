@@ -81,6 +81,7 @@ func (be *BusinessExecutor) executeDeploymentResource(ctx context.Context, reque
 		ZoneID:         configuredResource.ZoneID,
 		LoadBalancerID: configuredResource.LoadBalancerID,
 		ListenerPort:   configuredResource.ListenerPort,
+		ListenerID:     configuredResource.ListenerID,
 	}
 	certificate := providers.CertificateMaterial{
 		Name:           request.Remark,

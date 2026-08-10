@@ -31,6 +31,7 @@ var _ providers.ProviderHandler = (*Provider)(nil)
 // sslClient 定义腾讯云 SSL SDK 的最小调用集合，便于测试替换。
 type sslClient interface {
 	DescribeCertificatesWithContext(ctx context.Context, request *ssl.DescribeCertificatesRequest) (*ssl.DescribeCertificatesResponse, error)
+	DescribeCertificateDetailWithContext(ctx context.Context, request *ssl.DescribeCertificateDetailRequest) (*ssl.DescribeCertificateDetailResponse, error)
 	UploadCertificateWithContext(ctx context.Context, request *ssl.UploadCertificateRequest) (*ssl.UploadCertificateResponse, error)
 }
 
@@ -39,20 +40,22 @@ type clientFactory func(secretID, secretKey string) (sslClient, error)
 
 // Provider 腾讯云 SSL 证书和云资源部署 Provider。
 type Provider struct {
-	SecretId     string           // SecretId 腾讯云 API SecretId，禁止写入日志。
-	SecretKey    string           // SecretKey 腾讯云 API SecretKey，禁止写入日志。
-	client       sslClient        // client 缓存 SSL SDK 客户端。
-	newClient    clientFactory    // newClient 创建 SSL SDK 客户端。
-	cdnClient    cdnClient        // cdnClient 缓存 CDN SDK 客户端。
-	teoClient    teoClient        // teoClient 缓存 EdgeOne SDK 客户端。
-	newCDNClient cdnClientFactory // newCDNClient 创建 CDN SDK 客户端。
-	newTEOClient teoClientFactory // newTEOClient 创建 EdgeOne SDK 客户端。
-	newCOSClient cosClientFactory // newCOSClient 创建绑定到指定 Bucket 的 COS SDK 客户端。
+	SecretId     string               // SecretId 腾讯云 API SecretId，禁止写入日志。
+	SecretKey    string               // SecretKey 腾讯云 API SecretKey，禁止写入日志。
+	client       sslClient            // client 缓存 SSL SDK 客户端。
+	newClient    clientFactory        // newClient 创建 SSL SDK 客户端。
+	cdnClient    cdnClient            // cdnClient 缓存 CDN SDK 客户端。
+	teoClient    teoClient            // teoClient 缓存 EdgeOne SDK 客户端。
+	newCDNClient cdnClientFactory     // newCDNClient 创建 CDN SDK 客户端。
+	newTEOClient teoClientFactory     // newTEOClient 创建 EdgeOne SDK 客户端。
+	newCOSClient cosClientFactory     // newCOSClient 创建绑定到指定 Bucket 的 COS SDK 客户端。
+	clbClients   map[string]clbClient // clbClients 按地域缓存腾讯云 CLB SDK 客户端。
+	newCLBClient clbClientFactory     // newCLBClient 创建绑定到指定地域的 CLB SDK 客户端。
 }
 
 // certificateUploadResult 保留腾讯云 SSL 上传接口返回的证书和请求标识。
 type certificateUploadResult struct {
-	CertificateID string // CertificateID 是后续 CDN 或 EdgeOne 绑定所需的证书 ID。
+	CertificateID string // CertificateID 是后续 CDN、EdgeOne 或 CLB 绑定所需的证书 ID。
 	RequestID     string // RequestID 是 SSL 上传请求 ID。
 }
 
@@ -65,6 +68,8 @@ func New(secretId, secretKey string) *Provider {
 		newCDNClient: defaultCDNClientFactory,
 		newTEOClient: defaultTEOClientFactory,
 		newCOSClient: defaultCOSClientFactory,
+		clbClients:   make(map[string]clbClient),
+		newCLBClient: defaultCLBClientFactory,
 	}
 }
 
@@ -140,7 +145,7 @@ func (p *Provider) uploadCertificateWithContext(ctx context.Context, name, domai
 	request.CertificatePublicKey = tencentcommon.StringPtr(cert)
 	request.CertificatePrivateKey = tencentcommon.StringPtr(key)
 	request.CertificateType = tencentcommon.StringPtr(certificateTypeSVR)
-	request.Repeatable = tencentcommon.BoolPtr(true)
+	request.Repeatable = tencentcommon.BoolPtr(false)
 
 	trimmedName := strings.TrimSpace(name)
 	if trimmedName != "" {

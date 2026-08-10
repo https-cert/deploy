@@ -67,7 +67,8 @@ func providerSupportsDeploymentBusiness(providerName string, business deployPB.E
 	case config.ProviderTencentCloud:
 		return business == deployPB.ExecuteBusinesType_EXECUTE_BUSINES_CDN ||
 			business == deployPB.ExecuteBusinesType_EXECUTE_BUSINES_EDGEONE ||
-			business == deployPB.ExecuteBusinesType_EXECUTE_BUSINES_COS
+			business == deployPB.ExecuteBusinesType_EXECUTE_BUSINES_COS ||
+			business == deployPB.ExecuteBusinesType_EXECUTE_BUSINES_CLB
 	case config.ProviderQiniu:
 		return business == deployPB.ExecuteBusinesType_EXECUTE_BUSINES_CDN ||
 			business == deployPB.ExecuteBusinesType_EXECUTE_BUSINES_DCDN

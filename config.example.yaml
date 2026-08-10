@@ -50,11 +50,11 @@ log:
 # 支持的 name：
 # - aliyun：阿里云。支持 CAS 上传，以及 CDN、DCDN、ESA、OSS 自定义域名、CLB HTTPS 监听器的精确证书部署。
 # - qiniu：七牛云。支持证书中心上传，以及 CDN、DCDN 域名的精确证书部署。
-# - cloudTencent：腾讯云。支持 SSL 上传，以及 CDN、EdgeOne、COS 自定义域名的精确证书部署。
-# 在 provider 下直接使用 cdn、dcdn、esa、oss、edgeOne、cos、clb 配置对应产品资源。
+# - cloudTencent：腾讯云。支持 SSL 上传，以及 CDN、EdgeOne、COS 自定义域名、CLB 监听器的精确证书部署。
+# 在 provider 下直接使用 cdn、dcdn、esa、oss、edgeOne、cos、clb 配置对应产品资源；CLB 字段按 provider 使用 listenerPort 或 listenerId。
 # targetRef 由客户端根据资源定位字段自动生成，不需要手工填写。
 # 配置任一自动部署资源时必须同时填写该 provider 的完整认证信息，否则客户端会拒绝启动。
-# Bucket、Region、Endpoint、SiteId、ZoneId、LoadBalancerId、ListenerPort 和认证信息只保存在本机，不会上报到服务端。
+# Bucket、Region、Endpoint、SiteId、ZoneId、LoadBalancerId、ListenerPort、ListenerId 和认证信息只保存在本机，不会上报到服务端。
 # provider:
 #   - name: "aliyun"
 #     remark: "阿里云"
@@ -119,3 +119,9 @@ log:
 #         domain: "static.example.com"
 #         region: "ap-guangzhou"
 #         bucket: "your-cos-bucket-1250000000" # 必须包含 APPID。
+#     clb:
+#       - label: "业务 CLB"
+#         domain: "www.example.com" # 精确域名；客户端自动识别 SNI 规则或监听器证书槽位。
+#         region: "ap-guangzhou"
+#         loadBalancerId: "lb-xxxxxxxx"
+#         listenerId: "lbl-xxxxxxxx" # 腾讯云 CLB 监听器 ID。

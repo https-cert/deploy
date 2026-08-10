@@ -47,6 +47,7 @@ type DeploymentResource struct {
 	ZoneID         string // ZoneID 腾讯云 EdgeOne Zone ID。
 	LoadBalancerID string // LoadBalancerID 负载均衡实例 ID。
 	ListenerPort   int    // ListenerPort 负载均衡监听端口。
+	ListenerID     string // ListenerID 腾讯云 CLB 监听器 ID。
 }
 
 // DeploymentResult 描述云 API 接受部署后的脱敏诊断信息。

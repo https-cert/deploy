@@ -69,13 +69,14 @@ type COSConfig struct {
 	Bucket string `yaml:"bucket"`          // Bucket 包含 APPID 的完整 COS Bucket 名称
 }
 
-// CLBConfig 描述一个阿里云 CLB HTTPS 监听器部署资源。
+// CLBConfig 描述阿里云或腾讯云 CLB 监听器部署资源；字段按 provider 名称使用。
 type CLBConfig struct {
 	Label          string `yaml:"label,omitempty"` // Label 控制台展示名称，留空时使用规范化域名
 	Domain         string `yaml:"domain"`          // Domain 监听器默认或 SNI 扩展绑定的精确域名
 	Region         string `yaml:"region"`          // Region CLB 实例所在地域 ID
 	LoadBalancerID string `yaml:"loadBalancerId"`  // LoadBalancerID CLB 实例 ID
-	ListenerPort   int    `yaml:"listenerPort"`    // ListenerPort CLB HTTPS 监听端口
+	ListenerPort   int    `yaml:"listenerPort"`    // ListenerPort 阿里云 CLB HTTPS 监听端口
+	ListenerID     string `yaml:"listenerId"`      // ListenerID 腾讯云 CLB 监听器 ID
 }
 
 // DeploymentResource 描述从固定业务配置中解析出的精确部署资源。
@@ -90,6 +91,7 @@ type DeploymentResource struct {
 	ZoneID         string // ZoneID 腾讯云 EdgeOne Zone ID
 	LoadBalancerID string // LoadBalancerID 负载均衡实例 ID
 	ListenerPort   int    // ListenerPort 负载均衡监听端口
+	ListenerID     string // ListenerID 腾讯云 CLB 监听器 ID
 }
 
 // DeploymentResourceDirectoryEntry 是可上报给后端的脱敏部署资源目录项。
@@ -193,9 +195,6 @@ func validateProviderBusinessFields(provider *Provider) error {
 			unsupported = append(unsupported, "cos")
 		}
 	case ProviderTencentCloud:
-		if len(provider.CLB) > 0 {
-			unsupported = append(unsupported, "clb")
-		}
 		if len(provider.DCDN) > 0 {
 			unsupported = append(unsupported, "dcdn")
 		}
@@ -384,6 +383,16 @@ func normalizeDeploymentResources(provider *Provider, business deployPB.ExecuteB
 			if strings.IndexFunc(resource.LoadBalancerID, func(r rune) bool { return unicode.IsSpace(r) || unicode.IsControl(r) }) >= 0 {
 				return fmt.Errorf("%s.loadBalancerId 不能包含空白或控制字符", path)
 			}
+			if provider.Name == ProviderTencentCloud {
+				resource.ListenerID = strings.TrimSpace(resource.ListenerID)
+				if resource.ListenerID == "" {
+					return fmt.Errorf("%s.listenerId 不能为空", path)
+				}
+				if strings.IndexFunc(resource.ListenerID, func(r rune) bool { return unicode.IsSpace(r) || unicode.IsControl(r) }) >= 0 {
+					return fmt.Errorf("%s.listenerId 不能包含空白或控制字符", path)
+				}
+				continue
+			}
 			if resource.ListenerPort < minPort || resource.ListenerPort > maxPort {
 				return fmt.Errorf("%s.listenerPort 必须在 %d-%d 之间", path, minPort, maxPort)
 			}
@@ -428,6 +437,7 @@ func deploymentBusinesses(providerName string) []deployPB.ExecuteBusinesType {
 			deployPB.ExecuteBusinesType_EXECUTE_BUSINES_CDN,
 			deployPB.ExecuteBusinesType_EXECUTE_BUSINES_EDGEONE,
 			deployPB.ExecuteBusinesType_EXECUTE_BUSINES_COS,
+			deployPB.ExecuteBusinesType_EXECUTE_BUSINES_CLB,
 		}
 	case ProviderQiniu:
 		return []deployPB.ExecuteBusinesType{
@@ -446,43 +456,43 @@ func deploymentResources(provider *Provider, business deployPB.ExecuteBusinesTyp
 	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_CDN:
 		for _, resource := range provider.CDN {
 			if resource != nil {
-				resources = append(resources, newDeploymentResource(provider.Name, business, resource.Label, resource.Domain, "", "", "", "", "", "", 0))
+				resources = append(resources, newDeploymentResource(provider.Name, business, resource.Label, resource.Domain, "", "", "", "", "", "", 0, ""))
 			}
 		}
 	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_DCDN:
 		for _, resource := range provider.DCDN {
 			if resource != nil {
-				resources = append(resources, newDeploymentResource(provider.Name, business, resource.Label, resource.Domain, "", "", "", "", "", "", 0))
+				resources = append(resources, newDeploymentResource(provider.Name, business, resource.Label, resource.Domain, "", "", "", "", "", "", 0, ""))
 			}
 		}
 	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ESA:
 		for _, resource := range provider.ESA {
 			if resource != nil {
-				resources = append(resources, newDeploymentResource(provider.Name, business, resource.Label, resource.Domain, "", "", "", resource.SiteID, "", "", 0))
+				resources = append(resources, newDeploymentResource(provider.Name, business, resource.Label, resource.Domain, "", "", "", resource.SiteID, "", "", 0, ""))
 			}
 		}
 	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_OSS_CUSTOM_DOMAIN:
 		for _, resource := range provider.OSS {
 			if resource != nil {
-				resources = append(resources, newDeploymentResource(provider.Name, business, resource.Label, resource.Domain, resource.Region, resource.Endpoint, resource.Bucket, "", "", "", 0))
+				resources = append(resources, newDeploymentResource(provider.Name, business, resource.Label, resource.Domain, resource.Region, resource.Endpoint, resource.Bucket, "", "", "", 0, ""))
 			}
 		}
 	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_EDGEONE:
 		for _, resource := range provider.EdgeOne {
 			if resource != nil {
-				resources = append(resources, newDeploymentResource(provider.Name, business, resource.Label, resource.Domain, "", "", "", "", resource.ZoneID, "", 0))
+				resources = append(resources, newDeploymentResource(provider.Name, business, resource.Label, resource.Domain, "", "", "", "", resource.ZoneID, "", 0, ""))
 			}
 		}
 	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_COS:
 		for _, resource := range provider.COS {
 			if resource != nil {
-				resources = append(resources, newDeploymentResource(provider.Name, business, resource.Label, resource.Domain, resource.Region, "", resource.Bucket, "", "", "", 0))
+				resources = append(resources, newDeploymentResource(provider.Name, business, resource.Label, resource.Domain, resource.Region, "", resource.Bucket, "", "", "", 0, ""))
 			}
 		}
 	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_CLB:
 		for _, resource := range provider.CLB {
 			if resource != nil {
-				resources = append(resources, newDeploymentResource(provider.Name, business, resource.Label, resource.Domain, resource.Region, "", "", "", "", resource.LoadBalancerID, resource.ListenerPort))
+				resources = append(resources, newDeploymentResource(provider.Name, business, resource.Label, resource.Domain, resource.Region, "", "", "", "", resource.LoadBalancerID, resource.ListenerPort, resource.ListenerID))
 			}
 		}
 	}
@@ -490,7 +500,7 @@ func deploymentResources(provider *Provider, business deployPB.ExecuteBusinesTyp
 }
 
 // newDeploymentResource 创建统一执行资源并根据规范化定位字段生成稳定引用。
-func newDeploymentResource(provider string, business deployPB.ExecuteBusinesType, label, domain, region, endpoint, bucket, siteID, zoneID, loadBalancerID string, listenerPort int) DeploymentResource {
+func newDeploymentResource(provider string, business deployPB.ExecuteBusinesType, label, domain, region, endpoint, bucket, siteID, zoneID, loadBalancerID string, listenerPort int, listenerID string) DeploymentResource {
 	identityParts := []string{provider, business.String()}
 	switch business {
 	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ESA:
@@ -501,7 +511,11 @@ func newDeploymentResource(provider string, business deployPB.ExecuteBusinesType
 	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_EDGEONE:
 		identityParts = append(identityParts, zoneID)
 	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_CLB:
-		identityParts = append(identityParts, region, loadBalancerID, strconv.Itoa(listenerPort))
+		if provider == ProviderTencentCloud {
+			identityParts = append(identityParts, region, loadBalancerID, listenerID)
+		} else {
+			identityParts = append(identityParts, region, loadBalancerID, strconv.Itoa(listenerPort))
+		}
 	}
 	identityParts = append(identityParts, domain)
 	digest := sha256.Sum256([]byte(strings.ToLower(strings.Join(identityParts, "\x00"))))
@@ -517,6 +531,7 @@ func newDeploymentResource(provider string, business deployPB.ExecuteBusinesType
 		ZoneID:         zoneID,
 		LoadBalancerID: loadBalancerID,
 		ListenerPort:   listenerPort,
+		ListenerID:     listenerID,
 	}
 }
 
@@ -526,7 +541,7 @@ func hasDeploymentResources(provider *Provider) bool {
 		len(provider.OSS) > 0 || len(provider.EdgeOne) > 0 || len(provider.COS) > 0 || len(provider.CLB) > 0
 }
 
-// validateCLBRegion 校验阿里云地域为单个安全 DNS 标签，避免将任意文本带入 OpenAPI 请求。
+// validateCLBRegion 校验 CLB 地域为单个安全 DNS 标签，避免将任意文本带入云 API 请求。
 func validateCLBRegion(region string) error {
 	if region == "" {
 		return errors.New("不能为空")

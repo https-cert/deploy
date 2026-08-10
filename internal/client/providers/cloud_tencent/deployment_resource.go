@@ -192,6 +192,9 @@ func (p *Provider) DeployCertificate(ctx context.Context, certificate providers.
 	if err := p.validateDeploymentInput(certificate, business, resource); err != nil {
 		return providers.DeploymentResult{}, err
 	}
+	if err := providers.ValidateCertificateMaterial(certificate, resource.Domain, time.Now()); err != nil {
+		return providers.DeploymentResult{}, providers.NewDeploymentError("腾讯云部署资源证书校验失败", false, "", err)
+	}
 
 	switch business {
 	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_CDN:
@@ -200,6 +203,8 @@ func (p *Provider) DeployCertificate(ctx context.Context, certificate providers.
 		return p.deployEdgeOneCertificate(ctx, certificate, resource)
 	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_COS:
 		return p.deployCOSCertificate(ctx, certificate, resource)
+	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_CLB:
+		return p.deployCLBCertificate(ctx, certificate, resource)
 	default:
 		return providers.DeploymentResult{}, providers.NewDeploymentError("腾讯云不支持该部署业务", false, "", nil)
 	}
@@ -231,6 +236,11 @@ func (p *Provider) validateDeploymentInput(certificate providers.CertificateMate
 	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_COS:
 		if strings.TrimSpace(target.Region) == "" || strings.TrimSpace(target.Bucket) == "" {
 			return providers.NewDeploymentError("腾讯云 COS region 和 bucket-appid 不能为空", false, "", nil)
+		}
+		return nil
+	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_CLB:
+		if strings.TrimSpace(target.Region) == "" || strings.TrimSpace(target.LoadBalancerID) == "" || strings.TrimSpace(target.ListenerID) == "" {
+			return providers.NewDeploymentError("腾讯云 CLB region、loadBalancerId 和 listenerId 不能为空", false, "", nil)
 		}
 		return nil
 	default:
