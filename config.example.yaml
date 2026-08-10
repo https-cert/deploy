@@ -85,6 +85,18 @@ log:
 #         region: "cn-hangzhou"
 #         loadBalancerId: "lb-xxxxxxxx"
 #         listenerPort: 443 # 仅支持 HTTPS 监听器。
+#     alb:
+#       - label: "官网 ALB"
+#         domain: "www.example.com" # 精确域名；客户端自动识别默认或 SNI 扩展证书槽位。
+#         region: "cn-hangzhou"
+#         loadBalancerId: "alb-xxxxxxxx"
+#         listenerId: "lsr-xxxxxxxx" # ALB HTTPS 或 QUIC 监听器 ID。
+#     nlb:
+#       - label: "官网 NLB"
+#         domain: "www.example.com" # 精确域名；客户端自动识别默认或 SNI 扩展证书槽位。
+#         region: "cn-hangzhou"
+#         loadBalancerId: "nlb-xxxxxxxx"
+#         listenerId: "lsn-xxxxxxxx" # NLB TCPSSL 监听器 ID。
 #
 #   - name: "qiniu"
 #     remark: "七牛云"

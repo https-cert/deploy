@@ -28,7 +28,7 @@ type Provider struct {
 	AccessKeySecret string
 	// casClient 执行阿里云证书中心上传和连接测试。
 	casClient *openapi.Client
-	// deploymentAPI 执行 CDN、DCDN、ESA 和 CLB 资源的精确 OpenAPI 调用。
+	// deploymentAPI 执行 CDN、DCDN、ESA、CLB、ALB 和 NLB 资源的精确 OpenAPI 调用。
 	deploymentAPI deploymentAPI
 	// ossAPI 执行 OSS Bucket CNAME 的上下文感知读写操作。
 	ossAPI ossCnameAPI

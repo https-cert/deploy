@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	openapi "github.com/alibabacloud-go/darabonba-openapi/v2/client"
@@ -25,14 +26,18 @@ const (
 	aliyunDCDNEndpoint = "dcdn.aliyuncs.com"
 	aliyunESAEndpoint  = "esa.cn-hangzhou.aliyuncs.com"
 	aliyunSLBEndpoint  = "slb.aliyuncs.com"
+	aliyunCASEndpoint  = "cas.aliyuncs.com"
 
 	aliyunCDNVersion  = "2018-05-10"
 	aliyunDCDNVersion = "2018-01-15"
 	aliyunESAVersion  = "2024-09-10"
 	aliyunSLBVersion  = "2014-05-15"
+	aliyunCASVersion  = "2020-04-07"
+	aliyunALBVersion  = "2020-06-16"
+	aliyunNLBVersion  = "2022-04-30"
 )
 
-// deploymentAPI 是 CDN、DCDN、ESA 和 CLB 资源部署共用的最小 OpenAPI 调用接口。
+// deploymentAPI 是阿里云各产品资源部署共用的最小 OpenAPI 调用接口。
 // 通过接口隔离 SDK，可以在单元测试中验证精确资源路由而不访问云端。
 type deploymentAPI interface {
 	// Call 发起一次带 context 的阿里云控制面请求。
@@ -65,6 +70,12 @@ type cloudAPIResponse struct {
 
 // openAPIDeploymentAPI 使用 Darabonba OpenAPI 客户端执行资源部署请求。
 type openAPIDeploymentAPI struct {
+	// accessKeyID 是创建地域产品客户端所需的访问密钥标识，不得写入日志。
+	accessKeyID string
+	// accessKeySecret 是创建地域产品客户端所需的访问密钥密钥，不得写入日志。
+	accessKeySecret string
+	// clientsMu 保护地域客户端的延迟创建和读取。
+	clientsMu sync.RWMutex
 	// clients 以 endpoint 为键保存已初始化的 OpenAPI 客户端。
 	clients map[string]*openapi.Client
 }
@@ -131,7 +142,13 @@ func (e *cloudAPIError) GetRequestId() *string {
 
 // newOpenAPIDeploymentAPI 为阿里云资源部署产品构建独立的 OpenAPI 客户端。
 func newOpenAPIDeploymentAPI(accessKeyID, accessKeySecret string) (deploymentAPI, error) {
-	endpoints := []string{aliyunCDNEndpoint, aliyunDCDNEndpoint, aliyunESAEndpoint, aliyunSLBEndpoint}
+	endpoints := []string{
+		aliyunCDNEndpoint,
+		aliyunDCDNEndpoint,
+		aliyunESAEndpoint,
+		aliyunSLBEndpoint,
+		aliyunCASEndpoint,
+	}
 	clients := make(map[string]*openapi.Client, len(endpoints))
 	for _, endpoint := range endpoints {
 		client, err := buildOpenAPIClient(accessKeyID, accessKeySecret, endpoint)
@@ -140,7 +157,11 @@ func newOpenAPIDeploymentAPI(accessKeyID, accessKeySecret string) (deploymentAPI
 		}
 		clients[endpoint] = client
 	}
-	return &openAPIDeploymentAPI{clients: clients}, nil
+	return &openAPIDeploymentAPI{
+		accessKeyID:     accessKeyID,
+		accessKeySecret: accessKeySecret,
+		clients:         clients,
+	}, nil
 }
 
 // Call 使用调用方 context 触发一个精确的阿里云 RPC action。
@@ -148,9 +169,9 @@ func (a *openAPIDeploymentAPI) Call(ctx context.Context, request cloudAPIRequest
 	if a == nil {
 		return cloudAPIResponse{}, &cloudAPIError{Message: "阿里云控制面客户端未初始化"}
 	}
-	client := a.clients[strings.TrimSpace(request.Endpoint)]
-	if client == nil {
-		return cloudAPIResponse{}, &cloudAPIError{Message: "阿里云产品客户端未初始化"}
+	client, err := a.clientForEndpoint(request.Endpoint)
+	if err != nil {
+		return cloudAPIResponse{}, err
 	}
 	if strings.TrimSpace(request.Action) == "" || strings.TrimSpace(request.Version) == "" {
 		return cloudAPIResponse{}, &cloudAPIError{Message: "阿里云控制面请求参数不完整"}
@@ -188,6 +209,76 @@ func (a *openAPIDeploymentAPI) Call(ctx context.Context, request cloudAPIRequest
 		Body:      body,
 		RequestID: responseRequestID(normalized),
 	}, nil
+}
+
+// clientForEndpoint 返回静态产品客户端，或按白名单地域域名延迟创建 ALB/NLB 客户端。
+func (a *openAPIDeploymentAPI) clientForEndpoint(rawEndpoint string) (*openapi.Client, error) {
+	endpoint := strings.ToLower(strings.TrimSpace(rawEndpoint))
+	if endpoint == "" {
+		return nil, &cloudAPIError{Message: "阿里云产品 endpoint 不能为空"}
+	}
+
+	a.clientsMu.RLock()
+	client := a.clients[endpoint]
+	a.clientsMu.RUnlock()
+	if client != nil {
+		return client, nil
+	}
+	if !isAllowedAliyunRegionalEndpoint(endpoint) {
+		return nil, &cloudAPIError{Message: "阿里云产品 endpoint 不受支持"}
+	}
+
+	a.clientsMu.Lock()
+	defer a.clientsMu.Unlock()
+	if client = a.clients[endpoint]; client != nil {
+		return client, nil
+	}
+	client, err := buildOpenAPIClient(a.accessKeyID, a.accessKeySecret, endpoint)
+	if err != nil {
+		return nil, &cloudAPIError{Message: "初始化阿里云地域产品客户端失败", Cause: err}
+	}
+	a.clients[endpoint] = client
+	return client, nil
+}
+
+// aliyunRegionalEndpoint 构造官方 regional 规则使用的 ALB/NLB Endpoint。
+func aliyunRegionalEndpoint(product, region string) (string, error) {
+	normalizedProduct := strings.ToLower(strings.TrimSpace(product))
+	normalizedRegion := strings.ToLower(strings.TrimSpace(region))
+	if normalizedProduct != "alb" && normalizedProduct != "nlb" {
+		return "", fmt.Errorf("不支持的阿里云地域产品")
+	}
+	if !isSafeAliyunRegionID(normalizedRegion) {
+		return "", fmt.Errorf("阿里云地域 ID 无效")
+	}
+	return normalizedProduct + "." + normalizedRegion + ".aliyuncs.com", nil
+}
+
+// isAllowedAliyunRegionalEndpoint 限制动态客户端只能访问合法的 ALB/NLB 地域域名。
+func isAllowedAliyunRegionalEndpoint(endpoint string) bool {
+	for _, product := range []string{"alb", "nlb"} {
+		prefix := product + "."
+		const suffix = ".aliyuncs.com"
+		if !strings.HasPrefix(endpoint, prefix) || !strings.HasSuffix(endpoint, suffix) {
+			continue
+		}
+		region := strings.TrimSuffix(strings.TrimPrefix(endpoint, prefix), suffix)
+		return isSafeAliyunRegionID(region)
+	}
+	return false
+}
+
+// isSafeAliyunRegionID 校验地域为单个安全 DNS 标签，避免 Endpoint 注入。
+func isSafeAliyunRegionID(region string) bool {
+	if region == "" || len(region) > 63 || region[0] == '-' || region[len(region)-1] == '-' {
+		return false
+	}
+	for _, char := range region {
+		if (char < 'a' || char > 'z') && (char < '0' || char > '9') && char != '-' {
+			return false
+		}
+	}
+	return true
 }
 
 // callOpenAPIWithContext 在 SDK 不直接接收 context 的情况下，将 deadline 映射为运行时超时并优先返回取消信号。
@@ -278,6 +369,10 @@ func (p *Provider) DeployCertificate(ctx context.Context, certificate providers.
 		return p.deployOSS(ctx, certificate, resource)
 	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_CLB:
 		return p.deployCLB(ctx, certificate, resource)
+	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ALB:
+		return p.deployALB(ctx, certificate, resource)
+	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_NLB:
+		return p.deployNLB(ctx, certificate, resource)
 	default:
 		return providers.DeploymentResult{}, providers.NewDeploymentError("阿里云不支持该部署业务", false, "", nil)
 	}
@@ -311,6 +406,16 @@ func validateAliyunDeploymentResource(business deployPB.ExecuteBusinesType, reso
 		}
 		if resource.ListenerPort < 1 || resource.ListenerPort > 65535 {
 			return fmt.Errorf("CLB 监听端口无效")
+		}
+		return nil
+	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ALB:
+		if strings.TrimSpace(resource.Region) == "" || strings.TrimSpace(resource.LoadBalancerID) == "" || strings.TrimSpace(resource.ListenerID) == "" {
+			return fmt.Errorf("ALB 目标缺少地域、负载均衡实例或监听器")
+		}
+		return nil
+	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_NLB:
+		if strings.TrimSpace(resource.Region) == "" || strings.TrimSpace(resource.LoadBalancerID) == "" || strings.TrimSpace(resource.ListenerID) == "" {
+			return fmt.Errorf("NLB 目标缺少地域、负载均衡实例或监听器")
 		}
 		return nil
 	default:
@@ -708,7 +813,7 @@ func responseHasApplyingStatus(value any) bool {
 func isApplyingStatus(values ...string) bool {
 	for _, value := range values {
 		switch strings.ToLower(strings.TrimSpace(value)) {
-		case "applying", "processing", "configuring":
+		case "applying", "processing", "configuring", "associating", "dissociating", "diassociating", "disassociating":
 			return true
 		}
 	}
