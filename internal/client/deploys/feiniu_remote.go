@@ -1,59 +1,33 @@
 package deploys
 
 import (
-	"bytes"
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"net"
 	"os"
 	"path"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/https-cert/deploy/internal/config"
 	"github.com/https-cert/deploy/pkg/logger"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/knownhosts"
 )
-
-const (
-	feiNiuSSHConnectTimeout = 15 * time.Second
-	feiNiuSSHCommandTimeout = 30 * time.Second
-)
-
-var feiNiuKnownHostsMu sync.Mutex
 
 const feiNiuEnvironmentCheckCommand = "test -d /usr/trim/var/trim_connect/ssls && " +
 	"test -f /usr/trim/etc/network_gateway_cert.conf && " +
 	"command -v psql >/dev/null 2>&1 && command -v systemctl >/dev/null 2>&1 && " +
 	"psql -X --set=ON_ERROR_STOP=1 -U postgres -d trim_connect -Atqc 'SELECT 1'"
 
-// feiNiuSSHExecutor 封装飞牛远端命令执行及 sudo 提权。
-type feiNiuSSHExecutor struct {
-	client   *ssh.Client // client 已完成主机密钥校验的 SSH 客户端
-	password string      // password SSH 登录及 sudo 使用的密码
-	isRoot   bool        // isRoot 表示 SSH 会话是否已经是 root 用户
-}
-
-// sshCommandResult 保存异步 SSH 命令的完整结果。
-type sshCommandResult struct {
-	output []byte // output 仅包含供调用方消费的标准输出
-	stderr []byte // stderr 保存远端诊断信息，不混入 JSON 等机器可读输出
-	err    error  // err SSH 会话返回的执行错误
-}
-
 // TestRemoteFeiNiuConnection 验证 SSH 登录、sudo 权限和飞牛核心部署环境。
 func TestRemoteFeiNiuConnection(sshConfig *config.FeiNiuSSHConfig) error {
 	if sshConfig == nil {
 		return errors.New("飞牛 SSH 配置不能为空")
 	}
-	executor, err := newFeiNiuSSHExecutor(sshConfig)
+	executor, err := newSSHExecutor(sshConfig, "飞牛", "anssl-feiniu")
 	if err != nil {
 		return err
 	}
@@ -86,7 +60,7 @@ func (cd *CertDeployer) DeployToRemoteFeiNiu(sourceDir, domain string, sshConfig
 	feiniuDeploymentMu.Lock()
 	defer feiniuDeploymentMu.Unlock()
 
-	executor, err := newFeiNiuSSHExecutor(sshConfig)
+	executor, err := newSSHExecutor(sshConfig, "飞牛", "anssl-feiniu")
 	if err != nil {
 		return err
 	}
@@ -130,193 +104,8 @@ func (cd *CertDeployer) DeployToRemoteFeiNiu(sourceDir, domain string, sshConfig
 	return nil
 }
 
-// newFeiNiuSSHExecutor 建立带超时、密码认证和 TOFU 主机密钥校验的 SSH 连接。
-func newFeiNiuSSHExecutor(sshConfig *config.FeiNiuSSHConfig) (*feiNiuSSHExecutor, error) {
-	hostKeyCallback, err := newFeiNiuHostKeyCallback(config.GetSSHKnownHostsFile())
-	if err != nil {
-		return nil, err
-	}
-	clientConfig := &ssh.ClientConfig{
-		User:            sshConfig.Username,
-		Auth:            []ssh.AuthMethod{ssh.Password(sshConfig.Password)},
-		HostKeyCallback: hostKeyCallback,
-		Timeout:         feiNiuSSHConnectTimeout,
-	}
-	address := net.JoinHostPort(sshConfig.Host, strconv.Itoa(sshConfig.Port))
-	client, err := ssh.Dial("tcp", address, clientConfig)
-	if err != nil {
-		return nil, fmt.Errorf("连接飞牛 SSH %s 失败: %w", address, err)
-	}
-	executor := &feiNiuSSHExecutor{client: client, password: sshConfig.Password}
-	output, err := executor.run("id -u", nil, false)
-	if err != nil {
-		executor.close()
-		return nil, fmt.Errorf("读取飞牛 SSH 用户身份失败: %w", err)
-	}
-	executor.isRoot = strings.TrimSpace(string(output)) == "0"
-	return executor, nil
-}
-
-// newFeiNiuHostKeyCallback 首次记录主机密钥，并在后续密钥变化时拒绝连接。
-func newFeiNiuHostKeyCallback(knownHostsFile string) (ssh.HostKeyCallback, error) {
-	if err := ensureKnownHostsFile(knownHostsFile); err != nil {
-		return nil, fmt.Errorf("准备 SSH known_hosts 失败: %w", err)
-	}
-	return func(hostname string, remote net.Addr, key ssh.PublicKey) error {
-		feiNiuKnownHostsMu.Lock()
-		defer feiNiuKnownHostsMu.Unlock()
-
-		verifier, err := knownhosts.New(knownHostsFile)
-		if err != nil {
-			return fmt.Errorf("读取 SSH known_hosts 失败: %w", err)
-		}
-		verificationErr := verifier(hostname, remote, key)
-		if verificationErr == nil {
-			return nil
-		}
-		var keyErr *knownhosts.KeyError
-		if !errors.As(verificationErr, &keyErr) || len(keyErr.Want) > 0 {
-			return fmt.Errorf("飞牛 SSH 主机密钥校验失败: %w", verificationErr)
-		}
-
-		file, err := os.OpenFile(knownHostsFile, os.O_APPEND|os.O_WRONLY, 0600)
-		if err != nil {
-			return fmt.Errorf("写入 SSH known_hosts 失败: %w", err)
-		}
-		line := knownhosts.Line([]string{knownhosts.Normalize(hostname)}, key)
-		if _, err := file.WriteString(line + "\n"); err != nil {
-			_ = file.Close()
-			return fmt.Errorf("记录 SSH 主机密钥失败: %w", err)
-		}
-		if err := file.Sync(); err != nil {
-			_ = file.Close()
-			return fmt.Errorf("同步 SSH known_hosts 失败: %w", err)
-		}
-		if err := file.Close(); err != nil {
-			return fmt.Errorf("关闭 SSH known_hosts 失败: %w", err)
-		}
-		logger.Info("已首次信任飞牛 SSH 主机密钥", "host", hostname, "fingerprint", ssh.FingerprintSHA256(key))
-		return nil
-	}, nil
-}
-
-// ensureKnownHostsFile 创建并收紧自动维护的 SSH known_hosts 文件权限。
-func ensureKnownHostsFile(knownHostsFile string) error {
-	if err := os.MkdirAll(filepath.Dir(knownHostsFile), 0700); err != nil {
-		return err
-	}
-	file, err := os.OpenFile(knownHostsFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
-	if err != nil {
-		return err
-	}
-	if err := file.Chmod(0600); err != nil {
-		_ = file.Close()
-		return err
-	}
-	return file.Close()
-}
-
-// close 关闭 SSH 客户端连接。
-func (executor *feiNiuSSHExecutor) close() {
-	if executor != nil && executor.client != nil {
-		_ = executor.client.Close()
-	}
-}
-
-// run 执行单条 SSH 命令；非 root 会话的特权命令自动通过 sudo 提权。
-func (executor *feiNiuSSHExecutor) run(command string, input []byte, privileged bool) ([]byte, error) {
-	if privileged && !executor.isRoot {
-		command = "sudo -S -p '' sh -c " + quotePOSIXShellArg(command)
-		input = append([]byte(executor.password+"\n"), input...)
-	}
-	return runSSHCommand(executor.client, command, input, feiNiuSSHCommandTimeout)
-}
-
-// runSSHCommand 在超时后主动关闭会话，避免远端命令无限阻塞部署 ACK。
-func runSSHCommand(client *ssh.Client, command string, input []byte, timeout time.Duration) ([]byte, error) {
-	session, err := client.NewSession()
-	if err != nil {
-		return nil, err
-	}
-	if len(input) > 0 {
-		session.Stdin = bytes.NewReader(input)
-	}
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	session.Stdout = &stdout
-	session.Stderr = &stderr
-	resultChannel := make(chan sshCommandResult, 1)
-	go func() {
-		commandErr := session.Run(command)
-		resultChannel <- sshCommandResult{output: stdout.Bytes(), stderr: stderr.Bytes(), err: commandErr}
-	}()
-
-	select {
-	case result := <-resultChannel:
-		_ = session.Close()
-		if result.err != nil {
-			return result.output, fmt.Errorf("远端命令执行失败: %w, stderr: %s", result.err, strings.TrimSpace(string(result.stderr)))
-		}
-		return result.output, nil
-	case <-time.After(timeout):
-		_ = session.Close()
-		return nil, fmt.Errorf("远端命令执行超时: %s", commandName(command))
-	}
-}
-
-// commandName 仅返回命令首词，避免超时错误泄露完整远端参数。
-func commandName(command string) string {
-	fields := strings.Fields(command)
-	if len(fields) == 0 {
-		return "unknown"
-	}
-	return fields[0]
-}
-
-// createTempDir 在远端创建仅 SSH 用户可读写的临时目录。
-func (executor *feiNiuSSHExecutor) createTempDir() (string, error) {
-	output, err := executor.run("umask 077 && mktemp -d /tmp/anssl-feiniu.XXXXXX", nil, false)
-	if err != nil {
-		return "", fmt.Errorf("创建飞牛 SSH 临时目录失败: %w", err)
-	}
-	tempDir := strings.TrimSpace(string(output))
-	if !isSafeFeiNiuTempDir(tempDir) {
-		return "", fmt.Errorf("飞牛 SSH 返回了非法临时目录: %q", tempDir)
-	}
-	return tempDir, nil
-}
-
-// isSafeFeiNiuTempDir 限制清理目标只能是 mktemp 生成的飞牛专用目录。
-func isSafeFeiNiuTempDir(tempDir string) bool {
-	const prefix = "/tmp/anssl-feiniu."
-	if !strings.HasPrefix(tempDir, prefix) || len(tempDir) <= len(prefix) || path.Clean(tempDir) != tempDir {
-		return false
-	}
-	return strings.IndexFunc(strings.TrimPrefix(tempDir, prefix), func(character rune) bool {
-		return !((character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z') || (character >= '0' && character <= '9'))
-	}) < 0
-}
-
-// removeTempDir 清理经过固定前缀校验的 SSH 临时目录。
-func (executor *feiNiuSSHExecutor) removeTempDir(tempDir string) error {
-	if !isSafeFeiNiuTempDir(tempDir) {
-		return fmt.Errorf("拒绝清理非法 SSH 临时目录: %q", tempDir)
-	}
-	_, err := executor.run("rm -rf -- "+quotePOSIXShellArg(tempDir), nil, false)
-	return err
-}
-
-// upload 通过 SSH 标准输入将敏感文件写入远端受限临时目录。
-func (executor *feiNiuSSHExecutor) upload(remoteFile string, content []byte) error {
-	if !isSafeFeiNiuTempDir(path.Dir(remoteFile)) {
-		return fmt.Errorf("拒绝写入非法 SSH 临时路径: %q", remoteFile)
-	}
-	_, err := executor.run("umask 077 && cat > "+quotePOSIXShellArg(remoteFile), content, false)
-	return err
-}
-
 // installCertificate 将临时证书原子复制到飞牛固定证书目录。
-func (executor *feiNiuSSHExecutor) installCertificate(remoteCertificateFile, remotePrivateKeyFile, targetDir, safeDomain string) error {
+func (executor *sshExecutor) installCertificate(remoteCertificateFile, remotePrivateKeyFile, targetDir, safeDomain string) error {
 	domainDir := path.Dir(targetDir)
 	targetCertificateFile := path.Join(targetDir, safeDomain+".crt")
 	targetPrivateKeyFile := path.Join(targetDir, safeDomain+".key")
@@ -334,7 +123,7 @@ func (executor *feiNiuSSHExecutor) installCertificate(remoteCertificateFile, rem
 }
 
 // updateDatabase 通过远端 psql 更新飞牛证书记录。
-func (executor *feiNiuSSHExecutor) updateDatabase(remoteTempDir, domain, targetDir string, certificatePEM []byte, timestamp int64) error {
+func (executor *sshExecutor) updateDatabase(remoteTempDir, domain, targetDir string, certificatePEM []byte, timestamp int64) error {
 	encryptType, issuedBy := feiNiuCertificateMetadata(certificatePEM)
 	variables := map[string]string{
 		"domain":       domain,
@@ -400,7 +189,7 @@ func buildRemoteFeiNiuPSQLCommand(variables map[string]string, remoteSQLFile str
 }
 
 // updateNginxConfig 在本地解析 JSON 后，通过 SSH 备份并原子替换飞牛网关配置。
-func (executor *feiNiuSSHExecutor) updateNginxConfig(remoteTempDir, domain, targetDir string) error {
+func (executor *sshExecutor) updateNginxConfig(remoteTempDir, domain, targetDir string) error {
 	resolvedOutput, err := executor.run("readlink -f "+quotePOSIXShellArg(feiniuNginxConfigFile), nil, false)
 	if err != nil {
 		return fmt.Errorf("解析飞牛远程网关配置路径失败: %w", err)
@@ -437,12 +226,7 @@ func (executor *feiNiuSSHExecutor) updateNginxConfig(remoteTempDir, domain, targ
 }
 
 // reloadServices 重启飞牛使用证书的系统服务。
-func (executor *feiNiuSSHExecutor) reloadServices() error {
+func (executor *sshExecutor) reloadServices() error {
 	_, err := executor.run("systemctl restart webdav.service smbftpd.service trim_nginx.service", nil, true)
 	return err
-}
-
-// quotePOSIXShellArg 将单个值安全编码为 POSIX shell 参数。
-func quotePOSIXShellArg(value string) string {
-	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
 }

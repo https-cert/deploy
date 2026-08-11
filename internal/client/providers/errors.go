@@ -2,7 +2,6 @@ package providers
 
 import (
 	"errors"
-	"fmt"
 )
 
 // DeploymentError 描述云资源部署失败的重试属性和云厂商请求编号。
@@ -13,7 +12,7 @@ type DeploymentError struct {
 	Cause     error  // Cause 原始错误，仅用于本地错误链和日志。
 }
 
-// Error 返回脱敏错误说明。
+// Error 返回本地诊断信息；跨端回传必须经过 DeploymentErrorInfo 脱敏。
 func (e *DeploymentError) Error() string {
 	if e == nil {
 		return ""
@@ -53,7 +52,10 @@ func DeploymentErrorInfo(err error) (message string, retryable bool, requestID s
 
 	var deploymentError *DeploymentError
 	if errors.As(err, &deploymentError) {
-		return deploymentError.Error(), deploymentError.Retryable, deploymentError.RequestID
+		if deploymentError.Message != "" {
+			return deploymentError.Message, deploymentError.Retryable, deploymentError.RequestID
+		}
+		return "云资源部署失败，请查看 deploy 客户端日志", deploymentError.Retryable, deploymentError.RequestID
 	}
-	return fmt.Sprintf("业务执行失败: %v", err), false, ""
+	return "云资源部署失败，请查看 deploy 客户端日志", false, ""
 }

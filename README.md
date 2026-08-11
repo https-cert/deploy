@@ -152,16 +152,40 @@ sudo systemctl enable anssl
 sudo systemctl start anssl
 ```
 
+### RustFS 与飞牛 SSH 部署
+
+RustFS 使用 `ssl.rustFS.path` 指定证书目录：未填写 SSH 主机时部署到 deploy 客户端本机；填写 SSH 主机、端口、用户名和认证字段后，部署到远程 RustFS 主机。飞牛 OS 在未配置 `ssl.feiNiu` 时继续使用客户端所在设备的内置部署逻辑，配置后改为 SSH 远程部署。
+
+SSH 支持密码或私钥认证，不需要单独配置 SCP。`privateKeyPath` 必须指向 deploy 客户端本机上的私钥绝对路径，私钥内容不会写入 `config.yaml` 或发送到后端。使用私钥认证时，`password` 可留空，也可作为非 root 用户的 sudo 密码。
+
+```yaml
+ssl:
+  rustFS:
+    path: "/opt/rustfs/tls"
+    host: "192.168.1.30"
+    port: 22
+    username: "admin"
+    privateKeyPath: "/home/anssl/.ssh/id_ed25519"
+    privateKeyPassphrase: ""
+    password: "" # 可选的 sudo 密码
+
+  feiNiu:
+    host: "192.168.1.20"
+    port: 22
+    username: "admin"
+    password: "your-ssh-password"
+```
+
 ## 常见问题
 
 **Q: server.accessKey 在哪里获取？**
 A: 登录 [anssl.cn](https://anssl.cn) → 控制台 → 开发者 → API 凭证
 
 **Q: 支持哪些 Web 服务器和管理面板？**
-A: 支持 Nginx、Apache、RustFS、1Panel 和飞牛 OS 自动部署。飞牛部署目标默认使用客户端所在设备的内置本机逻辑；如果客户端未安装在飞牛 OS 上，可在 `config.yaml` 中填写 `ssl.feiNiu` 的主机、端口、用户名和密码，通过 SSH 远程部署。
+A: 支持 Nginx、Apache、RustFS、1Panel 和飞牛 OS 自动部署。RustFS 支持本机目录或 SSH 远程部署；飞牛部署目标默认使用客户端所在设备的内置逻辑，也可配置 `ssl.feiNiu` 通过 SSH 远程部署。两者都支持密码和私钥认证。
 
 **Q: 可以同时部署到多个服务吗？**
-A: 可以。在 `config.yaml` 中配置所需目标（如 `nginxPath`、`apachePath`、`rustFSPath`、`onePanel` 和可选的远程 `feiNiu`），并在 anssl.cn 控制台为证书选择对应部署目标。
+A: 可以。在 `config.yaml` 中配置所需目标（如 `nginxPath`、`apachePath`、`rustFS`、`onePanel` 和可选的远程 `feiNiu`），并在 anssl.cn 控制台为证书选择对应部署目标。
 
 **Q: 1Panel 的 API 密钥在哪里获取？**
 A: 登录 1Panel 面板 → 设置 → 安全 → API 接口 → 生成 API 密钥

@@ -161,10 +161,11 @@ func (cd *CertDeployer) DeployCertificate(domain, url string) error {
 	sslConfig := config.GetConfig().SSL
 	nginxPath := sslConfig.NginxPath
 	apachePath := sslConfig.ApachePath
-	rustFSPath := sslConfig.RustFSPath
+	rustFS := sslConfig.RustFS
 	onePanelEnabled := sslConfig.OnePanel != nil && sslConfig.OnePanel.URL != ""
+	rustFSEnabled := rustFS != nil && rustFS.Path != ""
 
-	if nginxPath == "" && apachePath == "" && rustFSPath == "" && !onePanelEnabled {
+	if nginxPath == "" && apachePath == "" && !rustFSEnabled && !onePanelEnabled {
 		logger.Info("未配置SSL目录，证书已下载", "file", tarFile)
 		return nil
 	}
@@ -201,9 +202,15 @@ func (cd *CertDeployer) DeployCertificate(domain, url string) error {
 	}
 
 	// 4. 部署到 RustFS 目录
-	if rustFSPath != "" {
-		if err := cd.DeployToRustFS(extractDir, rustFSPath, safeDomain); err != nil {
-			return fmt.Errorf("部署到RustFS失败: %w", err)
+	if rustFSEnabled {
+		var rustFSErr error
+		if config.IsSSHConfigured(&rustFS.SSHConfig) {
+			rustFSErr = cd.DeployToRemoteRustFS(extractDir, safeDomain, rustFS)
+		} else {
+			rustFSErr = cd.DeployToRustFS(extractDir, rustFS.Path, safeDomain)
+		}
+		if rustFSErr != nil {
+			return fmt.Errorf("部署到RustFS失败: %w", rustFSErr)
 		}
 	}
 

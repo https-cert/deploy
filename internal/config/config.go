@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -49,19 +50,31 @@ type (
 
 	// DeployConfig 本地证书部署目标配置
 	DeployConfig struct {
-		NginxPath  string           `yaml:"nginxPath"`  // Nginx SSL 证书目录
-		ApachePath string           `yaml:"apachePath"` // Apache SSL 证书目录
-		RustFSPath string           `yaml:"rustFSPath"` // RustFS TLS 证书目录
-		FeiNiu     *FeiNiuSSHConfig `yaml:"feiNiu"`     // FeiNiu 远程 SSH 配置，空值表示本机部署
-		OnePanel   *OnePanelConfig  `yaml:"onePanel"`   // 1Panel 配置
+		NginxPath  string          `yaml:"nginxPath"`  // NginxPath 是 Nginx SSL 证书目录
+		ApachePath string          `yaml:"apachePath"` // ApachePath 是 Apache SSL 证书目录
+		RustFSPath string          `yaml:"rustFSPath"` // RustFSPath 兼容旧版 RustFS 本机目录配置
+		RustFS     *RustFSConfig   `yaml:"rustFS"`     // RustFS 是本机或 SSH 远程部署配置
+		FeiNiu     *SSHConfig      `yaml:"feiNiu"`     // FeiNiu 是可选的 SSH 远程配置，空值表示本机部署
+		OnePanel   *OnePanelConfig `yaml:"onePanel"`   // OnePanel 是 1Panel API 配置
 	}
 
-	// FeiNiuSSHConfig 飞牛 OS 远程部署使用的 SSH 连接配置
-	FeiNiuSSHConfig struct {
-		Host     string `yaml:"host"`     // Host 飞牛 OS 主机名或 IP 地址
-		Port     int    `yaml:"port"`     // Port SSH 端口，默认 22
-		Username string `yaml:"username"` // Username SSH 登录用户名
-		Password string `yaml:"password"` // Password SSH 登录及 sudo 密码
+	// SSHConfig 保存仅供 deploy 客户端本地使用的 SSH 认证配置。
+	SSHConfig struct {
+		Host                 string `yaml:"host"`                 // Host 是远程主机名或 IP 地址
+		Port                 int    `yaml:"port"`                 // Port 是 SSH 端口，默认 22
+		Username             string `yaml:"username"`             // Username 是 SSH 登录用户名
+		Password             string `yaml:"password"`             // Password 是密码认证及 sudo 使用的密码
+		PrivateKeyPath       string `yaml:"privateKeyPath"`       // PrivateKeyPath 是 deploy 客户端本地私钥绝对路径
+		PrivateKeyPassphrase string `yaml:"privateKeyPassphrase"` // PrivateKeyPassphrase 是加密私钥的可选口令
+	}
+
+	// FeiNiuSSHConfig 兼容已有飞牛 SSH 配置类型名称。
+	FeiNiuSSHConfig = SSHConfig
+
+	// RustFSConfig 保存 RustFS 证书目录及可选的 SSH 远程配置。
+	RustFSConfig struct {
+		Path      string                                  `yaml:"path"` // Path 是 RustFS TLS 证书根目录
+		SSHConfig `yaml:",inline" mapstructure:",squash"` // SSHConfig 是可选的 SSH 远程连接配置
 	}
 
 	// OnePanelConfig 1Panel 配置
@@ -169,6 +182,9 @@ func validateConfig() error {
 	if Config.SSL == nil {
 		Config.SSL = &DeployConfig{}
 	}
+	if err := validateRustFSConfig(); err != nil {
+		return err
+	}
 	if err := validateFeiNiuConfig(); err != nil {
 		return err
 	}
@@ -225,36 +241,110 @@ func validateFeiNiuConfig() error {
 	if Config.SSL.FeiNiu == nil {
 		return nil
 	}
+	return validateSSHConfig("ssl.feiNiu", Config.SSL.FeiNiu)
+}
 
-	feiNiu := Config.SSL.FeiNiu
-	feiNiu.Host = strings.TrimSpace(feiNiu.Host)
-	if strings.HasPrefix(feiNiu.Host, "[") && strings.HasSuffix(feiNiu.Host, "]") {
-		feiNiu.Host = strings.TrimSuffix(strings.TrimPrefix(feiNiu.Host, "["), "]")
+// validateRustFSConfig 归一化 RustFS 新旧配置并验证本机或 SSH 远程模式。
+func validateRustFSConfig() error {
+	legacyPath := strings.TrimSpace(Config.SSL.RustFSPath)
+	if Config.SSL.RustFS == nil {
+		if legacyPath == "" {
+			return nil
+		}
+		Config.SSL.RustFS = &RustFSConfig{Path: legacyPath}
+		Config.SSL.RustFSPath = ""
+		return validateRustFSPath(Config.SSL.RustFS.Path)
 	}
-	feiNiu.Username = strings.TrimSpace(feiNiu.Username)
-	if feiNiu.Port == 0 {
-		feiNiu.Port = 22
+
+	rustFS := Config.SSL.RustFS
+	rustFS.Path = strings.TrimSpace(rustFS.Path)
+	if legacyPath != "" && rustFS.Path != "" && legacyPath != rustFS.Path {
+		return errors.New("ssl.rustFS.path 与旧版 ssl.rustFSPath 不能同时配置为不同目录")
 	}
-	if feiNiu.Host == "" {
-		return errors.New("ssl.feiNiu.host 不能为空")
+	if rustFS.Path == "" {
+		rustFS.Path = legacyPath
 	}
-	if strings.Contains(feiNiu.Host, "://") || strings.ContainsAny(feiNiu.Host, "/?#@") || containsSpaceOrControl(feiNiu.Host) {
-		return errors.New("ssl.feiNiu.host 必须是主机名或 IP 地址，不能包含协议、路径或空白字符")
+	Config.SSL.RustFSPath = ""
+	if rustFS.Path == "" {
+		return errors.New("ssl.rustFS.path 不能为空")
 	}
-	if strings.Contains(feiNiu.Host, ":") && net.ParseIP(feiNiu.Host) == nil {
-		return errors.New("ssl.feiNiu.host 不能包含端口，端口请单独填写到 ssl.feiNiu.port")
+	if err := validateRustFSPath(rustFS.Path); err != nil {
+		return err
 	}
-	if feiNiu.Port < minPort || feiNiu.Port > maxPort {
-		return fmt.Errorf("ssl.feiNiu.port 必须在 %d-%d 之间", minPort, maxPort)
+	if !IsSSHConfigured(&rustFS.SSHConfig) {
+		return nil
 	}
-	if feiNiu.Username == "" || containsSpaceOrControl(feiNiu.Username) {
-		return errors.New("ssl.feiNiu.username 不能为空且不能包含空白或控制字符")
+	return validateSSHConfig("ssl.rustFS", &rustFS.SSHConfig)
+}
+
+// validateRustFSPath 验证 RustFS 证书根目录是安全的 POSIX 绝对路径。
+func validateRustFSPath(rustFSPath string) error {
+	if !path.IsAbs(rustFSPath) || path.Clean(rustFSPath) != rustFSPath || rustFSPath == "/" {
+		return errors.New("ssl.rustFS.path 必须是非根目录的规范 POSIX 绝对路径")
 	}
-	if feiNiu.Password == "" {
-		return errors.New("ssl.feiNiu.password 不能为空")
+	if strings.ContainsAny(rustFSPath, "\r\n\x00") {
+		return errors.New("ssl.rustFS.path 不能包含换行或 NUL 字符")
 	}
-	if strings.ContainsAny(feiNiu.Password, "\r\n\x00") {
-		return errors.New("ssl.feiNiu.password 不能包含换行或 NUL 字符")
+	return nil
+}
+
+// IsSSHConfigured 判断除默认端口外是否已经填写任一 SSH 字段。
+func IsSSHConfigured(sshConfig *SSHConfig) bool {
+	if sshConfig == nil {
+		return false
+	}
+	return strings.TrimSpace(sshConfig.Host) != "" ||
+		strings.TrimSpace(sshConfig.Username) != "" ||
+		sshConfig.Password != "" ||
+		strings.TrimSpace(sshConfig.PrivateKeyPath) != "" ||
+		sshConfig.PrivateKeyPassphrase != "" ||
+		(sshConfig.Port != 0 && sshConfig.Port != 22)
+}
+
+// validateSSHConfig 验证密码或私钥认证共用的 SSH 连接字段。
+func validateSSHConfig(section string, sshConfig *SSHConfig) error {
+	sshConfig.Host = strings.TrimSpace(sshConfig.Host)
+	if strings.HasPrefix(sshConfig.Host, "[") && strings.HasSuffix(sshConfig.Host, "]") {
+		sshConfig.Host = strings.TrimSuffix(strings.TrimPrefix(sshConfig.Host, "["), "]")
+	}
+	sshConfig.Username = strings.TrimSpace(sshConfig.Username)
+	sshConfig.PrivateKeyPath = strings.TrimSpace(sshConfig.PrivateKeyPath)
+	if sshConfig.Port == 0 {
+		sshConfig.Port = 22
+	}
+	if sshConfig.Host == "" {
+		return fmt.Errorf("%s.host 不能为空", section)
+	}
+	if strings.Contains(sshConfig.Host, "://") || strings.ContainsAny(sshConfig.Host, "/?#@") || containsSpaceOrControl(sshConfig.Host) {
+		return fmt.Errorf("%s.host 必须是主机名或 IP 地址，不能包含协议、路径或空白字符", section)
+	}
+	if strings.Contains(sshConfig.Host, ":") && net.ParseIP(sshConfig.Host) == nil {
+		return fmt.Errorf("%s.host 不能包含端口，端口请单独填写到 %s.port", section, section)
+	}
+	if sshConfig.Port < minPort || sshConfig.Port > maxPort {
+		return fmt.Errorf("%s.port 必须在 %d-%d 之间", section, minPort, maxPort)
+	}
+	if sshConfig.Username == "" || containsSpaceOrControl(sshConfig.Username) {
+		return fmt.Errorf("%s.username 不能为空且不能包含空白或控制字符", section)
+	}
+	if sshConfig.Password == "" && sshConfig.PrivateKeyPath == "" {
+		return fmt.Errorf("%s.password 或 %s.privateKeyPath 必须填写一项", section, section)
+	}
+	if strings.ContainsAny(sshConfig.Password, "\r\n\x00") {
+		return fmt.Errorf("%s.password 不能包含换行或 NUL 字符", section)
+	}
+	if sshConfig.PrivateKeyPath != "" {
+		if !filepath.IsAbs(sshConfig.PrivateKeyPath) || filepath.Clean(sshConfig.PrivateKeyPath) != sshConfig.PrivateKeyPath {
+			return fmt.Errorf("%s.privateKeyPath 必须是 deploy 客户端本地的规范绝对路径", section)
+		}
+		if strings.ContainsAny(sshConfig.PrivateKeyPath, "\r\n\x00") {
+			return fmt.Errorf("%s.privateKeyPath 不能包含换行或 NUL 字符", section)
+		}
+	} else if sshConfig.PrivateKeyPassphrase != "" {
+		return fmt.Errorf("%s.privateKeyPassphrase 只能与 privateKeyPath 一起配置", section)
+	}
+	if strings.ContainsAny(sshConfig.PrivateKeyPassphrase, "\r\n\x00") {
+		return fmt.Errorf("%s.privateKeyPassphrase 不能包含换行或 NUL 字符", section)
 	}
 	return nil
 }
@@ -352,8 +442,10 @@ func PrepareRuntimeDirs() error {
 	if err := prepareDir("Apache", Config.SSL.ApachePath); err != nil {
 		return err
 	}
-	if err := prepareDir("RustFS", Config.SSL.RustFSPath); err != nil {
-		return err
+	if Config.SSL.RustFS != nil && !IsSSHConfigured(&Config.SSL.RustFS.SSHConfig) {
+		if err := prepareDir("RustFS", Config.SSL.RustFS.Path); err != nil {
+			return err
+		}
 	}
 
 	return nil

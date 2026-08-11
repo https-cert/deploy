@@ -21,6 +21,12 @@ type ProviderInfo struct {
 // testFeiNiuConnection 允许单元测试替换真实飞牛环境探测，生产环境始终使用 SSH 或本机检查。
 var testFeiNiuConnection = deploys.TestFeiNiuConnection
 
+// testRustFSConnection 允许连接测试使用替身而不触碰真实 RustFS 环境。
+var testRustFSConnection = deploys.TestRustFSConnection
+
+// testOnePanelConnection 允许连接测试使用替身而不请求真实 1Panel API。
+var testOnePanelConnection = deploys.TestOnePanelConnection
+
 // GetProviderInfo 获取提供商信息列表
 func GetProviderInfo() []ProviderInfo {
 	cfg := config.GetConfig()
@@ -50,6 +56,16 @@ func testDeploymentConnection(providerName string, businessType deployPB.Execute
 	case "ansslCli":
 		if businessType == deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_FEINIU_CERT {
 			if err := testFeiNiuConnection(); err != nil {
+				return false, err
+			}
+		}
+		if businessType == deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_RUSTFS_CERT {
+			if err := testRustFSConnection(); err != nil {
+				return false, err
+			}
+		}
+		if businessType == deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_1PANEL_CERT {
+			if err := testOnePanelConnection(); err != nil {
 				return false, err
 			}
 		}

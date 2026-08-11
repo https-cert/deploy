@@ -17,6 +17,9 @@ import (
 // deploymentResourceExecutionTimeout 为后端 60 秒等待窗口预留 ACK 发送时间。
 const deploymentResourceExecutionTimeout = 55 * time.Second
 
+// localDeploymentFailureMessage 避免把本机路径、SSH 主机和远端诊断回传到后端。
+const localDeploymentFailureMessage = "部署失败，请查看 deploy 客户端日志"
+
 // handleWSMessages 处理 WebSocket 消息循环
 func (c *WSClient) handleWSMessages() error {
 	// 创建心跳上下文，用于停止心跳协程
@@ -437,7 +440,7 @@ func (c *WSClient) executeLegacyBusiness(requestID string, resp *deployPB.Execut
 			logger.Error("证书部署失败", "error", err, "domain", canonicalDomain)
 			return executeBusinessACK{
 				Result:    deployPB.ExecuteBusinesRequest_REQUEST_RESULT_FAILED,
-				Message:   "本地证书部署失败: " + err.Error(),
+				Message:   localDeploymentFailureMessage,
 				Retryable: true,
 			}
 		}
@@ -451,9 +454,13 @@ func (c *WSClient) executeLegacyBusiness(requestID string, resp *deployPB.Execut
 
 	if err := c.businessExecutor.ExecuteBusiness(providerName, resp.ExecuteBusinesType, canonicalDomain, resp.Url, remark, resp.Cert, resp.Key); err != nil {
 		logger.Error("业务执行失败", "error", err, "provider", providerName, "domain", canonicalDomain)
+		message := "业务执行失败，请查看 deploy 客户端日志"
+		if providerName == "ansslCli" {
+			message = localDeploymentFailureMessage
+		}
 		return executeBusinessACK{
 			Result:    deployPB.ExecuteBusinesRequest_REQUEST_RESULT_FAILED,
-			Message:   "业务执行失败: " + err.Error(),
+			Message:   message,
 			Retryable: true,
 		}
 	}

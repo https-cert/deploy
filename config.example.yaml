@@ -15,21 +15,36 @@ ssl:
   # 可选。Apache 证书目录，配置后会自动部署证书并执行 Apache 配置测试 / graceful reload。
   # 留空则不部署到 Apache。
   apachePath: ""
-  # 可选。RustFS TLS 证书目录，配置后会自动部署 RustFS 使用的 TLS 证书。
-  # 留空则不部署到 RustFS。
-  rustFSPath: ""
+
+  # 可选。RustFS TLS 证书配置；不配置整个 rustFS 节点则不部署到 RustFS。
+  # 只填写 path 时部署到客户端本机；同时填写 host、port、username 和认证字段时通过 SSH 远程部署。
+  # privateKeyPath 是 deploy 客户端本机上的私钥绝对路径，私钥内容不会写入配置或发送到后端。
+  # password 和 privateKeyPath 至少填写一项；使用私钥时 password 仅作为可选的 sudo 密码。
+  # rustFS:
+  #   path: "/opt/rustfs/tls"
+  #   host: "192.168.1.30"
+  #   port: 22
+  #   username: "admin"
+  #   password: ""
+  #   privateKeyPath: "/home/anssl/.ssh/id_ed25519"
+  #   privateKeyPassphrase: ""
+
   # 可选。远程飞牛 OS 的 SSH 配置；不配置时，飞牛部署目标使用当前设备的内置本机部署逻辑。
-  # password 同时用于 SSH 登录和非 root 用户的 sudo 提权，请确保配置文件权限为 0600。
+  # password 与 privateKeyPath 至少填写一项；使用私钥时 password 仅作为可选的 sudo 密码。
+  # privateKeyPath 是 deploy 客户端本机上的私钥绝对路径，请确保配置文件和私钥权限均为 0600。
   # feiNiu:
   #   host: ""
   #   port: 22
   #   username: ""
   #   password: ""
+  #   privateKeyPath: "/home/anssl/.ssh/id_ed25519"
+  #   privateKeyPassphrase: ""
+
   # 可选。1Panel 配置。url 或 apiKey 留空则不部署到 1Panel。
   onePanel:
     # 1Panel 面板地址，例如 http://localhost:10000。
     url: ""
-    # 1Panel API 密钥，在 1Panel 面板 设置 -> 安全 -> API 接口 中生成。
+    # 1Panel API 密钥。
     apiKey: ""
 
 update:
@@ -68,34 +83,41 @@ log:
 #       accessKeyId: "your-aliyun-access-key-id"
 #       # 阿里云 AccessKey Secret。
 #       accessKeySecret: "your-aliyun-access-key-secret"
+#
 #     cdn:
 #       - label: "官网 CDN" # 可选，留空时使用 domain。
 #         domain: "www.example.com"
+#
 #     dcdn:
 #       - label: "API DCDN"
 #         domain: "api.example.com"
+#
 #     esa:
 #       - label: "应用 ESA"
 #         domain: "app.example.com" # 精确 ESA RecordName。
 #         siteId: "your-esa-site-id"
+#
 #     oss:
 #       - label: "静态资源 OSS"
 #         domain: "static.example.com"
 #         region: "cn-hangzhou"
 #         bucket: "your-oss-bucket"
 #         endpoint: "https://oss-cn-hangzhou.aliyuncs.com" # 可选，只允许 HTTPS Origin。
+#
 #     clb:
 #       - label: "官网 CLB"
 #         domain: "www.example.com" # 精确域名；客户端自动识别默认或 SNI 证书槽位。
 #         region: "cn-hangzhou"
 #         loadBalancerId: "lb-xxxxxxxx"
 #         listenerPort: 443 # 仅支持 HTTPS 监听器。
+#
 #     alb:
 #       - label: "官网 ALB"
 #         domain: "www.example.com" # 精确域名；客户端自动识别默认或 SNI 扩展证书槽位。
 #         region: "cn-hangzhou"
 #         loadBalancerId: "alb-xxxxxxxx"
 #         listenerId: "lsr-xxxxxxxx" # ALB HTTPS 或 QUIC 监听器 ID。
+#
 #     nlb:
 #       - label: "官网 NLB"
 #         domain: "www.example.com" # 精确域名；客户端自动识别默认或 SNI 扩展证书槽位。
@@ -110,9 +132,11 @@ log:
 #       accessKey: "your-qiniu-access-key"
 #       # 七牛云 SecretKey。
 #       accessSecret: "your-qiniu-access-secret"
+#
 #     cdn:
 #       - label: "官网 CDN"
 #         domain: "www.example.com"
+#
 #     dcdn:
 #       - label: "API DCDN"
 #         domain: "api.example.com"
@@ -124,18 +148,22 @@ log:
 #       secretId: "your-tencent-secret-id"
 #       # 腾讯云 SecretKey。
 #       secretKey: "your-tencent-secret-key"
+#
 #     cdn:
 #       - label: "官网 CDN"
 #         domain: "www.example.com"
+#
 #     edgeOne:
 #       - label: "应用 EdgeOne"
 #         domain: "app.example.com" # 精确 EdgeOne Host。
 #         zoneId: "your-edgeone-zone-id"
+#
 #     cos:
 #       - label: "静态资源 COS"
 #         domain: "static.example.com"
 #         region: "ap-guangzhou"
 #         bucket: "your-cos-bucket-1250000000" # 必须包含 APPID。
+#
 #     clb:
 #       - label: "业务 CLB"
 #         domain: "www.example.com" # 精确域名；客户端自动识别 SNI 规则或监听器证书槽位。

@@ -82,7 +82,7 @@ func runDoctor(options *doctorOptions) error {
 	results = append(results, checkDeployServerURL(config.URL))
 	results = append(results, checkDeployDir("Nginx 证书目录", cfg.SSL.NginxPath))
 	results = append(results, checkDeployDir("Apache 证书目录", cfg.SSL.ApachePath))
-	results = append(results, checkDeployDir("RustFS 证书目录", cfg.SSL.RustFSPath))
+	results = append(results, checkRustFSTarget(cfg.SSL.RustFS))
 	results = append(results, checkCommand("Nginx 命令", "nginx", "-t"))
 	results = append(results, checkApacheCommand())
 	results = append(results, checkProviderConfigs(cfg)...)
@@ -97,6 +97,17 @@ func runDoctor(options *doctorOptions) error {
 	}
 	writeDoctorResults(os.Stdout, options, results)
 	return nil
+}
+
+// checkRustFSTarget 区分 RustFS 本机目录和 SSH 远程目录，避免拿远端路径检查本机文件系统。
+func checkRustFSTarget(rustFS *config.RustFSConfig) doctorResult {
+	if rustFS == nil {
+		return checkDeployDir("RustFS 证书目录", "")
+	}
+	if config.IsSSHConfigured(&rustFS.SSHConfig) {
+		return okDoctor("RustFS 证书目录", "已配置 SSH 远程部署")
+	}
+	return checkDeployDir("RustFS 证书目录", rustFS.Path)
 }
 
 // okDoctor 创建成功诊断结果。

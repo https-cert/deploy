@@ -152,16 +152,40 @@ sudo systemctl enable anssl
 sudo systemctl start anssl
 ```
 
+### RustFS and FeiNiu SSH deployment
+
+RustFS uses `ssl.rustFS.path` as its certificate directory. With no SSH host configured, deployment runs on the deploy client's local machine. After the SSH host, port, username, and authentication fields are set, deployment runs on the remote RustFS host. FeiNiu OS continues to use the built-in deployment method on the client's device when `ssl.feiNiu` is absent, and switches to remote SSH deployment when it is configured.
+
+SSH supports password and private-key authentication; no separate SCP setting is required. `privateKeyPath` must be an absolute path to a key on the deploy client's local filesystem. The private key contents are never written to `config.yaml` or sent to the backend. In private-key mode, `password` may be left empty or used as the sudo password for a non-root user.
+
+```yaml
+ssl:
+  rustFS:
+    path: "/opt/rustfs/tls"
+    host: "192.168.1.30"
+    port: 22
+    username: "admin"
+    privateKeyPath: "/home/anssl/.ssh/id_ed25519"
+    privateKeyPassphrase: ""
+    password: "" # Optional sudo password
+
+  feiNiu:
+    host: "192.168.1.20"
+    port: 22
+    username: "admin"
+    password: "your-ssh-password"
+```
+
 ## FAQ
 
 **Q: Where can I get `server.accessKey`?**  
 A: Log in to [anssl.cn](https://anssl.cn) → Console → Developer → API Credentials.
 
 **Q: Which web servers and panels are supported?**  
-A: Nginx, Apache, RustFS, 1Panel, and FeiNiu OS. FeiNiu targets use the built-in local deployment when the client runs on that device. If the client runs elsewhere, configure `ssl.feiNiu` with the host, port, username, and password to deploy over SSH.
+A: Nginx, Apache, RustFS, 1Panel, and FeiNiu OS. RustFS supports either a local directory or remote SSH deployment. FeiNiu uses the built-in method on the client's device by default and can also deploy remotely through `ssl.feiNiu`. Both targets support password and private-key authentication.
 
 **Q: Can I deploy to multiple targets at the same time?**  
-A: Yes. Configure the required targets in `config.yaml` (`nginxPath`, `apachePath`, `rustFSPath`, `onePanel`, and optional remote `feiNiu`) and select the corresponding targets in the anssl.cn console.
+A: Yes. Configure the required targets in `config.yaml` (`nginxPath`, `apachePath`, `rustFS`, `onePanel`, and optional remote `feiNiu`) and select the corresponding targets in the anssl.cn console.
 
 **Q: Where can I get the 1Panel API key?**  
 A: 1Panel → Settings → Security → API Interface → Generate API Key.
