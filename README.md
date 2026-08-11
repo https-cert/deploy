@@ -6,7 +6,7 @@
 
 ## 特性
 
-- 🚀 自动化部署证书到 Nginx、Apache、RustFS、1Panel 并自动重载服务
+- 🚀 自动化部署证书到 Nginx、Apache、RustFS、1Panel、雷池 WAF，并自动重载本地服务
 - ✅ 内置 HTTP-01 验证服务，自动响应 ACME challenge
 - ☁️ 支持自动上传证书到云服务（阿里云、七牛云、腾讯云）
 - 🔧 守护进程模式，支持后台运行
@@ -75,7 +75,7 @@ anssl log -f
 2. 后端推送 ACME challenge token 到 CLI
 3. CLI 自动缓存并响应 Let's Encrypt 验证请求
 4. 验证成功，证书签发
-5. 自动下载并部署证书到配置的服务（Nginx/Apache/RustFS/1Panel/飞牛OS）
+5. 自动下载并部署证书到配置的服务（Nginx/Apache/RustFS/1Panel/雷池 WAF/飞牛OS）
 6. 自动重载 Nginx 和 Apache 服务
 
 **全程自动化，无需手动操作。**
@@ -176,22 +176,39 @@ ssl:
     password: "your-ssh-password"
 ```
 
+### 雷池 WAF 证书部署
+
+在雷池“通用设置”中生成 API Token，并将管理端地址与 Token 配置到 deploy 客户端。连接测试只调用只读证书列表接口；部署时按新证书的完整 SAN 域名集合查找已有证书，完全一致的记录会全部更新，没有完全一致的记录时新增证书，避免误改仅部分域名重叠的证书。
+
+```yaml
+ssl:
+  safeLine:
+    url: "https://waf.example.com:9443"
+    apiToken: "your-safeline-api-token"
+    insecureSkipVerify: false
+```
+
+`insecureSkipVerify` 默认必须保持 `false`。只有雷池管理端使用你明确信任的自签名 HTTPS 证书时才可开启；API Token 仅保存在 deploy 客户端本机，不会发送到 ANSSL 后端。
+
 ## 常见问题
 
 **Q: server.accessKey 在哪里获取？**
 A: 登录 [anssl.cn](https://anssl.cn) → 控制台 → 开发者 → API 凭证
 
 **Q: 支持哪些 Web 服务器和管理面板？**
-A: 支持 Nginx、Apache、RustFS、1Panel 和飞牛 OS 自动部署。RustFS 支持本机目录或 SSH 远程部署；飞牛部署目标默认使用客户端所在设备的内置逻辑，也可配置 `ssl.feiNiu` 通过 SSH 远程部署。两者都支持密码和私钥认证。
+A: 支持 Nginx、Apache、RustFS、1Panel、雷池 WAF 和飞牛 OS 自动部署。RustFS 支持本机目录或 SSH 远程部署；飞牛部署目标默认使用客户端所在设备的内置逻辑，也可配置 `ssl.feiNiu` 通过 SSH 远程部署。两者都支持密码和私钥认证。
 
 **Q: 可以同时部署到多个服务吗？**
-A: 可以。在 `config.yaml` 中配置所需目标（如 `nginxPath`、`apachePath`、`rustFS`、`onePanel` 和可选的远程 `feiNiu`），并在 anssl.cn 控制台为证书选择对应部署目标。
+A: 可以。在 `config.yaml` 中配置所需目标（如 `nginxPath`、`apachePath`、`rustFS`、`onePanel`、`safeLine` 和可选的远程 `feiNiu`），并在 anssl.cn 控制台为证书选择对应部署目标。
 
 **Q: 1Panel 的 API 密钥在哪里获取？**
 A: 登录 1Panel 面板 → 设置 → 安全 → API 接口 → 生成 API 密钥
 
+**Q: 雷池的 API Token 在哪里获取？**
+A: 登录雷池管理端 → 通用设置 → API Token。Token 只需填写在 deploy 客户端本机的 `ssl.safeLine.apiToken`。
+
 **Q: 证书会同时部署到本地和云服务吗？**
-A: 在 [anssl.cn](https://anssl.cn) 控制台配置部署目标时，可以选择部署到本地 CLI（Nginx/Apache/RustFS/1Panel/飞牛OS）或云服务（阿里云/七牛云/腾讯云）。每个证书可以配置多个部署目标，实现同时部署
+A: 在 [anssl.cn](https://anssl.cn) 控制台配置部署目标时，可以选择部署到本地 CLI（Nginx/Apache/RustFS/1Panel/雷池 WAF/飞牛OS）或云服务（阿里云/七牛云/腾讯云）。每个证书可以配置多个部署目标，实现同时部署
 
 **Q: HTTP-01 验证需要手动操作吗？**
 A: 不需要。配置好 Nginx 反向代理后，验证全程自动完成

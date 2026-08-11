@@ -163,9 +163,10 @@ func (cd *CertDeployer) DeployCertificate(domain, url string) error {
 	apachePath := sslConfig.ApachePath
 	rustFS := sslConfig.RustFS
 	onePanelEnabled := sslConfig.OnePanel != nil && sslConfig.OnePanel.URL != ""
+	safeLineEnabled := sslConfig.SafeLine != nil && sslConfig.SafeLine.URL != "" && sslConfig.SafeLine.APIToken != ""
 	rustFSEnabled := rustFS != nil && rustFS.Path != ""
 
-	if nginxPath == "" && apachePath == "" && !rustFSEnabled && !onePanelEnabled {
+	if nginxPath == "" && apachePath == "" && !rustFSEnabled && !onePanelEnabled && !safeLineEnabled {
 		logger.Info("未配置SSL目录，证书已下载", "file", tarFile)
 		return nil
 	}
@@ -221,7 +222,14 @@ func (cd *CertDeployer) DeployCertificate(domain, url string) error {
 		}
 	}
 
-	// 6. 检查nginx是否存在，如果存在则测试配置和重新加载
+	// 6. 部署到雷池 WAF
+	if safeLineEnabled {
+		if err := cd.DeployToSafeLine(extractDir, domain); err != nil {
+			return fmt.Errorf("部署到雷池失败: %w", err)
+		}
+	}
+
+	// 7. 检查nginx是否存在，如果存在则测试配置和重新加载
 	if nginxPath != "" && IsNginxAvailable() {
 		// 测试nginx配置
 		if err := TestNginxConfig(); err != nil {
@@ -236,7 +244,7 @@ func (cd *CertDeployer) DeployCertificate(domain, url string) error {
 		logger.Info("nginx未安装或不在PATH中，跳过nginx相关操作")
 	}
 
-	// 7. 检查apache是否存在，如果存在则测试配置和重新加载
+	// 8. 检查apache是否存在，如果存在则测试配置和重新加载
 	if apachePath != "" && IsApacheAvailable() {
 		// 测试apache配置
 		if err := TestApacheConfig(); err != nil {

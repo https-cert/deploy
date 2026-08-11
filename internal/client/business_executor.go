@@ -53,6 +53,9 @@ func (be *BusinessExecutor) ExecuteBusiness(providerName string, executeBusinesT
 		case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_1PANEL_CERT:
 			// 部署证书到 1Panel
 			return be.handle1PanelCertificateDeploy(domain, downloadURL)
+		case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_SAFELINE_CERT:
+			// 部署证书到雷池 WAF
+			return be.handleSafeLineCertificateDeploy(domain, downloadURL)
 		default:
 			logger.Warn("不支持的业务类型", "executeBusinesType", executeBusinesType)
 			return fmt.Errorf("不支持的业务类型: %d", executeBusinesType)
@@ -194,6 +197,22 @@ func (be *BusinessExecutor) handle1PanelCertificateDeploy(domain, downloadURL st
 	}
 
 	logger.Info("1Panel证书部署成功", "domain", domain)
+	return nil
+}
+
+// handleSafeLineCertificateDeploy 处理证书部署到雷池 WAF。
+func (be *BusinessExecutor) handleSafeLineCertificateDeploy(domain, downloadURL string) error {
+	if domain == "" {
+		return fmt.Errorf("域名不能为空")
+	}
+
+	deployer := deploys.NewCertDeployer(be.downloadFile)
+	if err := deployer.DeployCertificateToSafeLine(domain, downloadURL); err != nil {
+		logger.Error("雷池证书部署失败", "error", err, "domain", domain)
+		return err
+	}
+
+	logger.Info("雷池证书部署成功", "domain", domain)
 	return nil
 }
 

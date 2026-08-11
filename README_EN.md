@@ -6,7 +6,7 @@ An automated SSL certificate deployment tool for downloading certificates from [
 
 ## Features
 
-- 🚀 Automatically deploys certificates to Nginx, Apache, RustFS, and 1Panel, then reloads services
+- 🚀 Automatically deploys certificates to Nginx, Apache, RustFS, 1Panel, and SafeLine WAF, then reloads local services
 - ✅ Built-in HTTP-01 validation service to automatically respond to ACME challenges
 - ☁️ Supports uploading certificates to cloud providers (Alibaba Cloud, Qiniu Cloud, Tencent Cloud)
 - 🔧 Daemon mode for long-running background execution
@@ -75,7 +75,7 @@ anssl log -f
 2. Backend pushes ACME challenge tokens to the CLI
 3. CLI caches and serves Let's Encrypt validation requests automatically
 4. Validation succeeds and certificate is issued
-5. Certificate is downloaded and deployed to configured services (Nginx/Apache/RustFS/1Panel/FeiNiu OS)
+5. Certificate is downloaded and deployed to configured services (Nginx/Apache/RustFS/1Panel/SafeLine WAF/FeiNiu OS)
 6. Nginx and Apache are reloaded automatically
 
 **Fully automated end-to-end, with no manual intervention.**
@@ -176,22 +176,39 @@ ssl:
     password: "your-ssh-password"
 ```
 
+### SafeLine WAF certificate deployment
+
+Generate an API Token in SafeLine's General Settings, then configure the management URL and token on the deploy client. Connection testing only calls the read-only certificate list endpoint. During deployment, existing certificates are matched by the complete SAN domain set: every exact match is updated, while a new certificate is created when no exact match exists. Partial domain overlap is never used for replacement.
+
+```yaml
+ssl:
+  safeLine:
+    url: "https://waf.example.com:9443"
+    apiToken: "your-safeline-api-token"
+    insecureSkipVerify: false
+```
+
+Keep `insecureSkipVerify` set to `false` by default. Enable it only when the SafeLine management endpoint uses a self-signed HTTPS certificate that you explicitly trust. The API Token remains on the deploy client and is never sent to the ANSSL backend.
+
 ## FAQ
 
 **Q: Where can I get `server.accessKey`?**  
 A: Log in to [anssl.cn](https://anssl.cn) → Console → Developer → API Credentials.
 
 **Q: Which web servers and panels are supported?**  
-A: Nginx, Apache, RustFS, 1Panel, and FeiNiu OS. RustFS supports either a local directory or remote SSH deployment. FeiNiu uses the built-in method on the client's device by default and can also deploy remotely through `ssl.feiNiu`. Both targets support password and private-key authentication.
+A: Nginx, Apache, RustFS, 1Panel, SafeLine WAF, and FeiNiu OS. RustFS supports either a local directory or remote SSH deployment. FeiNiu uses the built-in method on the client's device by default and can also deploy remotely through `ssl.feiNiu`. Both SSH targets support password and private-key authentication.
 
 **Q: Can I deploy to multiple targets at the same time?**  
-A: Yes. Configure the required targets in `config.yaml` (`nginxPath`, `apachePath`, `rustFS`, `onePanel`, and optional remote `feiNiu`) and select the corresponding targets in the anssl.cn console.
+A: Yes. Configure the required targets in `config.yaml` (`nginxPath`, `apachePath`, `rustFS`, `onePanel`, `safeLine`, and optional remote `feiNiu`) and select the corresponding targets in the anssl.cn console.
 
 **Q: Where can I get the 1Panel API key?**  
 A: 1Panel → Settings → Security → API Interface → Generate API Key.
 
+**Q: Where can I get the SafeLine API Token?**
+A: SafeLine management console → General Settings → API Token. Store it only in `ssl.safeLine.apiToken` on the deploy client.
+
 **Q: Can certificates be deployed to both local services and cloud providers?**  
-A: Yes. In the [anssl.cn](https://anssl.cn) console, you can configure deployment to local CLI targets (Nginx/Apache/RustFS/1Panel/FeiNiu OS) and/or cloud providers (Alibaba Cloud/Qiniu Cloud/Tencent Cloud). Each certificate can have multiple deployment targets.
+A: Yes. In the [anssl.cn](https://anssl.cn) console, you can configure deployment to local CLI targets (Nginx/Apache/RustFS/1Panel/SafeLine WAF/FeiNiu OS) and/or cloud providers (Alibaba Cloud/Qiniu Cloud/Tencent Cloud). Each certificate can have multiple deployment targets.
 
 **Q: Is manual action required for HTTP-01 validation?**  
 A: No. Once Nginx reverse proxy is configured, validation is fully automated.

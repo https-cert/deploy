@@ -47,6 +47,13 @@ ssl:
     # 1Panel API 密钥。
     apiKey: ""
 
+  # 可选。雷池 WAF OpenAPI 配置。API Token 可在雷池通用设置中获取。
+  # 使用自签名 HTTPS 证书时才开启 insecureSkipVerify；公网或受信任证书必须保持 false。
+  safeLine:
+    url: ""
+    apiToken: ""
+    insecureSkipVerify: false
+
 update:
   # 可选。自更新下载源类型，支持 github、ghproxy、custom，默认 ghproxy。
   # github：直连 GitHub。

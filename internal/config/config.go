@@ -56,6 +56,7 @@ type (
 		RustFS     *RustFSConfig   `yaml:"rustFS"`     // RustFS 是本机或 SSH 远程部署配置
 		FeiNiu     *SSHConfig      `yaml:"feiNiu"`     // FeiNiu 是可选的 SSH 远程配置，空值表示本机部署
 		OnePanel   *OnePanelConfig `yaml:"onePanel"`   // OnePanel 是 1Panel API 配置
+		SafeLine   *SafeLineConfig `yaml:"safeLine"`   // SafeLine 是雷池 WAF OpenAPI 配置
 	}
 
 	// SSHConfig 保存仅供 deploy 客户端本地使用的 SSH 认证配置。
@@ -81,6 +82,13 @@ type (
 	OnePanelConfig struct {
 		URL    string `yaml:"url"`    // 1Panel API 地址
 		APIKey string `yaml:"apiKey"` // 1Panel API 密钥
+	}
+
+	// SafeLineConfig 雷池 WAF OpenAPI 配置。
+	SafeLineConfig struct {
+		URL                string `yaml:"url"`                // URL 是雷池管理端地址
+		APIToken           string `yaml:"apiToken"`           // APIToken 是通用设置中生成的 API Token
+		InsecureSkipVerify bool   `yaml:"insecureSkipVerify"` // InsecureSkipVerify 仅用于显式信任自签名 HTTPS 证书
 	}
 
 	// UpdateConfig 自更新下载源和代理配置
@@ -188,6 +196,9 @@ func validateConfig() error {
 	if err := validateFeiNiuConfig(); err != nil {
 		return err
 	}
+	if err := validateSafeLineConfig(); err != nil {
+		return err
+	}
 
 	if Config.Server.Env != "" && Config.Server.Env != envLocal {
 		return fmt.Errorf("不支持的服务环境: %s (支持: 空值, local)", Config.Server.Env)
@@ -242,6 +253,44 @@ func validateFeiNiuConfig() error {
 		return nil
 	}
 	return validateSSHConfig("ssl.feiNiu", Config.SSL.FeiNiu)
+}
+
+// validateSafeLineConfig 验证可选的雷池地址和 API Token，并规范化管理端地址。
+func validateSafeLineConfig() error {
+	if Config.SSL.SafeLine == nil {
+		return nil
+	}
+
+	safeLine := Config.SSL.SafeLine
+	safeLine.URL = strings.TrimRight(strings.TrimSpace(safeLine.URL), "/")
+	safeLine.APIToken = strings.TrimSpace(safeLine.APIToken)
+	if safeLine.URL == "" && safeLine.APIToken == "" {
+		if safeLine.InsecureSkipVerify {
+			return errors.New("ssl.safeLine.insecureSkipVerify 只能在配置雷池地址和 API Token 后启用")
+		}
+		return nil
+	}
+	if safeLine.URL == "" {
+		return errors.New("ssl.safeLine.url 不能为空")
+	}
+	if safeLine.APIToken == "" {
+		return errors.New("ssl.safeLine.apiToken 不能为空")
+	}
+	if strings.ContainsAny(safeLine.APIToken, "\r\n\x00") {
+		return errors.New("ssl.safeLine.apiToken 不能包含换行或 NUL 字符")
+	}
+
+	parsedURL, err := url.Parse(safeLine.URL)
+	if err != nil || parsedURL.Hostname() == "" || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") {
+		return errors.New("ssl.safeLine.url 必须是合法的 HTTP 或 HTTPS 地址")
+	}
+	if parsedURL.User != nil || parsedURL.RawQuery != "" || parsedURL.Fragment != "" {
+		return errors.New("ssl.safeLine.url 不能包含用户凭据、查询参数或片段")
+	}
+	if safeLine.InsecureSkipVerify && parsedURL.Scheme != "https" {
+		return errors.New("ssl.safeLine.insecureSkipVerify 仅适用于 HTTPS 地址")
+	}
+	return nil
 }
 
 // validateRustFSConfig 归一化 RustFS 新旧配置并验证本机或 SSH 远程模式。

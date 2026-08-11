@@ -27,6 +27,9 @@ var testRustFSConnection = deploys.TestRustFSConnection
 // testOnePanelConnection 允许连接测试使用替身而不请求真实 1Panel API。
 var testOnePanelConnection = deploys.TestOnePanelConnection
 
+// testSafeLineConnection 允许连接测试使用替身而不请求真实雷池 OpenAPI。
+var testSafeLineConnection = deploys.TestSafeLineConnection
+
 // GetProviderInfo 获取提供商信息列表
 func GetProviderInfo() []ProviderInfo {
 	cfg := config.GetConfig()
@@ -66,6 +69,11 @@ func testDeploymentConnection(providerName string, businessType deployPB.Execute
 		}
 		if businessType == deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_1PANEL_CERT {
 			if err := testOnePanelConnection(); err != nil {
+				return false, err
+			}
+		}
+		if businessType == deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_SAFELINE_CERT {
+			if err := testSafeLineConnection(); err != nil {
 				return false, err
 			}
 		}
