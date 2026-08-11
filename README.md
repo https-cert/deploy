@@ -158,10 +158,10 @@ sudo systemctl start anssl
 A: 登录 [anssl.cn](https://anssl.cn) → 控制台 → 开发者 → API 凭证
 
 **Q: 支持哪些 Web 服务器和管理面板？**
-A: 支持 Nginx、Apache、RustFS、1Panel 和飞牛 OS 自动部署。只需在 `config.yaml` 中配置对应的证书目录或面板信息，即可实现自动部署和服务重载（Nginx 和 Apache）
+A: 支持 Nginx、Apache、RustFS、1Panel 和飞牛 OS 自动部署。飞牛部署目标默认使用客户端所在设备的内置本机逻辑；如果客户端未安装在飞牛 OS 上，可在 `config.yaml` 中填写 `ssl.feiNiu` 的主机、端口、用户名和密码，通过 SSH 远程部署。
 
 **Q: 可以同时部署到多个服务吗？**
-A: 可以。在 `config.yaml` 中同时配置多个部署目标（如 `nginxPath`、`apachePath`、`rustFSPath`、`onePanel`、`feiNiuEnabled`），证书更新时会自动部署到所有配置的服务
+A: 可以。在 `config.yaml` 中配置所需目标（如 `nginxPath`、`apachePath`、`rustFSPath`、`onePanel` 和可选的远程 `feiNiu`），并在 anssl.cn 控制台为证书选择对应部署目标。
 
 **Q: 1Panel 的 API 密钥在哪里获取？**
 A: 登录 1Panel 面板 → 设置 → 安全 → API 接口 → 生成 API 密钥

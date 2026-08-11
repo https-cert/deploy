@@ -37,6 +37,7 @@ go.work.sum
 
 # Local configuration and helper scripts
 /config.yaml
+/known_hosts
 /install.sh
 /release.sh
 

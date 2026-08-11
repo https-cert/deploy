@@ -18,8 +18,13 @@ ssl:
   # 可选。RustFS TLS 证书目录，配置后会自动部署 RustFS 使用的 TLS 证书。
   # 留空则不部署到 RustFS。
   rustFSPath: ""
-  # 可选。飞牛 OS 证书部署开关，默认 false。
-  feiNiuEnabled: false
+  # 可选。远程飞牛 OS 的 SSH 配置；不配置时，飞牛部署目标使用当前设备的内置本机部署逻辑。
+  # password 同时用于 SSH 登录和非 root 用户的 sudo 提权，请确保配置文件权限为 0600。
+  # feiNiu:
+  #   host: ""
+  #   port: 22
+  #   username: ""
+  #   password: ""
   # 可选。1Panel 配置。url 或 apiKey 留空则不部署到 1Panel。
   onePanel:
     # 1Panel 面板地址，例如 http://localhost:10000。

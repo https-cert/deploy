@@ -651,11 +651,12 @@ func (*NotifyResponse_ChallengeRequest) isNotifyResponse_Data() {}
 
 // MARK: - Connect: 连接
 type ConnectRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Provider      string                 `protobuf:"bytes,1,opt,name=provider,proto3" json:"provider,omitempty"` // 提供商
-	Success       bool                   `protobuf:"varint,2,opt,name=success,proto3" json:"success,omitempty"`  // 是否成功
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	Provider           string                 `protobuf:"bytes,1,opt,name=provider,proto3" json:"provider,omitempty"`                                                                                   // 提供商
+	Success            bool                   `protobuf:"varint,2,opt,name=success,proto3" json:"success,omitempty"`                                                                                    // 是否成功
+	ExecuteBusinesType ExecuteBusinesType     `protobuf:"varint,3,opt,name=execute_busines_type,json=executeBusinesType,proto3,enum=deployPB.ExecuteBusinesType" json:"execute_busines_type,omitempty"` // 需要测试的具体部署业务
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *ConnectRequest) Reset() {
@@ -700,6 +701,13 @@ func (x *ConnectRequest) GetSuccess() bool {
 		return x.Success
 	}
 	return false
+}
+
+func (x *ConnectRequest) GetExecuteBusinesType() ExecuteBusinesType {
+	if x != nil {
+		return x.ExecuteBusinesType
+	}
+	return ExecuteBusinesType_EXECUTE_BUSINES_UNKNOWN
 }
 
 // MARK: - 证书更新
@@ -1568,10 +1576,11 @@ const file_deployPB_deploy_proto_rawDesc = "" +
 	"\x0econnectRequest\x18\a \x01(\v2\x18.deployPB.ConnectRequestH\x00R\x0econnectRequest\x12Z\n" +
 	"\x16executeBusinesResponse\x18\b \x01(\v2 .deployPB.ExecuteBusinesResponseH\x00R\x16executeBusinesResponse\x12H\n" +
 	"\x10challengeRequest\x18\t \x01(\v2\x1a.deployPB.ChallengeRequestH\x00R\x10challengeRequestB\x06\n" +
-	"\x04data\"F\n" +
+	"\x04data\"\xa5\x01\n" +
 	"\x0eConnectRequest\x12\x1a\n" +
 	"\bprovider\x18\x01 \x01(\tR\bprovider\x12\x18\n" +
-	"\asuccess\x18\x02 \x01(\bR\asuccess\"\x13\n" +
+	"\asuccess\x18\x02 \x01(\bR\asuccess\x12N\n" +
+	"\x14execute_busines_type\x18\x03 \x01(\x0e2\x1c.deployPB.ExecuteBusinesTypeR\x12executeBusinesTypeJ\x04\b\x04\x10\x05R\amessage\"\x13\n" +
 	"\x11CertUpdateRequest\">\n" +
 	"\x12CertUpdateResponse\x12\x16\n" +
 	"\x06domain\x18\x01 \x01(\tR\x06domain\x12\x10\n" +
@@ -1732,22 +1741,23 @@ var file_deployPB_deploy_proto_depIdxs = []int32{
 	7,  // 8: deployPB.NotifyResponse.connectRequest:type_name -> deployPB.ConnectRequest
 	18, // 9: deployPB.NotifyResponse.executeBusinesResponse:type_name -> deployPB.ExecuteBusinesResponse
 	10, // 10: deployPB.NotifyResponse.challengeRequest:type_name -> deployPB.ChallengeRequest
-	2,  // 11: deployPB.ChallengeRequest.action:type_name -> deployPB.ChallengeRequest.Action
-	3,  // 12: deployPB.ChallengeResponse.result:type_name -> deployPB.ChallengeResponse.Result
-	19, // 13: deployPB.GetProviderResponse.providers:type_name -> deployPB.GetProviderResponse.Provider
-	21, // 14: deployPB.RegisterResponse.systemInfo:type_name -> deployPB.RegisterResponse.SystemInfo
-	4,  // 15: deployPB.ExecuteBusinesRequest.requestResult:type_name -> deployPB.ExecuteBusinesRequest.RequestResult
-	1,  // 16: deployPB.ExecuteBusinesResponse.executeBusinesType:type_name -> deployPB.ExecuteBusinesType
-	20, // 17: deployPB.GetProviderResponse.Provider.businesses:type_name -> deployPB.GetProviderResponse.Provider.Business
-	1,  // 18: deployPB.GetProviderResponse.Provider.Business.execute_busines_type:type_name -> deployPB.ExecuteBusinesType
-	13, // 19: deployPB.GetProviderResponse.Provider.Business.resources:type_name -> deployPB.DeployResource
-	5,  // 20: deployPB.DeployService.Notify:input_type -> deployPB.NotifyRequest
-	6,  // 21: deployPB.DeployService.Notify:output_type -> deployPB.NotifyResponse
-	21, // [21:22] is the sub-list for method output_type
-	20, // [20:21] is the sub-list for method input_type
-	20, // [20:20] is the sub-list for extension type_name
-	20, // [20:20] is the sub-list for extension extendee
-	0,  // [0:20] is the sub-list for field type_name
+	1,  // 11: deployPB.ConnectRequest.execute_busines_type:type_name -> deployPB.ExecuteBusinesType
+	2,  // 12: deployPB.ChallengeRequest.action:type_name -> deployPB.ChallengeRequest.Action
+	3,  // 13: deployPB.ChallengeResponse.result:type_name -> deployPB.ChallengeResponse.Result
+	19, // 14: deployPB.GetProviderResponse.providers:type_name -> deployPB.GetProviderResponse.Provider
+	21, // 15: deployPB.RegisterResponse.systemInfo:type_name -> deployPB.RegisterResponse.SystemInfo
+	4,  // 16: deployPB.ExecuteBusinesRequest.requestResult:type_name -> deployPB.ExecuteBusinesRequest.RequestResult
+	1,  // 17: deployPB.ExecuteBusinesResponse.executeBusinesType:type_name -> deployPB.ExecuteBusinesType
+	20, // 18: deployPB.GetProviderResponse.Provider.businesses:type_name -> deployPB.GetProviderResponse.Provider.Business
+	1,  // 19: deployPB.GetProviderResponse.Provider.Business.execute_busines_type:type_name -> deployPB.ExecuteBusinesType
+	13, // 20: deployPB.GetProviderResponse.Provider.Business.resources:type_name -> deployPB.DeployResource
+	5,  // 21: deployPB.DeployService.Notify:input_type -> deployPB.NotifyRequest
+	6,  // 22: deployPB.DeployService.Notify:output_type -> deployPB.NotifyResponse
+	22, // [22:23] is the sub-list for method output_type
+	21, // [21:22] is the sub-list for method input_type
+	21, // [21:21] is the sub-list for extension type_name
+	21, // [21:21] is the sub-list for extension extendee
+	0,  // [0:21] is the sub-list for field type_name
 }
 
 func init() { file_deployPB_deploy_proto_init() }

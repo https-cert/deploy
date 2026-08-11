@@ -6,17 +6,20 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
+	"unicode"
 
 	"github.com/spf13/viper"
 )
 
 var (
-	Config   *Configuration
-	URL      = URLProd
-	URLProd  = "https://anssl.cn/deploy"
-	URLLocal = "http://localhost:9000/deploy"
+	Config           *Configuration
+	URL              = URLProd
+	URLProd          = "https://anssl.cn/deploy"
+	URLLocal         = "http://localhost:9000/deploy"
+	loadedConfigFile string
 )
 
 const (
@@ -46,11 +49,19 @@ type (
 
 	// DeployConfig 本地证书部署目标配置
 	DeployConfig struct {
-		NginxPath     string          `yaml:"nginxPath"`     // Nginx SSL 证书目录
-		ApachePath    string          `yaml:"apachePath"`    // Apache SSL 证书目录
-		RustFSPath    string          `yaml:"rustFSPath"`    // RustFS TLS 证书目录
-		FeiNiuEnabled bool            `yaml:"feiNiuEnabled"` // 飞牛 TLS 证书部署开关
-		OnePanel      *OnePanelConfig `yaml:"onePanel"`      // 1Panel 配置
+		NginxPath  string           `yaml:"nginxPath"`  // Nginx SSL 证书目录
+		ApachePath string           `yaml:"apachePath"` // Apache SSL 证书目录
+		RustFSPath string           `yaml:"rustFSPath"` // RustFS TLS 证书目录
+		FeiNiu     *FeiNiuSSHConfig `yaml:"feiNiu"`     // FeiNiu 远程 SSH 配置，空值表示本机部署
+		OnePanel   *OnePanelConfig  `yaml:"onePanel"`   // 1Panel 配置
+	}
+
+	// FeiNiuSSHConfig 飞牛 OS 远程部署使用的 SSH 连接配置
+	FeiNiuSSHConfig struct {
+		Host     string `yaml:"host"`     // Host 飞牛 OS 主机名或 IP 地址
+		Port     int    `yaml:"port"`     // Port SSH 端口，默认 22
+		Username string `yaml:"username"` // Username SSH 登录用户名
+		Password string `yaml:"password"` // Password SSH 登录及 sudo 密码
 	}
 
 	// OnePanelConfig 1Panel 配置
@@ -110,6 +121,10 @@ type (
 func Init(configFile string) error {
 	viper.Reset()
 	URL = URLProd
+	loadedConfigFile = configFile
+	if absoluteConfigFile, err := filepath.Abs(configFile); err == nil {
+		loadedConfigFile = absoluteConfigFile
+	}
 
 	viper.SetConfigFile(configFile)
 	viper.SetConfigType("yaml")
@@ -153,6 +168,9 @@ func validateConfig() error {
 	// 处理 SSL 配置
 	if Config.SSL == nil {
 		Config.SSL = &DeployConfig{}
+	}
+	if err := validateFeiNiuConfig(); err != nil {
+		return err
 	}
 
 	if Config.Server.Env != "" && Config.Server.Env != envLocal {
@@ -200,6 +218,52 @@ func validateConfig() error {
 	}
 
 	return nil
+}
+
+// validateFeiNiuConfig 验证可选的飞牛 OS SSH 远程部署配置。
+func validateFeiNiuConfig() error {
+	if Config.SSL.FeiNiu == nil {
+		return nil
+	}
+
+	feiNiu := Config.SSL.FeiNiu
+	feiNiu.Host = strings.TrimSpace(feiNiu.Host)
+	if strings.HasPrefix(feiNiu.Host, "[") && strings.HasSuffix(feiNiu.Host, "]") {
+		feiNiu.Host = strings.TrimSuffix(strings.TrimPrefix(feiNiu.Host, "["), "]")
+	}
+	feiNiu.Username = strings.TrimSpace(feiNiu.Username)
+	if feiNiu.Port == 0 {
+		feiNiu.Port = 22
+	}
+	if feiNiu.Host == "" {
+		return errors.New("ssl.feiNiu.host 不能为空")
+	}
+	if strings.Contains(feiNiu.Host, "://") || strings.ContainsAny(feiNiu.Host, "/?#@") || containsSpaceOrControl(feiNiu.Host) {
+		return errors.New("ssl.feiNiu.host 必须是主机名或 IP 地址，不能包含协议、路径或空白字符")
+	}
+	if strings.Contains(feiNiu.Host, ":") && net.ParseIP(feiNiu.Host) == nil {
+		return errors.New("ssl.feiNiu.host 不能包含端口，端口请单独填写到 ssl.feiNiu.port")
+	}
+	if feiNiu.Port < minPort || feiNiu.Port > maxPort {
+		return fmt.Errorf("ssl.feiNiu.port 必须在 %d-%d 之间", minPort, maxPort)
+	}
+	if feiNiu.Username == "" || containsSpaceOrControl(feiNiu.Username) {
+		return errors.New("ssl.feiNiu.username 不能为空且不能包含空白或控制字符")
+	}
+	if feiNiu.Password == "" {
+		return errors.New("ssl.feiNiu.password 不能为空")
+	}
+	if strings.ContainsAny(feiNiu.Password, "\r\n\x00") {
+		return errors.New("ssl.feiNiu.password 不能包含换行或 NUL 字符")
+	}
+	return nil
+}
+
+// containsSpaceOrControl 判断 SSH 标识字段是否含不可接受的空白或控制字符。
+func containsSpaceOrControl(value string) bool {
+	return strings.IndexFunc(value, func(character rune) bool {
+		return unicode.IsSpace(character) || unicode.IsControl(character)
+	}) >= 0
 }
 
 // validateUpdateURL validates an update mirror URL and permits local HTTP only in local mode.
@@ -339,6 +403,14 @@ func validateProviders() error {
 // GetConfig 获取配置
 func GetConfig() *Configuration {
 	return Config
+}
+
+// GetSSHKnownHostsFile 返回与当前配置文件同目录的 SSH 主机密钥记录文件。
+func GetSSHKnownHostsFile() string {
+	if loadedConfigFile == "" {
+		return "known_hosts"
+	}
+	return filepath.Join(filepath.Dir(loadedConfigFile), "known_hosts")
 }
 
 // GetProvider 获取提供商配置

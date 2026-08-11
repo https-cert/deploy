@@ -113,12 +113,14 @@ func (c *WSClient) handleMessage(resp *deployPB.NotifyResponse) {
 		if connectReq, ok := resp.Data.(*deployPB.NotifyResponse_ConnectRequest); ok {
 			if connectReq.ConnectRequest == nil {
 				logger.Warn("连接测试消息缺少 payload", "requestId", resp.RequestId)
-				c.sendConnectResponse(resp.RequestId, "", false)
+				c.sendConnectResponse(resp.RequestId, "", deployPB.ExecuteBusinesType_EXECUTE_BUSINES_UNKNOWN, false)
 				return
 			}
 			requestID := resp.RequestId
 			data := connectReq.ConnectRequest
-			c.runOperation("connect", func() { c.sendConnectResponse(requestID, data.Provider, false) }, func() {
+			c.runOperation("connect", func() {
+				c.sendConnectResponse(requestID, data.Provider, data.ExecuteBusinesType, false)
+			}, func() {
 				c.handleConnect(requestID, data)
 			})
 		} else {
@@ -167,24 +169,24 @@ func (c *WSClient) handleMessage(resp *deployPB.NotifyResponse) {
 // handleConnect 处理连接测试
 func (c *WSClient) handleConnect(requestId string, data *deployPB.ConnectRequest) {
 	if data == nil {
-		c.sendConnectResponse(requestId, "", false)
+		c.sendConnectResponse(requestId, "", deployPB.ExecuteBusinesType_EXECUTE_BUSINES_UNKNOWN, false)
 		return
 	}
 	// 标记开始执行业务操作
 	c.busyOperations.Add(1)
 	defer c.busyOperations.Add(-1)
 
-	logger.Info("收到【测试连接提供商】请求", "provider", data.Provider, "requestId", requestId)
+	logger.Info("收到【测试连接】请求", "provider", data.Provider, "businessType", data.ExecuteBusinesType, "requestId", requestId)
 
-	// 使用共享函数测试连接
-	success, err := TestProviderConnection(data.Provider)
+	// 使用共享函数测试对应 provider 或本地部署业务。
+	success, err := TestDeploymentConnection(data.Provider, data.ExecuteBusinesType)
 	if err != nil {
-		logger.Error("测试连接失败", "error", err, "provider", data.Provider)
+		logger.Error("测试连接失败", "error", err, "provider", data.Provider, "businessType", data.ExecuteBusinesType)
 		success = false
 	}
 
-	// 发送响应
-	c.sendConnectResponse(requestId, data.Provider, success)
+	// 只回传成功状态，避免把 SSH 地址、用户名和远端诊断信息发送到后端。
+	c.sendConnectResponse(requestId, data.Provider, data.ExecuteBusinesType, success)
 }
 
 // handleGetProvider 处理获取提供商信息

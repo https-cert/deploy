@@ -16,6 +16,7 @@ require (
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ssl v1.3.147
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/teo v1.3.142
 	github.com/tencentyun/cos-go-sdk-v5 v0.7.75
+	golang.org/x/crypto v0.54.0
 	golang.org/x/net v0.57.0
 	google.golang.org/protobuf v1.36.11
 )

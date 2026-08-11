@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -21,6 +22,33 @@ import (
 const feiniuCommandTimeout = 30 * time.Second
 
 var feiniuNginxConfigFile = "/usr/trim/etc/network_gateway_cert.conf"
+
+// TestFeiNiuConnection 根据配置测试本机或 SSH 远程飞牛部署环境。
+func TestFeiNiuConnection() error {
+	sshConfig := config.GetConfig().SSL.FeiNiu
+	if sshConfig != nil {
+		return TestRemoteFeiNiuConnection(sshConfig)
+	}
+	return testLocalFeiNiuEnvironment()
+}
+
+// testLocalFeiNiuEnvironment 验证 CLI 所在机器具备飞牛内置部署所需的路径、命令和数据库。
+func testLocalFeiNiuEnvironment() error {
+	for _, requiredPath := range []string{FeiNiuFixedPath, feiniuNginxConfigFile} {
+		if _, err := os.Stat(requiredPath); err != nil {
+			return fmt.Errorf("飞牛本机部署环境缺少 %s: %w", requiredPath, err)
+		}
+	}
+	for _, command := range []string{"psql", "systemctl"} {
+		if _, err := exec.LookPath(command); err != nil {
+			return fmt.Errorf("飞牛本机部署环境缺少命令 %s: %w", command, err)
+		}
+	}
+	if output, err := runFeiniuPSQL(map[string]string{}, "SELECT 1;\n"); err != nil {
+		return fmt.Errorf("连接飞牛 trim_connect 数据库失败: %w, output: %s", err, strings.TrimSpace(string(output)))
+	}
+	return nil
+}
 
 // DeployToFeiNiu 部署证书到飞牛目录
 func (cd *CertDeployer) DeployToFeiNiu(sourceDir, feiNiuPath, domain string) error {
@@ -150,8 +178,8 @@ func updateFeiniuDatabase(domain, certPath string, validFrom, validTo int64) err
 		return fmt.Errorf("飞牛证书域名无效")
 	}
 	// 获取证书文件路径
-	certFile := filepath.Join(certPath, safeDomain+".crt")
-	keyFile := filepath.Join(certPath, safeDomain+".key")
+	certFile := path.Join(certPath, safeDomain+".crt")
+	keyFile := path.Join(certPath, safeDomain+".key")
 	issuerFile := "" // 不使用 issuer_certificate.crt
 
 	// 获取当前时间戳（毫秒）
@@ -264,12 +292,9 @@ func updateFeiniuNginxConfig(domain, certPath string) error {
 
 // updateFeiniuNginxConfigFile updates a Feiniu gateway certificate JSON file atomically.
 func updateFeiniuNginxConfigFile(configFile, domain, certPath string) error {
-	safeDomain := SanitizeDomain(domain)
-	if safeDomain == "" {
+	if SanitizeDomain(domain) == "" {
 		return fmt.Errorf("飞牛证书域名无效")
 	}
-	certFile := filepath.Join(certPath, safeDomain+".crt")
-	keyFile := filepath.Join(certPath, safeDomain+".key")
 
 	resolvedConfigFile, err := filepath.EvalSymlinks(configFile)
 	if err != nil {
@@ -279,10 +304,39 @@ func updateFeiniuNginxConfigFile(configFile, domain, certPath string) error {
 	if err != nil {
 		return fmt.Errorf("读取Nginx配置失败: %w", err)
 	}
+	newContent, err := renderFeiniuNginxConfig(content, domain, certPath)
+	if err != nil {
+		return err
+	}
+
+	info, err := os.Stat(resolvedConfigFile)
+	if err != nil {
+		return fmt.Errorf("读取Nginx配置权限失败: %w", err)
+	}
+	backupFile := fmt.Sprintf("%s.%d.bak", resolvedConfigFile, time.Now().UnixNano())
+	if err := CopyFileWithMode(resolvedConfigFile, backupFile, info.Mode().Perm()); err != nil {
+		return fmt.Errorf("备份Nginx配置失败: %w", err)
+	}
+	if err := writeFileAtomically(resolvedConfigFile, newContent, info.Mode().Perm()); err != nil {
+		return fmt.Errorf("写入Nginx配置失败: %w", err)
+	}
+
+	logger.Info("已更新飞牛Nginx配置", "domain", domain)
+	return nil
+}
+
+// renderFeiniuNginxConfig 在内存中更新飞牛网关证书配置，供本机和 SSH 部署复用。
+func renderFeiniuNginxConfig(content []byte, domain, certPath string) ([]byte, error) {
+	safeDomain := SanitizeDomain(domain)
+	if safeDomain == "" {
+		return nil, fmt.Errorf("飞牛证书域名无效")
+	}
+	certFile := path.Join(certPath, safeDomain+".crt")
+	keyFile := path.Join(certPath, safeDomain+".key")
 
 	var entries []map[string]any
 	if err := json.Unmarshal(content, &entries); err != nil {
-		return fmt.Errorf("解析Nginx配置失败，原文件未修改: %w", err)
+		return nil, fmt.Errorf("解析Nginx配置失败，原文件未修改: %w", err)
 	}
 	replacement := map[string]any{"host": domain, "cert": certFile, "key": keyFile}
 	found := false
@@ -304,24 +358,10 @@ func updateFeiniuNginxConfigFile(configFile, domain, certPath string) error {
 	}
 	newContent, err := json.MarshalIndent(entries, "", "  ")
 	if err != nil {
-		return fmt.Errorf("序列化Nginx配置失败: %w", err)
+		return nil, fmt.Errorf("序列化Nginx配置失败: %w", err)
 	}
 	newContent = append(newContent, '\n')
-
-	info, err := os.Stat(resolvedConfigFile)
-	if err != nil {
-		return fmt.Errorf("读取Nginx配置权限失败: %w", err)
-	}
-	backupFile := fmt.Sprintf("%s.%d.bak", resolvedConfigFile, time.Now().UnixNano())
-	if err := CopyFileWithMode(resolvedConfigFile, backupFile, info.Mode().Perm()); err != nil {
-		return fmt.Errorf("备份Nginx配置失败: %w", err)
-	}
-	if err := writeFileAtomically(resolvedConfigFile, newContent, info.Mode().Perm()); err != nil {
-		return fmt.Errorf("写入Nginx配置失败: %w", err)
-	}
-
-	logger.Info("已更新飞牛Nginx配置", "domain", domain)
-	return nil
+	return newContent, nil
 }
 
 // writeFileAtomically writes data through a same-directory temporary file and rename.
@@ -410,16 +450,19 @@ func isPermissionError(err error) bool {
 func (cd *CertDeployer) DeployCertificateToFeiNiu(domain, url string) error {
 	sslConfig := config.GetConfig().SSL
 
-	if !sslConfig.FeiNiuEnabled {
-		return fmt.Errorf("未启用飞牛部署 (ssl.feiNiuEnabled)")
-	}
-
 	canonicalDomain, _, extractDir, cleanup, err := cd.prepareCertificateArchive(domain, url)
 	if err != nil {
 		return err
 	}
 	defer cleanup()
 	domain = canonicalDomain
+	if sslConfig.FeiNiu != nil {
+		if err := cd.DeployToRemoteFeiNiu(extractDir, domain, sslConfig.FeiNiu); err != nil {
+			return fmt.Errorf("通过 SSH 部署到飞牛失败: %w", err)
+		}
+		logger.Info("飞牛远程证书部署完成", "domain", domain, "host", sslConfig.FeiNiu.Host)
+		return nil
+	}
 
 	// 部署到飞牛目录（使用固定路径）
 	if err := cd.DeployToFeiNiu(extractDir, FeiNiuFixedPath, domain); err != nil {

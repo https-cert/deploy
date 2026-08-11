@@ -158,10 +158,10 @@ sudo systemctl start anssl
 A: Log in to [anssl.cn](https://anssl.cn) → Console → Developer → API Credentials.
 
 **Q: Which web servers and panels are supported?**  
-A: Nginx, Apache, RustFS, 1Panel, and FeiNiu OS. Configure certificate directories or panel info in `config.yaml`, and deployment runs automatically (with reload for Nginx/Apache).
+A: Nginx, Apache, RustFS, 1Panel, and FeiNiu OS. FeiNiu targets use the built-in local deployment when the client runs on that device. If the client runs elsewhere, configure `ssl.feiNiu` with the host, port, username, and password to deploy over SSH.
 
 **Q: Can I deploy to multiple targets at the same time?**  
-A: Yes. Configure multiple targets in `config.yaml` (`nginxPath`, `apachePath`, `rustFSPath`, `onePanel`, `feiNiuEnabled`) and updates deploy to all enabled targets.
+A: Yes. Configure the required targets in `config.yaml` (`nginxPath`, `apachePath`, `rustFSPath`, `onePanel`, and optional remote `feiNiu`) and select the corresponding targets in the anssl.cn console.
 
 **Q: Where can I get the 1Panel API key?**  
 A: 1Panel → Settings → Security → API Interface → Generate API Key.

@@ -3,18 +3,23 @@ package client
 import (
 	"fmt"
 
+	"github.com/https-cert/deploy/internal/client/deploys"
 	"github.com/https-cert/deploy/internal/client/providers/aliyun"
 	cloud_tencent "github.com/https-cert/deploy/internal/client/providers/cloud_tencent"
 	"github.com/https-cert/deploy/internal/client/providers/qiniu"
 	"github.com/https-cert/deploy/internal/config"
+	"github.com/https-cert/deploy/pb/deployPB"
 	"github.com/https-cert/deploy/pkg/logger"
 )
 
 // ProviderInfo 提供商信息
 type ProviderInfo struct {
-	Name   string
-	Remark string
+	Name   string // Name 是客户端配置中的 provider 名称。
+	Remark string // Remark 是控制台展示的 provider 说明。
 }
+
+// testFeiNiuConnection 允许单元测试替换真实飞牛环境探测，生产环境始终使用 SSH 或本机检查。
+var testFeiNiuConnection = deploys.TestFeiNiuConnection
 
 // GetProviderInfo 获取提供商信息列表
 func GetProviderInfo() []ProviderInfo {
@@ -29,10 +34,25 @@ func GetProviderInfo() []ProviderInfo {
 	return providers
 }
 
-// TestProviderConnection 测试提供商连接
+// TestProviderConnection 测试云服务 provider 连接，供 CLI doctor 复用。
 func TestProviderConnection(providerName string) (bool, error) {
+	return testDeploymentConnection(providerName, deployPB.ExecuteBusinesType_EXECUTE_BUSINES_UNKNOWN)
+}
+
+// TestDeploymentConnection 根据具体部署业务执行对应的连接或环境检查。
+func TestDeploymentConnection(providerName string, businessType deployPB.ExecuteBusinesType) (bool, error) {
+	return testDeploymentConnection(providerName, businessType)
+}
+
+// testDeploymentConnection 汇总 provider 凭据测试与本地部署环境测试的共同分发逻辑。
+func testDeploymentConnection(providerName string, businessType deployPB.ExecuteBusinesType) (bool, error) {
 	switch providerName {
 	case "ansslCli":
+		if businessType == deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_FEINIU_CERT {
+			if err := testFeiNiuConnection(); err != nil {
+				return false, err
+			}
+		}
 		return true, nil
 
 	case "aliyun":
