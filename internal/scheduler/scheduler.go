@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"errors"
+	"net/url"
 	"strings"
 	"time"
 
@@ -65,6 +66,10 @@ func configuredSensitiveValues(configuration *config.Configuration) []string {
 		if configuration.SSL.OnePanel != nil {
 			values = append(values, configuration.SSL.OnePanel.APIKey)
 		}
+		if configuration.SSL.BTPanel != nil {
+			values = append(values, sensitiveHTTPConfigValues(configuration.SSL.BTPanel.URL)...)
+			values = append(values, configuration.SSL.BTPanel.APIKey)
+		}
 		if configuration.SSL.SafeLine != nil {
 			values = append(values, configuration.SSL.SafeLine.APIToken)
 		}
@@ -87,6 +92,20 @@ func configuredSensitiveValues(configuration *config.Configuration) []string {
 			provider.Auth.AccessKey,
 			provider.Auth.AccessSecret,
 		)
+	}
+	return values
+}
+
+// sensitiveHTTPConfigValues 返回在线日志中需要清除的完整地址和主机名。
+func sensitiveHTTPConfigValues(rawURL string) []string {
+	trimmed := strings.TrimSpace(rawURL)
+	if trimmed == "" {
+		return nil
+	}
+	values := []string{trimmed, strings.TrimRight(trimmed, "/")}
+	parsed, err := url.Parse(trimmed)
+	if err == nil {
+		values = append(values, parsed.Host, parsed.Hostname())
 	}
 	return values
 }

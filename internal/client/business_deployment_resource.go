@@ -63,6 +63,9 @@ func (be *BusinessExecutor) executeDeploymentResource(ctx context.Context, reque
 	if request.ExecuteBusinesType == deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_1PANEL_WEBSITE_CERT {
 		return be.executeOnePanelWebsiteResource(ctx, request)
 	}
+	if request.ExecuteBusinesType == deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_BT_PANEL_WEBSITE_CERT {
+		return be.executeBTPanelWebsiteResource(ctx, request)
+	}
 
 	factory := be.deploymentResourceProviderFactory
 	if factory == nil {
@@ -100,6 +103,22 @@ func (be *BusinessExecutor) executeDeploymentResource(ctx context.Context, reque
 		result.Message = "证书部署成功"
 	}
 	return result, nil
+}
+
+// executeBTPanelWebsiteResource 在客户端本地重新解析宝塔网站引用并精确替换所选网站证书。
+func (be *BusinessExecutor) executeBTPanelWebsiteResource(ctx context.Context, request BusinessRequest) (providers.DeploymentResult, error) {
+	if request.ProviderName != "ansslCli" {
+		return providers.DeploymentResult{}, providers.NewDeploymentError(localDeploymentFailureMessage, false, "", fmt.Errorf("宝塔网站业务 provider 不匹配"))
+	}
+	if err := deploys.DeployCertificateToBTPanelWebsite(ctx, request.TargetRef, request.CertificatePEM, request.PrivateKeyPEM); err != nil {
+		return providers.DeploymentResult{}, providers.NewDeploymentError(
+			localDeploymentFailureMessage,
+			deploys.IsBTPanelErrorRetryable(err),
+			"",
+			err,
+		)
+	}
+	return providers.DeploymentResult{Message: "宝塔网站证书部署成功"}, nil
 }
 
 // executeOnePanelWebsiteResource 在客户端本地重新解析网站引用并精确替换所选网站证书。

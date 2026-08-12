@@ -56,6 +56,7 @@ type (
 		RustFS     *RustFSConfig   `yaml:"rustFS"`     // RustFS 是本机或 SSH 远程部署配置
 		FeiNiu     *SSHConfig      `yaml:"feiNiu"`     // FeiNiu 是可选的 SSH 远程配置，空值表示本机部署
 		OnePanel   *OnePanelConfig `yaml:"onePanel"`   // OnePanel 是 1Panel API 配置
+		BTPanel    *BTPanelConfig  `yaml:"btPanel"`    // BTPanel 是宝塔面板 API 配置
 		SafeLine   *SafeLineConfig `yaml:"safeLine"`   // SafeLine 是雷池 WAF OpenAPI 配置
 	}
 
@@ -82,6 +83,13 @@ type (
 	OnePanelConfig struct {
 		URL    string `yaml:"url"`    // 1Panel API 地址
 		APIKey string `yaml:"apiKey"` // 1Panel API 密钥
+	}
+
+	// BTPanelConfig 宝塔面板 API 配置。
+	BTPanelConfig struct {
+		URL                string `yaml:"url"`                // URL 是宝塔面板地址
+		APIKey             string `yaml:"apiKey"`             // APIKey 是宝塔面板接口密钥
+		InsecureSkipVerify bool   `yaml:"insecureSkipVerify"` // InsecureSkipVerify 仅用于显式信任自签名 HTTPS 证书
 	}
 
 	// SafeLineConfig 雷池 WAF OpenAPI 配置。
@@ -190,6 +198,9 @@ func validateConfig() error {
 	if err := validateFeiNiuConfig(); err != nil {
 		return err
 	}
+	if err := validateBTPanelConfig(); err != nil {
+		return err
+	}
 	if err := validateSafeLineConfig(); err != nil {
 		return err
 	}
@@ -247,6 +258,44 @@ func validateFeiNiuConfig() error {
 		return nil
 	}
 	return validateSSHConfig("ssl.feiNiu", Config.SSL.FeiNiu)
+}
+
+// validateBTPanelConfig 验证可选的宝塔面板地址和 API 密钥，并规范化管理端地址。
+func validateBTPanelConfig() error {
+	if Config.SSL.BTPanel == nil {
+		return nil
+	}
+
+	btPanel := Config.SSL.BTPanel
+	btPanel.URL = strings.TrimRight(strings.TrimSpace(btPanel.URL), "/")
+	btPanel.APIKey = strings.TrimSpace(btPanel.APIKey)
+	if btPanel.URL == "" && btPanel.APIKey == "" {
+		if btPanel.InsecureSkipVerify {
+			return errors.New("ssl.btPanel.insecureSkipVerify 只能在配置宝塔面板地址和 API 密钥后启用")
+		}
+		return nil
+	}
+	if btPanel.URL == "" {
+		return errors.New("ssl.btPanel.url 不能为空")
+	}
+	if btPanel.APIKey == "" {
+		return errors.New("ssl.btPanel.apiKey 不能为空")
+	}
+	if strings.ContainsAny(btPanel.APIKey, "\r\n\x00") {
+		return errors.New("ssl.btPanel.apiKey 不能包含换行或 NUL 字符")
+	}
+
+	parsedURL, err := url.Parse(btPanel.URL)
+	if err != nil || parsedURL.Hostname() == "" || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") {
+		return errors.New("ssl.btPanel.url 必须是合法的 HTTP 或 HTTPS 地址")
+	}
+	if parsedURL.User != nil || parsedURL.RawQuery != "" || parsedURL.Fragment != "" {
+		return errors.New("ssl.btPanel.url 不能包含用户凭据、查询参数或片段")
+	}
+	if btPanel.InsecureSkipVerify && parsedURL.Scheme != "https" {
+		return errors.New("ssl.btPanel.insecureSkipVerify 仅适用于 HTTPS 地址")
+	}
+	return nil
 }
 
 // validateSafeLineConfig 验证可选的雷池地址和 API Token，并规范化管理端地址。

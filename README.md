@@ -190,25 +190,46 @@ ssl:
 
 `insecureSkipVerify` 默认必须保持 `false`。只有雷池管理端使用你明确信任的自签名 HTTPS 证书时才可开启；API Token 仅保存在 deploy 客户端本机，不会发送到 ANSSL 后端。
 
+### 宝塔网站证书部署
+
+在宝塔面板“面板设置 -> API 接口”中启用 API 并生成密钥，然后把面板地址和密钥配置到 deploy 客户端。网页端会实时读取网站及绑定域名，选择具体网站后建立自动部署目标；未启用 HTTPS 的运行中网站也可以选择，首次部署时会自动启用 HTTPS，之后部署会精确替换该网站证书。
+
+```yaml
+ssl:
+  btPanel:
+    url: "https://panel.example.com:8888"
+    apiKey: "your-bt-panel-api-key"
+    insecureSkipVerify: false
+```
+
+`insecureSkipVerify` 仅用于你明确信任的自签名 HTTPS 面板。面板地址、真实网站 ID、API 密钥、证书私钥和面板原始诊断不会作为部署目标数据保存到 ANSSL 后端。
+
+### 宝塔证书库上传
+
+在部署目标中选择“宝塔证书库”时，deploy 会通过宝塔的 `ssl/cert/save_cert` 接口保存证书，不绑定具体网站。连接测试只读取证书列表；上传后会在 deploy 客户端本地回读证书详情并校验叶证书 SHA-256 指纹。
+
 ## 常见问题
 
 **Q: server.accessKey 在哪里获取？**
 A: 登录 [anssl.cn](https://anssl.cn) → 控制台 → 开发者 → API 凭证
 
 **Q: 支持哪些 Web 服务器和管理面板？**
-A: 支持 Nginx、Apache、RustFS、1Panel、雷池 WAF 和飞牛 OS 自动部署。RustFS 支持本机目录或 SSH 远程部署；飞牛部署目标默认使用客户端所在设备的内置逻辑，也可配置 `ssl.feiNiu` 通过 SSH 远程部署。两者都支持密码和私钥认证。
+A: 支持 Nginx、Apache、RustFS、1Panel、宝塔面板、雷池 WAF 和飞牛 OS 自动部署。RustFS 支持本机目录或 SSH 远程部署；飞牛部署目标默认使用客户端所在设备的内置逻辑，也可配置 `ssl.feiNiu` 通过 SSH 远程部署。两者都支持密码和私钥认证。
 
 **Q: 可以同时部署到多个服务吗？**
-A: 可以。在 `config.yaml` 中配置所需目标（如 `nginxPath`、`apachePath`、`rustFS`、`onePanel`、`safeLine` 和可选的远程 `feiNiu`），并在 anssl.cn 控制台为证书选择对应部署目标。
+A: 可以。在 `config.yaml` 中配置所需目标（如 `nginxPath`、`apachePath`、`rustFS`、`onePanel`、`btPanel`、`safeLine` 和可选的远程 `feiNiu`），并在 anssl.cn 控制台为证书选择对应部署目标。
 
 **Q: 1Panel 的 API 密钥在哪里获取？**
 A: 登录 1Panel 面板 → 设置 → 安全 → API 接口 → 生成 API 密钥
+
+**Q: 宝塔面板的 API 密钥在哪里获取？**
+A: 登录宝塔面板 → 面板设置 → API 接口 → 开启 API 并生成接口密钥。密钥只需填写在 deploy 客户端本机的 `ssl.btPanel.apiKey`。
 
 **Q: 雷池的 API Token 在哪里获取？**
 A: 登录雷池管理端 → 通用设置 → API Token。Token 只需填写在 deploy 客户端本机的 `ssl.safeLine.apiToken`。
 
 **Q: 证书会同时部署到本地和云服务吗？**
-A: 在 [anssl.cn](https://anssl.cn) 控制台配置部署目标时，可以选择部署到本地 CLI（Nginx/Apache/RustFS/1Panel/雷池 WAF/飞牛OS）或云服务（阿里云/七牛云/腾讯云）。每个证书可以配置多个部署目标，实现同时部署
+A: 在 [anssl.cn](https://anssl.cn) 控制台配置部署目标时，可以选择部署到本地 CLI（Nginx/Apache/RustFS/1Panel/宝塔面板/雷池 WAF/飞牛OS）或云服务（阿里云/七牛云/腾讯云）。每个证书可以配置多个部署目标，实现同时部署
 
 **Q: HTTP-01 验证需要手动操作吗？**
 A: 不需要。配置好 Nginx 反向代理后，验证全程自动完成

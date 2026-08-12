@@ -87,26 +87,28 @@ func (Type) EnumDescriptor() ([]byte, []int) {
 type ExecuteBusinesType int32
 
 const (
-	ExecuteBusinesType_EXECUTE_BUSINES_UNKNOWN                       ExecuteBusinesType = 0  // 未知
-	ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_CERT                ExecuteBusinesType = 1  // Nginx 证书部署
-	ExecuteBusinesType_EXECUTE_BUSINES_UPLOAD_CERT                   ExecuteBusinesType = 2  // 上传证书
-	ExecuteBusinesType_EXECUTE_BUSINES_CDN                           ExecuteBusinesType = 3  // CDN
-	ExecuteBusinesType_EXECUTE_BUSINES_DCDN                          ExecuteBusinesType = 4  // DCDN
-	ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_APACHE_CERT         ExecuteBusinesType = 6  // Apache 证书部署
-	ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_RUSTFS_CERT         ExecuteBusinesType = 7  // RustFS 证书部署
-	ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_FEINIU_CERT         ExecuteBusinesType = 8  // 飞牛 证书部署
-	ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_1PANEL_CERT         ExecuteBusinesType = 9  // 1Panel 证书部署
-	ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_OPENVPN_AS_CERT     ExecuteBusinesType = 10 // OpenVPN-AS 证书部署
-	ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_UPLOAD_ONLY_CERT    ExecuteBusinesType = 11 // UploadOnly 仅上传证书
-	ExecuteBusinesType_EXECUTE_BUSINES_ESA                           ExecuteBusinesType = 12 // ESA Record 证书部署
-	ExecuteBusinesType_EXECUTE_BUSINES_EDGEONE                       ExecuteBusinesType = 13 // EdgeOne Host 证书部署
-	ExecuteBusinesType_EXECUTE_BUSINES_COS                           ExecuteBusinesType = 14 // COS 自定义域名证书部署
-	ExecuteBusinesType_EXECUTE_BUSINES_OSS_CUSTOM_DOMAIN             ExecuteBusinesType = 15 // OSS 自定义域名证书部署
-	ExecuteBusinesType_EXECUTE_BUSINES_CLB                           ExecuteBusinesType = 16 // 负载均衡 CLB 证书部署
-	ExecuteBusinesType_EXECUTE_BUSINES_ALB                           ExecuteBusinesType = 17 // 负载均衡 ALB 证书部署
-	ExecuteBusinesType_EXECUTE_BUSINES_NLB                           ExecuteBusinesType = 18 // 负载均衡 NLB 证书部署
-	ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_SAFELINE_CERT       ExecuteBusinesType = 19 // 雷池 WAF 证书部署
-	ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_1PANEL_WEBSITE_CERT ExecuteBusinesType = 20 // 1Panel 网站证书部署
+	ExecuteBusinesType_EXECUTE_BUSINES_UNKNOWN                         ExecuteBusinesType = 0  // 未知
+	ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_CERT                  ExecuteBusinesType = 1  // Nginx 证书部署
+	ExecuteBusinesType_EXECUTE_BUSINES_UPLOAD_CERT                     ExecuteBusinesType = 2  // 上传证书
+	ExecuteBusinesType_EXECUTE_BUSINES_CDN                             ExecuteBusinesType = 3  // CDN
+	ExecuteBusinesType_EXECUTE_BUSINES_DCDN                            ExecuteBusinesType = 4  // DCDN
+	ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_APACHE_CERT           ExecuteBusinesType = 6  // Apache 证书部署
+	ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_RUSTFS_CERT           ExecuteBusinesType = 7  // RustFS 证书部署
+	ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_FEINIU_CERT           ExecuteBusinesType = 8  // 飞牛 证书部署
+	ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_1PANEL_CERT           ExecuteBusinesType = 9  // 1Panel 证书部署
+	ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_OPENVPN_AS_CERT       ExecuteBusinesType = 10 // OpenVPN-AS 证书部署
+	ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_UPLOAD_ONLY_CERT      ExecuteBusinesType = 11 // UploadOnly 仅上传证书
+	ExecuteBusinesType_EXECUTE_BUSINES_ESA                             ExecuteBusinesType = 12 // ESA Record 证书部署
+	ExecuteBusinesType_EXECUTE_BUSINES_EDGEONE                         ExecuteBusinesType = 13 // EdgeOne Host 证书部署
+	ExecuteBusinesType_EXECUTE_BUSINES_COS                             ExecuteBusinesType = 14 // COS 自定义域名证书部署
+	ExecuteBusinesType_EXECUTE_BUSINES_OSS_CUSTOM_DOMAIN               ExecuteBusinesType = 15 // OSS 自定义域名证书部署
+	ExecuteBusinesType_EXECUTE_BUSINES_CLB                             ExecuteBusinesType = 16 // 负载均衡 CLB 证书部署
+	ExecuteBusinesType_EXECUTE_BUSINES_ALB                             ExecuteBusinesType = 17 // 负载均衡 ALB 证书部署
+	ExecuteBusinesType_EXECUTE_BUSINES_NLB                             ExecuteBusinesType = 18 // 负载均衡 NLB 证书部署
+	ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_SAFELINE_CERT         ExecuteBusinesType = 19 // 雷池 WAF 证书部署
+	ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_1PANEL_WEBSITE_CERT   ExecuteBusinesType = 20 // 1Panel 网站证书部署
+	ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_BT_PANEL_WEBSITE_CERT ExecuteBusinesType = 21 // 宝塔面板网站证书部署
+	ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_BT_PANEL_CERT         ExecuteBusinesType = 22 // 宝塔面板证书库上传
 )
 
 // Enum value maps for ExecuteBusinesType.
@@ -132,28 +134,32 @@ var (
 		18: "EXECUTE_BUSINES_NLB",
 		19: "EXECUTE_BUSINES_ANSSL_CLI_SAFELINE_CERT",
 		20: "EXECUTE_BUSINES_ANSSL_CLI_1PANEL_WEBSITE_CERT",
+		21: "EXECUTE_BUSINES_ANSSL_CLI_BT_PANEL_WEBSITE_CERT",
+		22: "EXECUTE_BUSINES_ANSSL_CLI_BT_PANEL_CERT",
 	}
 	ExecuteBusinesType_value = map[string]int32{
-		"EXECUTE_BUSINES_UNKNOWN":                       0,
-		"EXECUTE_BUSINES_ANSSL_CLI_CERT":                1,
-		"EXECUTE_BUSINES_UPLOAD_CERT":                   2,
-		"EXECUTE_BUSINES_CDN":                           3,
-		"EXECUTE_BUSINES_DCDN":                          4,
-		"EXECUTE_BUSINES_ANSSL_CLI_APACHE_CERT":         6,
-		"EXECUTE_BUSINES_ANSSL_CLI_RUSTFS_CERT":         7,
-		"EXECUTE_BUSINES_ANSSL_CLI_FEINIU_CERT":         8,
-		"EXECUTE_BUSINES_ANSSL_CLI_1PANEL_CERT":         9,
-		"EXECUTE_BUSINES_ANSSL_CLI_OPENVPN_AS_CERT":     10,
-		"EXECUTE_BUSINES_ANSSL_CLI_UPLOAD_ONLY_CERT":    11,
-		"EXECUTE_BUSINES_ESA":                           12,
-		"EXECUTE_BUSINES_EDGEONE":                       13,
-		"EXECUTE_BUSINES_COS":                           14,
-		"EXECUTE_BUSINES_OSS_CUSTOM_DOMAIN":             15,
-		"EXECUTE_BUSINES_CLB":                           16,
-		"EXECUTE_BUSINES_ALB":                           17,
-		"EXECUTE_BUSINES_NLB":                           18,
-		"EXECUTE_BUSINES_ANSSL_CLI_SAFELINE_CERT":       19,
-		"EXECUTE_BUSINES_ANSSL_CLI_1PANEL_WEBSITE_CERT": 20,
+		"EXECUTE_BUSINES_UNKNOWN":                         0,
+		"EXECUTE_BUSINES_ANSSL_CLI_CERT":                  1,
+		"EXECUTE_BUSINES_UPLOAD_CERT":                     2,
+		"EXECUTE_BUSINES_CDN":                             3,
+		"EXECUTE_BUSINES_DCDN":                            4,
+		"EXECUTE_BUSINES_ANSSL_CLI_APACHE_CERT":           6,
+		"EXECUTE_BUSINES_ANSSL_CLI_RUSTFS_CERT":           7,
+		"EXECUTE_BUSINES_ANSSL_CLI_FEINIU_CERT":           8,
+		"EXECUTE_BUSINES_ANSSL_CLI_1PANEL_CERT":           9,
+		"EXECUTE_BUSINES_ANSSL_CLI_OPENVPN_AS_CERT":       10,
+		"EXECUTE_BUSINES_ANSSL_CLI_UPLOAD_ONLY_CERT":      11,
+		"EXECUTE_BUSINES_ESA":                             12,
+		"EXECUTE_BUSINES_EDGEONE":                         13,
+		"EXECUTE_BUSINES_COS":                             14,
+		"EXECUTE_BUSINES_OSS_CUSTOM_DOMAIN":               15,
+		"EXECUTE_BUSINES_CLB":                             16,
+		"EXECUTE_BUSINES_ALB":                             17,
+		"EXECUTE_BUSINES_NLB":                             18,
+		"EXECUTE_BUSINES_ANSSL_CLI_SAFELINE_CERT":         19,
+		"EXECUTE_BUSINES_ANSSL_CLI_1PANEL_WEBSITE_CERT":   20,
+		"EXECUTE_BUSINES_ANSSL_CLI_BT_PANEL_WEBSITE_CERT": 21,
+		"EXECUTE_BUSINES_ANSSL_CLI_BT_PANEL_CERT":         22,
 	}
 )
 
@@ -1921,7 +1927,7 @@ const file_deployPB_deploy_proto_rawDesc = "" +
 	"\fGET_PROVIDER\x10\x03\x12\f\n" +
 	"\bREGISTER\x10\x04\x12\x13\n" +
 	"\x0fEXECUTE_BUSINES\x10\x05\x12\r\n" +
-	"\tCHALLENGE\x10\x06*\xf0\x05\n" +
+	"\tCHALLENGE\x10\x06*\xd2\x06\n" +
 	"\x12ExecuteBusinesType\x12\x1b\n" +
 	"\x17EXECUTE_BUSINES_UNKNOWN\x10\x00\x12\"\n" +
 	"\x1eEXECUTE_BUSINES_ANSSL_CLI_CERT\x10\x01\x12\x1f\n" +
@@ -1943,7 +1949,9 @@ const file_deployPB_deploy_proto_rawDesc = "" +
 	"\x13EXECUTE_BUSINES_ALB\x10\x11\x12\x17\n" +
 	"\x13EXECUTE_BUSINES_NLB\x10\x12\x12+\n" +
 	"'EXECUTE_BUSINES_ANSSL_CLI_SAFELINE_CERT\x10\x13\x121\n" +
-	"-EXECUTE_BUSINES_ANSSL_CLI_1PANEL_WEBSITE_CERT\x10\x14\"\x04\b\x05\x10\x05*\x13EXECUTE_BUSINES_OSS*\xc3\x02\n" +
+	"-EXECUTE_BUSINES_ANSSL_CLI_1PANEL_WEBSITE_CERT\x10\x14\x123\n" +
+	"/EXECUTE_BUSINES_ANSSL_CLI_BT_PANEL_WEBSITE_CERT\x10\x15\x12+\n" +
+	"'EXECUTE_BUSINES_ANSSL_CLI_BT_PANEL_CERT\x10\x16\"\x04\b\x05\x10\x05*\x13EXECUTE_BUSINES_OSS*\xc3\x02\n" +
 	"\x18DeploymentResourceStatus\x12&\n" +
 	"\"DEPLOYMENT_RESOURCE_STATUS_UNKNOWN\x10\x00\x12$\n" +
 	" DEPLOYMENT_RESOURCE_STATUS_READY\x10\x01\x12$\n" +

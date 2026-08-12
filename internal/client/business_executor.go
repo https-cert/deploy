@@ -53,6 +53,9 @@ func (be *BusinessExecutor) ExecuteBusiness(providerName string, executeBusinesT
 		case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_1PANEL_CERT:
 			// 部署证书到 1Panel
 			return be.handle1PanelCertificateDeploy(domain, downloadURL)
+		case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_BT_PANEL_CERT:
+			// 仅上传证书到宝塔证书库
+			return be.handleBTPanelCertificateStoreDeploy(domain, downloadURL)
 		case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_SAFELINE_CERT:
 			// 部署证书到雷池 WAF
 			return be.handleSafeLineCertificateDeploy(domain, downloadURL)
@@ -197,6 +200,20 @@ func (be *BusinessExecutor) handle1PanelCertificateDeploy(domain, downloadURL st
 	}
 
 	logger.Info("1Panel证书部署成功", "domain", domain)
+	return nil
+}
+
+// handleBTPanelCertificateStoreDeploy 处理证书上传到宝塔证书库。
+func (be *BusinessExecutor) handleBTPanelCertificateStoreDeploy(domain, downloadURL string) error {
+	if domain == "" {
+		return fmt.Errorf("域名不能为空")
+	}
+	deployer := deploys.NewCertDeployer(be.downloadFile)
+	if err := deployer.DeployCertificateToBTPanelCertificateStoreFromURL(domain, downloadURL); err != nil {
+		logger.ErrorLocal("宝塔证书库上传失败", "error", err, "domain", domain)
+		return err
+	}
+	logger.Info("宝塔证书库上传成功", "domain", domain)
 	return nil
 }
 

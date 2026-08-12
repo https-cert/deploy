@@ -31,6 +31,12 @@ var testOnePanelConnection = deploys.TestOnePanelConnection
 // testOnePanelWebsiteConnection 允许连接测试使用替身而不请求真实 1Panel 网站接口。
 var testOnePanelWebsiteConnection = deploys.TestOnePanelWebsiteConnection
 
+// testBTPanelWebsiteConnection 允许连接测试使用替身而不请求真实宝塔网站接口。
+var testBTPanelWebsiteConnection = deploys.TestBTPanelWebsiteConnection
+
+// testBTPanelCertificateConnection 允许连接测试使用替身而不请求真实宝塔证书库。
+var testBTPanelCertificateConnection = deploys.TestBTPanelCertificateConnection
+
 // testSafeLineConnection 允许连接测试使用替身而不请求真实雷池 OpenAPI。
 var testSafeLineConnection = deploys.TestSafeLineConnection
 
@@ -78,6 +84,16 @@ func testDeploymentConnection(providerName string, businessType deployPB.Execute
 		}
 		if businessType == deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_1PANEL_WEBSITE_CERT {
 			if err := testOnePanelWebsiteConnection(context.Background(), targetRef); err != nil {
+				return false, err
+			}
+		}
+		if businessType == deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_BT_PANEL_WEBSITE_CERT {
+			if err := testBTPanelWebsiteConnection(context.Background(), targetRef); err != nil {
+				return false, err
+			}
+		}
+		if businessType == deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_BT_PANEL_CERT {
+			if err := testBTPanelCertificateConnection(); err != nil {
 				return false, err
 			}
 		}

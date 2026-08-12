@@ -232,6 +232,8 @@ func shouldReportDeploymentDiagnostic(providerName string, businessType deployPB
 	case "ansslCli":
 		return businessType == deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_1PANEL_CERT ||
 			businessType == deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_1PANEL_WEBSITE_CERT ||
+			businessType == deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_BT_PANEL_WEBSITE_CERT ||
+			businessType == deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_BT_PANEL_CERT ||
 			businessType == deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_SAFELINE_CERT
 	default:
 		return false

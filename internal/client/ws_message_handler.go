@@ -199,7 +199,75 @@ func (c *WSClient) handleGetProvider(requestId string, request *deployPB.GetProv
 
 	providers := discoverProviderDirectory(c.ctx, GetProviderInfo(), request)
 	providers = mergeProviderCapability(providers, buildOnePanelWebsiteProvider(c.ctx, request))
+	providers = mergeProviderCapability(providers, buildBTPanelWebsiteProvider(c.ctx, request))
+	providers = mergeProviderCapability(providers, buildBTPanelCertificateProvider(request))
 	c.sendGetProviderResponse(requestId, providers)
+}
+
+// buildBTPanelCertificateProvider 上报宝塔证书库上传能力，不扫描资源目录。
+func buildBTPanelCertificateProvider(request *deployPB.GetProviderRequest) *deployPB.GetProviderResponse_Provider {
+	business := &deployPB.GetProviderResponse_Provider_Business{
+		ExecuteBusinesType: deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_BT_PANEL_CERT,
+	}
+	provider := &deployPB.GetProviderResponse_Provider{
+		Name:       "ansslCli",
+		Remark:     "官方自动部署 CLI",
+		Businesses: []*deployPB.GetProviderResponse_Provider_Business{business},
+	}
+	if request != nil && request.GetIncludeResources() && request.GetProvider() == "ansslCli" && request.GetExecuteBusinesType() == deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_BT_PANEL_CERT {
+		if !deploys.IsBTPanelConfigured() {
+			business.ResourceStatus = deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_NOT_CONFIGURED
+		}
+	}
+	return provider
+}
+
+// buildBTPanelWebsiteProvider 上报宝塔网站级能力，并按需读取脱敏资源目录。
+func buildBTPanelWebsiteProvider(ctx context.Context, request *deployPB.GetProviderRequest) *deployPB.GetProviderResponse_Provider {
+	business := &deployPB.GetProviderResponse_Provider_Business{
+		ExecuteBusinesType: deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_BT_PANEL_WEBSITE_CERT,
+	}
+	provider := &deployPB.GetProviderResponse_Provider{
+		Name:       "ansslCli",
+		Remark:     "官方自动部署 CLI",
+		Businesses: []*deployPB.GetProviderResponse_Provider_Business{business},
+	}
+	if !shouldDiscoverProviderBusiness(request, "ansslCli", deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_BT_PANEL_WEBSITE_CERT) {
+		return provider
+	}
+	if !deploys.IsBTPanelConfigured() {
+		business.ResourceStatus = deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_NOT_CONFIGURED
+		return provider
+	}
+
+	resources, err := deploys.DiscoverBTPanelWebsiteResources(ctx)
+	if err != nil {
+		logger.Error("读取宝塔网站目录失败", "error", err, "provider", "ansslCli", "business", deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_BT_PANEL_WEBSITE_CERT.String())
+		business.ResourceStatus = deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_UNAVAILABLE
+		return provider
+	}
+	if len(resources) == 0 {
+		business.ResourceStatus = deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_EMPTY
+		return provider
+	}
+	business.ResourceStatus = deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_READY
+	business.Resources = make([]*deployPB.DeployResource, 0, len(resources))
+	for _, resource := range resources {
+		availability := deployPB.DeploymentResourceAvailability_DEPLOYMENT_RESOURCE_AVAILABILITY_READY
+		if resource.Status != "Running" {
+			availability = deployPB.DeploymentResourceAvailability_DEPLOYMENT_RESOURCE_AVAILABILITY_STOPPED
+		}
+		business.Resources = append(business.Resources, &deployPB.DeployResource{
+			TargetRef:    resource.TargetRef,
+			Label:        resource.Label,
+			Domain:       resource.Domain,
+			Domains:      append([]string(nil), resource.Domains...),
+			Protocol:     resource.Protocol,
+			Status:       resource.Status,
+			Availability: availability,
+		})
+	}
+	return provider
 }
 
 // mergeProviderCapability 将新增业务并入同名 provider，避免目录中出现重复 provider 节点。

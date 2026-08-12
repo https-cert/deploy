@@ -40,7 +40,8 @@ func IsDeploymentResourceBusiness(business deployPB.ExecuteBusinesType) bool {
 		deployPB.ExecuteBusinesType_EXECUTE_BUSINES_CLB,
 		deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ALB,
 		deployPB.ExecuteBusinesType_EXECUTE_BUSINES_NLB,
-		deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_1PANEL_WEBSITE_CERT:
+		deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_1PANEL_WEBSITE_CERT,
+		deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_BT_PANEL_WEBSITE_CERT:
 		return true
 	default:
 		return false

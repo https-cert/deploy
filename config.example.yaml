@@ -47,6 +47,13 @@ ssl:
     # 1Panel API 密钥。
     apiKey: ""
 
+  # 可选。宝塔面板网站证书和证书库上传配置。API 密钥可在“面板设置 -> API 接口”中获取。
+  # 使用自签名 HTTPS 证书时才开启 insecureSkipVerify；公网或受信任证书必须保持 false。
+  btPanel:
+    url: ""
+    apiKey: ""
+    insecureSkipVerify: false
+
   # 可选。雷池 WAF OpenAPI 配置。API Token 可在雷池通用设置中获取。
   # 使用自签名 HTTPS 证书时才开启 insecureSkipVerify；公网或受信任证书必须保持 false。
   safeLine:
