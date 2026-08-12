@@ -100,7 +100,7 @@ func buildSSHAuthMethods(sshConfig *config.SSHConfig) ([]ssh.AuthMethod, error) 
 	}
 	if runtime.GOOS != "windows" {
 		if info, statErr := os.Stat(sshConfig.PrivateKeyPath); statErr == nil && info.Mode().Perm()&0077 != 0 {
-			logger.Warn("SSH 私钥文件权限过宽，建议调整为 0600", "path", sshConfig.PrivateKeyPath, "mode", info.Mode().Perm())
+			logger.WarnLocal("SSH 私钥文件权限过宽，建议调整为 0600", "path", sshConfig.PrivateKeyPath, "mode", info.Mode().Perm())
 		}
 	}
 
@@ -154,7 +154,7 @@ func newSSHHostKeyCallback(knownHostsFile string) (ssh.HostKeyCallback, error) {
 		if err := file.Close(); err != nil {
 			return fmt.Errorf("关闭 SSH known_hosts 失败: %w", err)
 		}
-		logger.Info("已首次信任 SSH 主机密钥", "host", hostname, "fingerprint", ssh.FingerprintSHA256(key))
+		logger.InfoLocal("已首次信任 SSH 主机密钥", "host", hostname, "fingerprint", ssh.FingerprintSHA256(key))
 		return nil
 	}, nil
 }

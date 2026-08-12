@@ -54,8 +54,12 @@ func (p *Provider) deployNLB(ctx context.Context, certificate providers.Certific
 		return providers.DeploymentResult{}, newAliyunDeploymentErrorWithRequestID("准备 NLB 证书", firstNonEmpty(casRequestID, listenerCertificatesResponse.RequestID, listener.RequestID), err)
 	}
 	if strings.EqualFold(strings.TrimSpace(slot.CurrentCertificateID), strings.TrimSpace(certificateID)) {
+		fingerprintRequestID, err := p.verifyCASCertificateFingerprint(ctx, certificateID, target.Region, certificate.CertificatePEM)
+		if err != nil {
+			return providers.DeploymentResult{}, err
+		}
 		return providers.DeploymentResult{
-			RequestID: firstNonEmpty(uploadRequestID, casRequestID, listenerCertificatesResponse.RequestID, listener.RequestID),
+			RequestID: firstNonEmpty(fingerprintRequestID, uploadRequestID, casRequestID, listenerCertificatesResponse.RequestID, listener.RequestID),
 			Message:   "阿里云 NLB 监听器已配置当前证书",
 		}, nil
 	}
@@ -74,8 +78,12 @@ func (p *Provider) deployNLB(ctx context.Context, certificate providers.Certific
 		if err != nil {
 			return providers.DeploymentResult{}, providers.NewDeploymentError("阿里云 NLB 默认服务器证书回读超时", true, firstNonEmpty(jobRequestID, written.RequestID, readbackRequestID, uploadRequestID), newSafeAliyunCause("NLB 默认证书回读", err))
 		}
+		fingerprintRequestID, err := p.verifyCASCertificateFingerprint(ctx, certificateID, target.Region, certificate.CertificatePEM)
+		if err != nil {
+			return providers.DeploymentResult{}, err
+		}
 		return providers.DeploymentResult{
-			RequestID: firstNonEmpty(written.RequestID, jobRequestID, readbackRequestID, uploadRequestID),
+			RequestID: firstNonEmpty(fingerprintRequestID, written.RequestID, jobRequestID, readbackRequestID, uploadRequestID),
 			Message:   "阿里云 NLB 默认服务器证书部署成功",
 		}, nil
 	}
@@ -94,8 +102,12 @@ func (p *Provider) deployNLB(ctx context.Context, certificate providers.Certific
 		return providers.DeploymentResult{}, providers.NewDeploymentError("阿里云 NLB 新 SNI 证书回读超时", true, firstNonEmpty(associateJobRequestID, associated.RequestID, readbackRequestID, uploadRequestID), newSafeAliyunCause("NLB SNI 证书回读", err))
 	}
 	if slot.CurrentCertificateID == "" {
+		fingerprintRequestID, err := p.verifyCASCertificateFingerprint(ctx, certificateID, target.Region, certificate.CertificatePEM)
+		if err != nil {
+			return providers.DeploymentResult{}, err
+		}
 		return providers.DeploymentResult{
-			RequestID: firstNonEmpty(associated.RequestID, associateJobRequestID, readbackRequestID, uploadRequestID),
+			RequestID: firstNonEmpty(fingerprintRequestID, associated.RequestID, associateJobRequestID, readbackRequestID, uploadRequestID),
 			Message:   "阿里云 NLB SNI 证书部署成功",
 		}, nil
 	}
@@ -113,8 +125,12 @@ func (p *Provider) deployNLB(ctx context.Context, certificate providers.Certific
 	if err != nil {
 		return providers.DeploymentResult{}, providers.NewDeploymentError("阿里云 NLB 旧 SNI 证书解除超时", true, firstNonEmpty(dissociateJobRequestID, dissociated.RequestID, removedRequestID, uploadRequestID), newSafeAliyunCause("NLB 旧 SNI 证书回读", err))
 	}
+	fingerprintRequestID, err := p.verifyCASCertificateFingerprint(ctx, certificateID, target.Region, certificate.CertificatePEM)
+	if err != nil {
+		return providers.DeploymentResult{}, err
+	}
 	return providers.DeploymentResult{
-		RequestID: firstNonEmpty(dissociated.RequestID, dissociateJobRequestID, removedRequestID, associated.RequestID, uploadRequestID),
+		RequestID: firstNonEmpty(fingerprintRequestID, dissociated.RequestID, dissociateJobRequestID, removedRequestID, associated.RequestID, uploadRequestID),
 		Message:   "阿里云 NLB SNI 证书部署成功",
 	}, nil
 }

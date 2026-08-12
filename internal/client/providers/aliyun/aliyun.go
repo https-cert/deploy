@@ -18,6 +18,7 @@ import (
 var (
 	_ providers.ProviderHandler            = (*Provider)(nil)
 	_ providers.DeploymentResourceDeployer = (*Provider)(nil)
+	_ providers.ResourceDiscoverer         = (*Provider)(nil)
 )
 
 // Provider 管理阿里云证书中心和精确云资源部署所需的客户端。

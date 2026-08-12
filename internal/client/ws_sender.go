@@ -133,7 +133,7 @@ func (c *WSClient) sendHeartbeat(ctx context.Context) {
 }
 
 // sendConnectResponse 只发送连接测试状态，不把客户端本地诊断信息发送到后端。
-func (c *WSClient) sendConnectResponse(requestId, provider string, businessType deployPB.ExecuteBusinesType, success bool) {
+func (c *WSClient) sendConnectResponse(requestId, provider string, businessType deployPB.ExecuteBusinesType, targetRef string, success bool) {
 	req := &deployPB.NotifyRequest{
 		AccessKey: c.accessKey,
 		ClientId:  c.clientId,
@@ -144,6 +144,7 @@ func (c *WSClient) sendConnectResponse(requestId, provider string, businessType 
 				Provider:           provider,
 				Success:            success,
 				ExecuteBusinesType: businessType,
+				TargetRef:          targetRef,
 			},
 		},
 	}

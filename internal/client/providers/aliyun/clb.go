@@ -310,7 +310,7 @@ func selectCLBCertificateSlot(targetDomain, defaultCertificateID string, extensi
 	if len(wildcardMatches) == 1 {
 		return clbCertificateSlot{ExtensionID: wildcardMatches[0].ExtensionID, CurrentCertificateID: wildcardMatches[0].CertificateID}, nil
 	}
-	return clbCertificateSlot{CurrentCertificateID: strings.TrimSpace(defaultCertificateID)}, nil
+	return clbCertificateSlot{}, fmt.Errorf("未找到配置域名对应的 SNI 扩展")
 }
 
 // parseCLBServerCertificates 解析 DescribeServerCertificates 返回的证书元数据。

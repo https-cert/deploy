@@ -123,18 +123,9 @@ type (
 
 	// Provider 云服务提供商配置
 	Provider struct {
-		Name    string           `yaml:"name"`    // Name 提供商内部名称
-		Remark  string           `yaml:"remark"`  // Remark 提供商展示备注
-		Auth    *ProviderAuth    `yaml:"auth"`    // Auth 提供商认证配置
-		CDN     []*CDNConfig     `yaml:"cdn"`     // CDN 精确域名部署资源
-		DCDN    []*DCDNConfig    `yaml:"dcdn"`    // DCDN 精确域名部署资源
-		ESA     []*ESAConfig     `yaml:"esa"`     // ESA Record 部署资源
-		OSS     []*OSSConfig     `yaml:"oss"`     // OSS 自定义域名部署资源
-		EdgeOne []*EdgeOneConfig `yaml:"edgeOne"` // EdgeOne Host 部署资源
-		COS     []*COSConfig     `yaml:"cos"`     // COS 自定义域名部署资源
-		CLB     []*CLBConfig     `yaml:"clb"`     // 阿里云或腾讯云 CLB 监听器部署资源
-		ALB     []*ALBConfig     `yaml:"alb"`     // 阿里云 ALB 监听器部署资源
-		NLB     []*NLBConfig     `yaml:"nlb"`     // 阿里云 NLB 监听器部署资源
+		Name   string        `yaml:"name"`   // Name 提供商内部名称
+		Remark string        `yaml:"remark"` // Remark 提供商展示备注
+		Auth   *ProviderAuth `yaml:"auth"`   // Auth 提供商认证配置
 	}
 )
 
@@ -151,6 +142,9 @@ func Init(configFile string) error {
 	viper.SetConfigType("yaml")
 
 	if err := viper.ReadInConfig(); err != nil {
+		return err
+	}
+	if err := validateRemovedDeploymentResourceFields(viper.AllSettings()["provider"]); err != nil {
 		return err
 	}
 
@@ -514,7 +508,6 @@ func prepareDir(name, path string) error {
 // validateProviders 验证 provider 列表中不包含空名称或重复名称
 func validateProviders() error {
 	providerNames := make(map[string]struct{}, len(Config.Provider))
-	targetRefs := make(map[string]string)
 	for _, provider := range Config.Provider {
 		if provider == nil {
 			return errors.New("provider 配置不能为空")
@@ -531,10 +524,7 @@ func validateProviders() error {
 		providerNames[name] = struct{}{}
 
 		provider.Name = name
-		if err := validateDeploymentResources(provider, targetRefs); err != nil {
-			return err
-		}
-		if err := validateDeploymentResourceCredentials(provider); err != nil {
+		if err := validateProviderCredentials(provider); err != nil {
 			return err
 		}
 	}

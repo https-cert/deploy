@@ -16,7 +16,7 @@ import (
 // BusinessExecutor 业务执行器，封装可复用的业务逻辑
 type BusinessExecutor struct {
 	downloadFile                      func(downloadURL, filePath string) error // downloadFile 下载本地部署所需的证书压缩包。
-	deploymentResourceDeployerFactory deploymentResourceDeployerFactory        // deploymentResourceDeployerFactory 允许测试替换云厂商适配器构造逻辑。
+	deploymentResourceProviderFactory deploymentResourceProviderFactory        // deploymentResourceProviderFactory 允许测试替换云厂商适配器构造逻辑。
 }
 
 // NewBusinessExecutor 创建业务执行器
@@ -160,7 +160,7 @@ func (be *BusinessExecutor) handleRustFSCertificateDeploy(domain, downloadURL st
 
 	deployer := deploys.NewCertDeployer(be.downloadFile)
 	if err := deployer.DeployCertificateToRustFS(domain, downloadURL); err != nil {
-		logger.Error("RustFS证书部署失败", "error", err, "domain", domain)
+		logger.ErrorLocal("RustFS证书部署失败", "error", err, "domain", domain)
 		return err
 	}
 
@@ -176,7 +176,7 @@ func (be *BusinessExecutor) handleFeiniuCertificateDeploy(domain, downloadURL st
 
 	deployer := deploys.NewCertDeployer(be.downloadFile)
 	if err := deployer.DeployCertificateToFeiNiu(domain, downloadURL); err != nil {
-		logger.Error("飞牛证书部署失败", "error", err, "domain", domain)
+		logger.ErrorLocal("飞牛证书部署失败", "error", err, "domain", domain)
 		return err
 	}
 
@@ -192,7 +192,7 @@ func (be *BusinessExecutor) handle1PanelCertificateDeploy(domain, downloadURL st
 
 	deployer := deploys.NewCertDeployer(be.downloadFile)
 	if err := deployer.DeployCertificateTo1Panel(domain, downloadURL); err != nil {
-		logger.Error("1Panel证书部署失败", "error", err, "domain", domain)
+		logger.ErrorLocal("1Panel证书部署失败", "error", err, "domain", domain)
 		return err
 	}
 
@@ -208,7 +208,7 @@ func (be *BusinessExecutor) handleSafeLineCertificateDeploy(domain, downloadURL 
 
 	deployer := deploys.NewCertDeployer(be.downloadFile)
 	if err := deployer.DeployCertificateToSafeLine(domain, downloadURL); err != nil {
-		logger.Error("雷池证书部署失败", "error", err, "domain", domain)
+		logger.ErrorLocal("雷池证书部署失败", "error", err, "domain", domain)
 		return err
 	}
 
@@ -221,13 +221,13 @@ func (be *BusinessExecutor) handleCertificateProvider(providerName, domain, rema
 	// 获取 provider 实例
 	providerHandler, err := be.getProviderHandler(providerName)
 	if err != nil {
-		logger.Error("创建提供商实例失败", "provider", providerName, "error", err)
+		logger.ErrorLocal("创建提供商实例失败", "provider", providerName, "error", err)
 		return err
 	}
 
 	// 上传证书
 	if err := providerHandler.UploadCertificate(remark, domain, cert, key); err != nil {
-		logger.Error("上传证书失败", "provider", providerName, "error", err)
+		logger.ErrorLocal("上传证书失败", "provider", providerName, "error", err)
 		return err
 	}
 

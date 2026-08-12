@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/https-cert/deploy/internal/client/deploys"
@@ -27,6 +28,9 @@ var testRustFSConnection = deploys.TestRustFSConnection
 // testOnePanelConnection 允许连接测试使用替身而不请求真实 1Panel API。
 var testOnePanelConnection = deploys.TestOnePanelConnection
 
+// testOnePanelWebsiteConnection 允许连接测试使用替身而不请求真实 1Panel 网站接口。
+var testOnePanelWebsiteConnection = deploys.TestOnePanelWebsiteConnection
+
 // testSafeLineConnection 允许连接测试使用替身而不请求真实雷池 OpenAPI。
 var testSafeLineConnection = deploys.TestSafeLineConnection
 
@@ -45,16 +49,16 @@ func GetProviderInfo() []ProviderInfo {
 
 // TestProviderConnection 测试云服务 provider 连接，供 CLI doctor 复用。
 func TestProviderConnection(providerName string) (bool, error) {
-	return testDeploymentConnection(providerName, deployPB.ExecuteBusinesType_EXECUTE_BUSINES_UNKNOWN)
+	return testDeploymentConnection(providerName, deployPB.ExecuteBusinesType_EXECUTE_BUSINES_UNKNOWN, "")
 }
 
 // TestDeploymentConnection 根据具体部署业务执行对应的连接或环境检查。
-func TestDeploymentConnection(providerName string, businessType deployPB.ExecuteBusinesType) (bool, error) {
-	return testDeploymentConnection(providerName, businessType)
+func TestDeploymentConnection(providerName string, businessType deployPB.ExecuteBusinesType, targetRef string) (bool, error) {
+	return testDeploymentConnection(providerName, businessType, targetRef)
 }
 
 // testDeploymentConnection 汇总 provider 凭据测试与本地部署环境测试的共同分发逻辑。
-func testDeploymentConnection(providerName string, businessType deployPB.ExecuteBusinesType) (bool, error) {
+func testDeploymentConnection(providerName string, businessType deployPB.ExecuteBusinesType, targetRef string) (bool, error) {
 	switch providerName {
 	case "ansslCli":
 		if businessType == deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_FEINIU_CERT {
@@ -72,6 +76,11 @@ func testDeploymentConnection(providerName string, businessType deployPB.Execute
 				return false, err
 			}
 		}
+		if businessType == deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_1PANEL_WEBSITE_CERT {
+			if err := testOnePanelWebsiteConnection(context.Background(), targetRef); err != nil {
+				return false, err
+			}
+		}
 		if businessType == deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_SAFELINE_CERT {
 			if err := testSafeLineConnection(); err != nil {
 				return false, err
@@ -80,6 +89,9 @@ func testDeploymentConnection(providerName string, businessType deployPB.Execute
 		return true, nil
 
 	case "aliyun":
+		if config.IsDeploymentResourceBusiness(businessType) {
+			return testCloudDeploymentResource(providerName, businessType, targetRef)
+		}
 		providerConfig := config.GetProvider("aliyun")
 		if providerConfig == nil {
 			return false, fmt.Errorf("未配置【阿里云】提供商配置")
@@ -96,6 +108,9 @@ func testDeploymentConnection(providerName string, businessType deployPB.Execute
 		return success, nil
 
 	case "cloudTencent":
+		if config.IsDeploymentResourceBusiness(businessType) {
+			return testCloudDeploymentResource(providerName, businessType, targetRef)
+		}
 		providerConfig := config.GetProvider("cloudTencent")
 		if providerConfig == nil {
 			return false, fmt.Errorf("未配置【腾讯云】提供商配置")
@@ -112,6 +127,9 @@ func testDeploymentConnection(providerName string, businessType deployPB.Execute
 		return success, nil
 
 	case "qiniu":
+		if config.IsDeploymentResourceBusiness(businessType) {
+			return testCloudDeploymentResource(providerName, businessType, targetRef)
+		}
 		providerConfig := config.GetProvider("qiniu")
 		if providerConfig == nil {
 			return false, fmt.Errorf("未配置【七牛云】提供商配置")
@@ -128,4 +146,21 @@ func testDeploymentConnection(providerName string, businessType deployPB.Execute
 		logger.Warn("未知提供商", "provider", providerName)
 		return false, fmt.Errorf("未知提供商: %s", providerName)
 	}
+}
+
+// testCloudDeploymentResource 只读测试当前选择的动态云资源。
+func testCloudDeploymentResource(providerName string, businessType deployPB.ExecuteBusinesType, targetRef string) (bool, error) {
+	if targetRef == "" {
+		return false, fmt.Errorf("资源型业务 targetRef 不能为空")
+	}
+	adapter, err := newDeploymentResourceProvider(providerName, businessType)
+	if err != nil {
+		return false, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), deploymentResourceExecutionTimeout)
+	defer cancel()
+	if err := adapter.TestResource(ctx, businessType, targetRef); err != nil {
+		return false, err
+	}
+	return true, nil
 }

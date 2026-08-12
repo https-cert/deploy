@@ -16,6 +16,7 @@ import (
 	tencentcommon "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common"
 	tencenterrors "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common/errors"
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common/profile"
+	cvm "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/cvm/v20170312"
 	ssl "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ssl/v20191205"
 )
 
@@ -26,7 +27,19 @@ const (
 	certificateTypeSVR = "SVR"
 )
 
-var _ providers.ProviderHandler = (*Provider)(nil)
+var (
+	_ providers.ProviderHandler    = (*Provider)(nil)
+	_ providers.ResourceDiscoverer = (*Provider)(nil)
+)
+
+// regionClient 定义腾讯云公开地域目录接口。
+type regionClient interface {
+	// DescribeRegionsWithContext 查询当前账户可用地域。
+	DescribeRegionsWithContext(ctx context.Context, request *cvm.DescribeRegionsRequest) (*cvm.DescribeRegionsResponse, error)
+}
+
+// regionClientFactory 创建地域目录客户端。
+type regionClientFactory func(secretID, secretKey string) (regionClient, error)
 
 // sslClient 定义腾讯云 SSL SDK 的最小调用集合，便于测试替换。
 type sslClient interface {
@@ -40,17 +53,21 @@ type clientFactory func(secretID, secretKey string) (sslClient, error)
 
 // Provider 腾讯云 SSL 证书和云资源部署 Provider。
 type Provider struct {
-	SecretId     string               // SecretId 腾讯云 API SecretId，禁止写入日志。
-	SecretKey    string               // SecretKey 腾讯云 API SecretKey，禁止写入日志。
-	client       sslClient            // client 缓存 SSL SDK 客户端。
-	newClient    clientFactory        // newClient 创建 SSL SDK 客户端。
-	cdnClient    cdnClient            // cdnClient 缓存 CDN SDK 客户端。
-	teoClient    teoClient            // teoClient 缓存 EdgeOne SDK 客户端。
-	newCDNClient cdnClientFactory     // newCDNClient 创建 CDN SDK 客户端。
-	newTEOClient teoClientFactory     // newTEOClient 创建 EdgeOne SDK 客户端。
-	newCOSClient cosClientFactory     // newCOSClient 创建绑定到指定 Bucket 的 COS SDK 客户端。
-	clbClients   map[string]clbClient // clbClients 按地域缓存腾讯云 CLB SDK 客户端。
-	newCLBClient clbClientFactory     // newCLBClient 创建绑定到指定地域的 CLB SDK 客户端。
+	SecretId        string                  // SecretId 腾讯云 API SecretId，禁止写入日志。
+	SecretKey       string                  // SecretKey 腾讯云 API SecretKey，禁止写入日志。
+	client          sslClient               // client 缓存 SSL SDK 客户端。
+	newClient       clientFactory           // newClient 创建 SSL SDK 客户端。
+	cdnClient       cdnClient               // cdnClient 缓存 CDN SDK 客户端。
+	teoClient       teoClient               // teoClient 缓存 EdgeOne SDK 客户端。
+	newCDNClient    cdnClientFactory        // newCDNClient 创建 CDN SDK 客户端。
+	newTEOClient    teoClientFactory        // newTEOClient 创建 EdgeOne SDK 客户端。
+	newCOSClient    cosClientFactory        // newCOSClient 创建绑定到指定 Bucket 的 COS SDK 客户端。
+	cosService      cosServiceClient        // cosService 缓存账户级 COS Bucket 目录客户端。
+	newCOSService   cosServiceClientFactory // newCOSService 创建账户级 COS Bucket 目录客户端。
+	clbClients      map[string]clbClient    // clbClients 按地域缓存腾讯云 CLB SDK 客户端。
+	newCLBClient    clbClientFactory        // newCLBClient 创建绑定到指定地域的 CLB SDK 客户端。
+	regionClient    regionClient            // regionClient 缓存公开地域目录客户端。
+	newRegionClient regionClientFactory     // newRegionClient 创建地域目录客户端。
 }
 
 // certificateUploadResult 保留腾讯云 SSL 上传接口返回的证书和请求标识。
@@ -62,15 +79,27 @@ type certificateUploadResult struct {
 // New 创建腾讯云 Provider 实例。
 func New(secretId, secretKey string) *Provider {
 	return &Provider{
-		SecretId:     strings.TrimSpace(secretId),
-		SecretKey:    strings.TrimSpace(secretKey),
-		newClient:    defaultClientFactory,
-		newCDNClient: defaultCDNClientFactory,
-		newTEOClient: defaultTEOClientFactory,
-		newCOSClient: defaultCOSClientFactory,
-		clbClients:   make(map[string]clbClient),
-		newCLBClient: defaultCLBClientFactory,
+		SecretId:        strings.TrimSpace(secretId),
+		SecretKey:       strings.TrimSpace(secretKey),
+		newClient:       defaultClientFactory,
+		newCDNClient:    defaultCDNClientFactory,
+		newTEOClient:    defaultTEOClientFactory,
+		newCOSClient:    defaultCOSClientFactory,
+		newCOSService:   defaultCOSServiceClientFactory,
+		clbClients:      make(map[string]clbClient),
+		newCLBClient:    defaultCLBClientFactory,
+		newRegionClient: defaultRegionClientFactory,
 	}
+}
+
+// defaultRegionClientFactory 构建 CVM 地域目录客户端。
+func defaultRegionClientFactory(secretID, secretKey string) (regionClient, error) {
+	clientProfile := profile.NewClientProfile()
+	httpProfile := profile.NewHttpProfile()
+	httpProfile.Endpoint = "cvm.tencentcloudapi.com"
+	httpProfile.ReqTimeout = defaultTimeoutInS
+	clientProfile.HttpProfile = httpProfile
+	return cvm.NewClient(tencentcommon.NewCredential(secretID, secretKey), "", clientProfile)
 }
 
 // defaultClientFactory 基于官方 SDK 构建 SSL 客户端。
@@ -174,6 +203,35 @@ func (p *Provider) uploadCertificateWithContext(ctx context.Context, name, domai
 		CertificateID: certificateID,
 		RequestID:     requestID,
 	}, nil
+}
+
+// verifyCertificateFingerprint 读取腾讯云 SSL 证书正文并校验叶证书 SHA-256 指纹。
+func (p *Provider) verifyCertificateFingerprint(ctx context.Context, certificateID, expectedPEM string) (string, error) {
+	client, err := p.getClient()
+	if err != nil {
+		return "", newTencentDeploymentError("初始化 SSL 客户端", err)
+	}
+	request := ssl.NewDescribeCertificateDetailRequest()
+	request.CertificateId = tencentcommon.StringPtr(strings.TrimSpace(certificateID))
+	response, err := client.DescribeCertificateDetailWithContext(ctx, request)
+	if err != nil {
+		return "", newTencentDeploymentError("回读 SSL 证书详情", err)
+	}
+	if response == nil || response.Response == nil {
+		return "", providers.NewDeploymentError("腾讯云 SSL 证书详情响应格式异常", true, "", nil)
+	}
+	requestID := strings.TrimSpace(stringValue(response.Response.RequestId))
+	if !strings.EqualFold(strings.TrimSpace(stringValue(response.Response.CertificateId)), strings.TrimSpace(certificateID)) {
+		return requestID, providers.NewDeploymentError("腾讯云 SSL 证书详情 ID 不匹配", false, requestID, nil)
+	}
+	publicKey := strings.TrimSpace(stringValue(response.Response.CertificatePublicKey))
+	if publicKey == "" {
+		return requestID, providers.NewDeploymentError("腾讯云 SSL 证书详情缺少公钥证书", true, requestID, nil)
+	}
+	if err := providers.VerifyLeafCertificateSHA256(expectedPEM, publicKey); err != nil {
+		return requestID, providers.NewDeploymentError("腾讯云 SSL 证书指纹回读校验失败", false, requestID, err)
+	}
+	return requestID, nil
 }
 
 // stringValue 安全读取 SDK 字符串指针字段。

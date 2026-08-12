@@ -74,14 +74,7 @@ log:
   maxAgeDays: 30
 
 # 可选。云服务 provider 配置。未配置则不启用云服务证书上传与部署。
-# 支持的 name：
-# - aliyun：阿里云。支持 CAS 上传，以及 CDN、DCDN、ESA、OSS 自定义域名、CLB HTTPS 监听器的精确证书部署。
-# - qiniu：七牛云。支持证书中心上传，以及 CDN、DCDN 域名的精确证书部署。
-# - cloudTencent：腾讯云。支持 SSL 上传，以及 CDN、EdgeOne、COS 自定义域名、CLB 监听器的精确证书部署。
-# 在 provider 下直接使用 cdn、dcdn、esa、oss、edgeOne、cos、clb 配置对应产品资源；CLB 字段按 provider 使用 listenerPort 或 listenerId。
-# targetRef 由客户端根据资源定位字段自动生成，不需要手工填写。
-# 配置任一自动部署资源时必须同时填写该 provider 的完整认证信息，否则客户端会拒绝启动。
-# Bucket、Region、Endpoint、SiteId、ZoneId、LoadBalancerId、ListenerPort、ListenerId 和认证信息只保存在本机，不会上报到服务端。
+# 密钥信息只保存在 deploy 客户端内存或本地配置中，不会上报到服务端。
 # provider:
 #   - name: "aliyun"
 #     remark: "阿里云"
@@ -91,47 +84,6 @@ log:
 #       # 阿里云 AccessKey Secret。
 #       accessKeySecret: "your-aliyun-access-key-secret"
 #
-#     cdn:
-#       - label: "官网 CDN" # 可选，留空时使用 domain。
-#         domain: "www.example.com"
-#
-#     dcdn:
-#       - label: "API DCDN"
-#         domain: "api.example.com"
-#
-#     esa:
-#       - label: "应用 ESA"
-#         domain: "app.example.com" # 精确 ESA RecordName。
-#         siteId: "your-esa-site-id"
-#
-#     oss:
-#       - label: "静态资源 OSS"
-#         domain: "static.example.com"
-#         region: "cn-hangzhou"
-#         bucket: "your-oss-bucket"
-#         endpoint: "https://oss-cn-hangzhou.aliyuncs.com" # 可选，只允许 HTTPS Origin。
-#
-#     clb:
-#       - label: "官网 CLB"
-#         domain: "www.example.com" # 精确域名；客户端自动识别默认或 SNI 证书槽位。
-#         region: "cn-hangzhou"
-#         loadBalancerId: "lb-xxxxxxxx"
-#         listenerPort: 443 # 仅支持 HTTPS 监听器。
-#
-#     alb:
-#       - label: "官网 ALB"
-#         domain: "www.example.com" # 精确域名；客户端自动识别默认或 SNI 扩展证书槽位。
-#         region: "cn-hangzhou"
-#         loadBalancerId: "alb-xxxxxxxx"
-#         listenerId: "lsr-xxxxxxxx" # ALB HTTPS 或 QUIC 监听器 ID。
-#
-#     nlb:
-#       - label: "官网 NLB"
-#         domain: "www.example.com" # 精确域名；客户端自动识别默认或 SNI 扩展证书槽位。
-#         region: "cn-hangzhou"
-#         loadBalancerId: "nlb-xxxxxxxx"
-#         listenerId: "lsn-xxxxxxxx" # NLB TCPSSL 监听器 ID。
-#
 #   - name: "qiniu"
 #     remark: "七牛云"
 #     auth:
@@ -140,14 +92,6 @@ log:
 #       # 七牛云 SecretKey。
 #       accessSecret: "your-qiniu-access-secret"
 #
-#     cdn:
-#       - label: "官网 CDN"
-#         domain: "www.example.com"
-#
-#     dcdn:
-#       - label: "API DCDN"
-#         domain: "api.example.com"
-#
 #   - name: "cloudTencent"
 #     remark: "腾讯云"
 #     auth:
@@ -155,25 +99,3 @@ log:
 #       secretId: "your-tencent-secret-id"
 #       # 腾讯云 SecretKey。
 #       secretKey: "your-tencent-secret-key"
-#
-#     cdn:
-#       - label: "官网 CDN"
-#         domain: "www.example.com"
-#
-#     edgeOne:
-#       - label: "应用 EdgeOne"
-#         domain: "app.example.com" # 精确 EdgeOne Host。
-#         zoneId: "your-edgeone-zone-id"
-#
-#     cos:
-#       - label: "静态资源 COS"
-#         domain: "static.example.com"
-#         region: "ap-guangzhou"
-#         bucket: "your-cos-bucket-1250000000" # 必须包含 APPID。
-#
-#     clb:
-#       - label: "业务 CLB"
-#         domain: "www.example.com" # 精确域名；客户端自动识别 SNI 规则或监听器证书槽位。
-#         region: "ap-guangzhou"
-#         loadBalancerId: "lb-xxxxxxxx"
-#         listenerId: "lbl-xxxxxxxx" # 腾讯云 CLB 监听器 ID。

@@ -2,14 +2,18 @@ package providers
 
 import (
 	"errors"
+	"net/http"
+	"strings"
 )
+
+const deploymentFailureMessage = "部署失败，请查看 deploy 客户端日志"
 
 // DeploymentError 描述云资源部署失败的重试属性和云厂商请求编号。
 type DeploymentError struct {
 	Message   string // Message 可安全返回后端的脱敏错误说明。
 	Retryable bool   // Retryable 表示后端是否可以自动重试。
 	RequestID string // RequestID 云厂商请求 ID。
-	Cause     error  // Cause 原始错误，仅用于本地错误链和日志。
+	Cause     error  // Cause 保留原始错误链；跨端 ACK 禁止使用，在线日志必须先脱敏。
 }
 
 // Error 返回本地诊断信息；跨端回传必须经过 DeploymentErrorInfo 脱敏。
@@ -44,18 +48,56 @@ func NewDeploymentError(message string, retryable bool, requestID string, cause 
 	}
 }
 
-// DeploymentErrorInfo 从任意错误中提取可返回后端的结构化信息。
-func DeploymentErrorInfo(err error) (message string, retryable bool, requestID string) {
+// DeploymentErrorInfo 只提取可返回后端的固定文案和重试分类。
+func DeploymentErrorInfo(err error) (message string, retryable bool) {
 	if err == nil {
-		return "", false, ""
+		return "", false
 	}
 
 	var deploymentError *DeploymentError
 	if errors.As(err, &deploymentError) {
-		if deploymentError.Message != "" {
-			return deploymentError.Message, deploymentError.Retryable, deploymentError.RequestID
-		}
-		return "云资源部署失败，请查看 deploy 客户端日志", deploymentError.Retryable, deploymentError.RequestID
+		return deploymentFailureMessage, deploymentError.Retryable
 	}
-	return "云资源部署失败，请查看 deploy 客户端日志", false, ""
+	return deploymentFailureMessage, false
+}
+
+// IsPermissionDenied 判断云 SDK 错误码是否明确表示缺少访问权限。
+func IsPermissionDenied(err error) bool {
+	if err == nil {
+		return false
+	}
+	var pointerCodeError interface{ GetCode() *string }
+	if errors.As(err, &pointerCodeError) && pointerCodeError.GetCode() != nil {
+		return IsPermissionDeniedCode(*pointerCodeError.GetCode())
+	}
+	var stringCodeError interface{ GetCode() string }
+	if errors.As(err, &stringCodeError) {
+		return IsPermissionDeniedCode(stringCodeError.GetCode())
+	}
+	var statusCodeError interface{ GetStatusCode() *int }
+	if errors.As(err, &statusCodeError) && statusCodeError.GetStatusCode() != nil {
+		return *statusCodeError.GetStatusCode() == http.StatusUnauthorized
+	}
+	return false
+}
+
+// IsPermissionDeniedCode 按明确错误码白名单识别权限不足，避免只凭 HTTP 403 误判。
+func IsPermissionDeniedCode(code string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(code))
+	if normalized == "" {
+		return false
+	}
+	for _, marker := range []string{
+		"accessdenied",
+		"forbidden",
+		"nopermission",
+		"operationdenied",
+		"permissiondenied",
+		"unauthorizedoperation",
+	} {
+		if strings.Contains(normalized, marker) {
+			return true
+		}
+	}
+	return false
 }

@@ -45,6 +45,8 @@ type cdnClient interface {
 
 // teoClient 定义腾讯云 EdgeOne SDK 的最小调用集合，避免测试访问真实控制面。
 type teoClient interface {
+	// DescribeZonesWithContext 分页查询 EdgeOne 站点目录。
+	DescribeZonesWithContext(ctx context.Context, request *tencentteo.DescribeZonesRequest) (*tencentteo.DescribeZonesResponse, error)
 	// DescribeHostsSettingWithContext 精确查询 EdgeOne 加速域名及证书配置。
 	DescribeHostsSettingWithContext(ctx context.Context, request *tencentteo.DescribeHostsSettingRequest) (*tencentteo.DescribeHostsSettingResponse, error)
 	// ModifyHostsCertificateWithContext 为指定加速域名绑定 SSL 托管证书。
@@ -70,9 +72,23 @@ type teoClientFactory func(secretID, secretKey string) (teoClient, error)
 // cosClientFactory 创建绑定到指定地域和 Bucket 的腾讯云 COS SDK 客户端。
 type cosClientFactory func(secretID, secretKey, region, bucket string) (cosClient, error)
 
+// cosServiceClient 定义 COS 账户级 Bucket 目录接口。
+type cosServiceClient interface {
+	// ListBuckets 分页查询当前账户的 Bucket。
+	ListBuckets(ctx context.Context, options *cos.ServiceGetOptions) (*cos.ServiceGetResult, *cos.Response, error)
+}
+
+// cosServiceClientFactory 创建 COS 账户级服务客户端。
+type cosServiceClientFactory func(secretID, secretKey string) cosServiceClient
+
 // sdkCOSClient 将官方 COS BucketService 适配为便于测试替换的最小接口。
 type sdkCOSClient struct {
 	client *cos.Client // client 是绑定到单个 COS Bucket endpoint 的官方 SDK 客户端。
+}
+
+// sdkCOSServiceClient 将官方 COS ServiceService 适配为最小接口。
+type sdkCOSServiceClient struct {
+	client *cos.Client // client 是只绑定账户级 COS service endpoint 的客户端。
 }
 
 // defaultCDNClientFactory 基于官方 SDK 构建腾讯云 CDN 客户端。
@@ -120,6 +136,24 @@ func defaultCOSClientFactory(secretID, secretKey, region, bucket string) (cosCli
 	return &sdkCOSClient{
 		client: cos.NewClient(&cos.BaseURL{BucketURL: bucketURL}, httpClient),
 	}, nil
+}
+
+// defaultCOSServiceClientFactory 构建腾讯云 COS 账户级服务客户端。
+func defaultCOSServiceClientFactory(secretID, secretKey string) cosServiceClient {
+	serviceURL := &url.URL{Scheme: "https", Host: "service.cos.myqcloud.com"}
+	httpClient := &http.Client{
+		Timeout: time.Duration(defaultTimeoutInS) * time.Second,
+		Transport: &cos.AuthorizationTransport{
+			SecretID:  secretID,
+			SecretKey: secretKey,
+		},
+	}
+	return &sdkCOSServiceClient{client: cos.NewClient(&cos.BaseURL{ServiceURL: serviceURL}, httpClient)}
+}
+
+// ListBuckets 查询 COS Bucket 目录。
+func (c *sdkCOSServiceClient) ListBuckets(ctx context.Context, options *cos.ServiceGetOptions) (*cos.ServiceGetResult, *cos.Response, error) {
+	return c.client.Service.Get(ctx, options)
 }
 
 // GetDomains 查询当前 COS Bucket 的自定义域名目录。
@@ -294,9 +328,13 @@ func (p *Provider) deployCDNCertificate(ctx context.Context, certificate provide
 		strings.TrimSpace(stringValue(readBack.Https.CertInfo.CertId)) != uploaded.CertificateID {
 		return providers.DeploymentResult{}, providers.NewDeploymentError("腾讯云 CDN 证书回读尚未生效", true, requestID, nil)
 	}
+	fingerprintRequestID, err := p.verifyCertificateFingerprint(ctx, uploaded.CertificateID, certificate.CertificatePEM)
+	if err != nil {
+		return providers.DeploymentResult{}, err
+	}
 
 	return providers.DeploymentResult{
-		RequestID: requestID,
+		RequestID: firstTencentRequestID(requestID, fingerprintRequestID),
 		Message:   "腾讯云 CDN 域名证书部署成功",
 	}, nil
 }
@@ -367,9 +405,13 @@ func (p *Provider) deployEdgeOneCertificate(ctx context.Context, certificate pro
 	if !edgeOneHostContainsCertificate(readBack, uploaded.CertificateID) {
 		return providers.DeploymentResult{}, providers.NewDeploymentError("腾讯云 EdgeOne 证书回读尚未生效", true, requestID, nil)
 	}
+	fingerprintRequestID, err := p.verifyCertificateFingerprint(ctx, uploaded.CertificateID, certificate.CertificatePEM)
+	if err != nil {
+		return providers.DeploymentResult{}, err
+	}
 
 	return providers.DeploymentResult{
-		RequestID: requestID,
+		RequestID: firstTencentRequestID(requestID, fingerprintRequestID),
 		Message:   "腾讯云 EdgeOne 域名证书部署成功",
 	}, nil
 }
@@ -464,9 +506,16 @@ func (p *Provider) deployCOSCertificate(ctx context.Context, certificate provide
 	if readBack == nil || !strings.EqualFold(strings.TrimSpace(readBack.Status), cosDomainStatusReady) {
 		return providers.DeploymentResult{}, providers.NewDeploymentError("腾讯云 COS 证书回读尚未生效", true, requestID, nil)
 	}
+	if readBack.CertificateInfo == nil || strings.TrimSpace(readBack.CertificateInfo.CertId) == "" {
+		return providers.DeploymentResult{}, providers.NewDeploymentError("腾讯云 COS 证书回读缺少证书 ID", true, requestID, nil)
+	}
+	fingerprintRequestID, err := p.verifyCertificateFingerprint(ctx, readBack.CertificateInfo.CertId, certificate.CertificatePEM)
+	if err != nil {
+		return providers.DeploymentResult{}, err
+	}
 
 	return providers.DeploymentResult{
-		RequestID: requestID,
+		RequestID: firstTencentRequestID(requestID, fingerprintRequestID),
 		Message:   "腾讯云 COS 自定义域名证书部署成功",
 	}, nil
 }

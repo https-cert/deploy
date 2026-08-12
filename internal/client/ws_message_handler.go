@@ -116,13 +116,13 @@ func (c *WSClient) handleMessage(resp *deployPB.NotifyResponse) {
 		if connectReq, ok := resp.Data.(*deployPB.NotifyResponse_ConnectRequest); ok {
 			if connectReq.ConnectRequest == nil {
 				logger.Warn("连接测试消息缺少 payload", "requestId", resp.RequestId)
-				c.sendConnectResponse(resp.RequestId, "", deployPB.ExecuteBusinesType_EXECUTE_BUSINES_UNKNOWN, false)
+				c.sendConnectResponse(resp.RequestId, "", deployPB.ExecuteBusinesType_EXECUTE_BUSINES_UNKNOWN, "", false)
 				return
 			}
 			requestID := resp.RequestId
 			data := connectReq.ConnectRequest
 			c.runOperation("connect", func() {
-				c.sendConnectResponse(requestID, data.Provider, data.ExecuteBusinesType, false)
+				c.sendConnectResponse(requestID, data.Provider, data.ExecuteBusinesType, data.TargetRef, false)
 			}, func() {
 				c.handleConnect(requestID, data)
 			})
@@ -162,7 +162,8 @@ func (c *WSClient) handleMessage(resp *deployPB.NotifyResponse) {
 
 	case deployPB.Type_GET_PROVIDER:
 		requestID := resp.RequestId
-		c.runOperation("get-provider", nil, func() { c.handleGetProvider(requestID) })
+		request := resp.GetGetProviderRequest()
+		c.runOperation("get-provider", nil, func() { c.handleGetProvider(requestID, request) })
 
 	default:
 		logger.Warn("未知的消息类型", "type", resp.Type)
@@ -172,61 +173,114 @@ func (c *WSClient) handleMessage(resp *deployPB.NotifyResponse) {
 // handleConnect 处理连接测试
 func (c *WSClient) handleConnect(requestId string, data *deployPB.ConnectRequest) {
 	if data == nil {
-		c.sendConnectResponse(requestId, "", deployPB.ExecuteBusinesType_EXECUTE_BUSINES_UNKNOWN, false)
+		c.sendConnectResponse(requestId, "", deployPB.ExecuteBusinesType_EXECUTE_BUSINES_UNKNOWN, "", false)
 		return
 	}
 	// 标记开始执行业务操作
 	c.busyOperations.Add(1)
 	defer c.busyOperations.Add(-1)
 
-	logger.Info("收到【测试连接】请求", "provider", data.Provider, "businessType", data.ExecuteBusinesType, "requestId", requestId)
+	logger.Info("收到【测试连接】请求", "provider", data.Provider, "businessType", data.ExecuteBusinesType, "targetRef", data.TargetRef, "requestId", requestId)
 
 	// 使用共享函数测试对应 provider 或本地部署业务。
-	success, err := TestDeploymentConnection(data.Provider, data.ExecuteBusinesType)
+	success, err := TestDeploymentConnection(data.Provider, data.ExecuteBusinesType, data.TargetRef)
 	if err != nil {
-		logger.Error("测试连接失败", "error", err, "provider", data.Provider, "businessType", data.ExecuteBusinesType)
+		logDeploymentDiagnostic("测试连接失败", err, data.Provider, data.ExecuteBusinesType)
 		success = false
 	}
 
-	// 只回传成功状态，避免把 SSH 地址、用户名和远端诊断信息发送到后端。
-	c.sendConnectResponse(requestId, data.Provider, data.ExecuteBusinesType, success)
+	// WebSocket 只回传成功状态；允许的云与面板诊断通过独立脱敏日志链路展示。
+	c.sendConnectResponse(requestId, data.Provider, data.ExecuteBusinesType, data.TargetRef, success)
 }
 
-// handleGetProvider 处理获取提供商信息
-func (c *WSClient) handleGetProvider(requestId string) {
-	logger.Info("收到【获取提供商信息】请求", "requestID", requestId)
+// handleGetProvider 处理能力查询，并仅在明确请求时扫描一个资源目录。
+func (c *WSClient) handleGetProvider(requestId string, request *deployPB.GetProviderRequest) {
+	logger.Info("收到【获取提供商信息】请求", "requestID", requestId, "provider", request.GetProvider(), "businessType", request.GetExecuteBusinesType(), "includeResources", request.GetIncludeResources())
 
-	c.sendGetProviderResponse(requestId, buildProviderDirectory(GetProviderInfo(), config.GetDeploymentResourceDirectory()))
+	providers := discoverProviderDirectory(c.ctx, GetProviderInfo(), request)
+	providers = mergeProviderCapability(providers, buildOnePanelWebsiteProvider(c.ctx, request))
+	c.sendGetProviderResponse(requestId, providers)
 }
 
-// buildProviderDirectory 将脱敏资源按明确业务挂到所属 provider，且不暴露私有定位字段。
-func buildProviderDirectory(providerInfos []ProviderInfo, directory []config.DeploymentResourceDirectoryEntry) []*deployPB.GetProviderResponse_Provider {
-	responseProviders := make([]*deployPB.GetProviderResponse_Provider, 0, len(providerInfos))
-	for _, providerInfo := range providerInfos {
-		provider := &deployPB.GetProviderResponse_Provider{
-			Name:   providerInfo.Name,
-			Remark: providerInfo.Remark,
+// mergeProviderCapability 将新增业务并入同名 provider，避免目录中出现重复 provider 节点。
+func mergeProviderCapability(providers []*deployPB.GetProviderResponse_Provider, capability *deployPB.GetProviderResponse_Provider) []*deployPB.GetProviderResponse_Provider {
+	if capability == nil || capability.GetName() == "" {
+		return providers
+	}
+	for _, provider := range providers {
+		if provider == nil || provider.GetName() != capability.GetName() {
+			continue
 		}
-		businesses := make(map[deployPB.ExecuteBusinesType]*deployPB.GetProviderResponse_Provider_Business)
-		for _, entry := range directory {
-			if entry.Provider != providerInfo.Name {
+		if provider.GetRemark() == "" {
+			provider.Remark = capability.GetRemark()
+		}
+		for _, capabilityBusiness := range capability.GetBusinesses() {
+			if capabilityBusiness == nil {
 				continue
 			}
-			business := businesses[entry.ExecuteBusinesType]
-			if business == nil {
-				business = &deployPB.GetProviderResponse_Provider_Business{ExecuteBusinesType: entry.ExecuteBusinesType}
-				businesses[entry.ExecuteBusinesType] = business
-				provider.Businesses = append(provider.Businesses, business)
+			merged := false
+			for index, business := range provider.GetBusinesses() {
+				if business != nil && business.GetExecuteBusinesType() == capabilityBusiness.GetExecuteBusinesType() {
+					provider.Businesses[index] = capabilityBusiness
+					merged = true
+					break
+				}
 			}
-			business.Resources = append(business.Resources, &deployPB.DeployResource{
-				TargetRef: entry.TargetRef,
-				Label:     entry.Label,
-				Domain:    entry.Domain,
-			})
+			if !merged {
+				provider.Businesses = append(provider.Businesses, capabilityBusiness)
+			}
 		}
-		responseProviders = append(responseProviders, provider)
+		return providers
 	}
-	return responseProviders
+	return append(providers, capability)
+}
+
+// buildOnePanelWebsiteProvider 上报网站级能力，并按需读取脱敏资源目录。
+func buildOnePanelWebsiteProvider(ctx context.Context, request *deployPB.GetProviderRequest) *deployPB.GetProviderResponse_Provider {
+	business := &deployPB.GetProviderResponse_Provider_Business{
+		ExecuteBusinesType: deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_1PANEL_WEBSITE_CERT,
+	}
+	provider := &deployPB.GetProviderResponse_Provider{
+		Name:       "ansslCli",
+		Remark:     "官方自动部署 CLI",
+		Businesses: []*deployPB.GetProviderResponse_Provider_Business{business},
+	}
+	if !shouldDiscoverProviderBusiness(request, "ansslCli", deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_1PANEL_WEBSITE_CERT) {
+		return provider
+	}
+	if !deploys.IsOnePanelConfigured() {
+		business.ResourceStatus = deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_NOT_CONFIGURED
+		return provider
+	}
+
+	resources, err := deploys.DiscoverOnePanelWebsiteResources(ctx)
+	if err != nil {
+		logger.Error("读取 1Panel 网站目录失败", "error", err, "provider", "ansslCli", "business", deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_1PANEL_WEBSITE_CERT.String())
+		business.ResourceStatus = deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_UNAVAILABLE
+		return provider
+	}
+	if len(resources) == 0 {
+		business.ResourceStatus = deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_EMPTY
+		return provider
+	}
+	business.ResourceStatus = deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_READY
+	business.Resources = make([]*deployPB.DeployResource, 0, len(resources))
+	for _, resource := range resources {
+		availability := deployPB.DeploymentResourceAvailability_DEPLOYMENT_RESOURCE_AVAILABILITY_READY
+		if resource.Status != "Running" {
+			availability = deployPB.DeploymentResourceAvailability_DEPLOYMENT_RESOURCE_AVAILABILITY_STOPPED
+		}
+		business.Resources = append(business.Resources, &deployPB.DeployResource{
+			TargetRef:    resource.TargetRef,
+			Label:        resource.Label,
+			Domain:       resource.Domain,
+			Domains:      append([]string(nil), resource.Domains...),
+			Protocol:     resource.Protocol,
+			Status:       resource.Status,
+			Availability: availability,
+		})
+	}
+	return provider
 }
 
 // handleUpdate 处理版本更新
@@ -389,21 +443,24 @@ func (c *WSClient) executeDeploymentResourceBusiness(requestID string, resp *dep
 		PrivateKeyPEM:      resp.Key,
 	})
 	if err != nil {
-		message, retryable, providerRequestID := providers.DeploymentErrorInfo(err)
+		message, retryable := providers.DeploymentErrorInfo(err)
+		var deploymentError *providers.DeploymentError
+		providerRequestID := ""
+		if errors.As(err, &deploymentError) {
+			providerRequestID = deploymentError.RequestID
+		}
 		logger.Error("资源部署业务执行失败", "error", err, "provider", providerName, "business", resp.ExecuteBusinesType.String(), "targetRef", targetRef, "requestId", requestID, "providerRequestId", providerRequestID)
 		return executeBusinessACK{
-			Result:            deployPB.ExecuteBusinesRequest_REQUEST_RESULT_FAILED,
-			Message:           message,
-			Retryable:         retryable,
-			ProviderRequestID: providerRequestID,
+			Result:    deployPB.ExecuteBusinesRequest_REQUEST_RESULT_FAILED,
+			Message:   message,
+			Retryable: retryable,
 		}
 	}
 
 	return executeBusinessACK{
-		Result:            deployPB.ExecuteBusinesRequest_REQUEST_RESULT_SUCCESS,
-		Message:           result.Message,
-		Retryable:         false,
-		ProviderRequestID: result.RequestID,
+		Result:    deployPB.ExecuteBusinesRequest_REQUEST_RESULT_SUCCESS,
+		Message:   result.Message,
+		Retryable: false,
 	}
 }
 
@@ -453,7 +510,7 @@ func (c *WSClient) executeLegacyBusiness(requestID string, resp *deployPB.Execut
 	}
 
 	if err := c.businessExecutor.ExecuteBusiness(providerName, resp.ExecuteBusinesType, canonicalDomain, resp.Url, remark, resp.Cert, resp.Key); err != nil {
-		logger.Error("业务执行失败", "error", err, "provider", providerName, "domain", canonicalDomain)
+		logDeploymentDiagnostic("业务执行失败", err, providerName, resp.ExecuteBusinesType, "domain", canonicalDomain)
 		message := "业务执行失败，请查看 deploy 客户端日志"
 		if providerName == "ansslCli" {
 			message = localDeploymentFailureMessage

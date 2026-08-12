@@ -72,7 +72,7 @@ func (cd *CertDeployer) DeployToRemoteFeiNiu(sourceDir, domain string, sshConfig
 	}
 	defer func() {
 		if cleanupErr := executor.removeTempDir(remoteTempDir); cleanupErr != nil {
-			logger.Warn("清理飞牛 SSH 临时目录失败", "error", cleanupErr, "host", sshConfig.Host)
+			logger.WarnLocal("清理飞牛 SSH 临时目录失败", "error", cleanupErr, "host", sshConfig.Host)
 		}
 	}()
 
@@ -91,16 +91,16 @@ func (cd *CertDeployer) DeployToRemoteFeiNiu(sourceDir, domain string, sshConfig
 		return err
 	}
 	if err := executor.updateDatabase(remoteTempDir, canonicalDomain, targetDir, certificatePEM, timestamp); err != nil {
-		logger.Warn("远程更新飞牛数据库失败（可能需要手动更新）", "error", err, "domain", canonicalDomain)
+		logger.WarnLocal("远程更新飞牛数据库失败（可能需要手动更新）", "error", err, "domain", canonicalDomain)
 	}
 	if err := executor.updateNginxConfig(remoteTempDir, canonicalDomain, targetDir); err != nil {
-		logger.Warn("远程更新飞牛网关配置失败（可能需要手动更新）", "error", err, "domain", canonicalDomain)
+		logger.WarnLocal("远程更新飞牛网关配置失败（可能需要手动更新）", "error", err, "domain", canonicalDomain)
 	}
 	if err := executor.reloadServices(); err != nil {
-		logger.Warn("远程重启飞牛服务失败（可能需要手动重启）", "error", err, "host", sshConfig.Host)
+		logger.WarnLocal("远程重启飞牛服务失败（可能需要手动重启）", "error", err, "host", sshConfig.Host)
 	}
 
-	logger.Info("证书已通过 SSH 部署到飞牛", "host", sshConfig.Host, "path", targetDir, "domain", canonicalDomain)
+	logger.InfoLocal("证书已通过 SSH 部署到飞牛", "host", sshConfig.Host, "path", targetDir, "domain", canonicalDomain)
 	return nil
 }
 

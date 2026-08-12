@@ -34,6 +34,8 @@ const (
 
 // clbClient 定义腾讯云 CLB 证书部署所需的最小 SDK 调用集合。
 type clbClient interface {
+	// DescribeLoadBalancersWithContext 分页查询指定地域的负载均衡实例。
+	DescribeLoadBalancersWithContext(ctx context.Context, request *tencentclb.DescribeLoadBalancersRequest) (*tencentclb.DescribeLoadBalancersResponse, error)
 	// DescribeListenersWithContext 查询指定实例和监听器的协议、SNI、规则及证书。
 	DescribeListenersWithContext(ctx context.Context, request *tencentclb.DescribeListenersRequest) (*tencentclb.DescribeListenersResponse, error)
 	// ModifyDomainAttributesWithContext 更新 HTTPS SNI 域名规则的服务器证书。
@@ -65,6 +67,11 @@ func defaultCLBClientFactory(secretID, secretKey, region string) (clbClient, err
 // DescribeListenersWithContext 查询 CLB 监听器配置。
 func (c *sdkCLBClient) DescribeListenersWithContext(ctx context.Context, request *tencentclb.DescribeListenersRequest) (*tencentclb.DescribeListenersResponse, error) {
 	return c.client.DescribeListenersWithContext(ctx, request)
+}
+
+// DescribeLoadBalancersWithContext 查询 CLB 实例目录。
+func (c *sdkCLBClient) DescribeLoadBalancersWithContext(ctx context.Context, request *tencentclb.DescribeLoadBalancersRequest) (*tencentclb.DescribeLoadBalancersResponse, error) {
+	return c.client.DescribeLoadBalancersWithContext(ctx, request)
 }
 
 // ModifyDomainAttributesWithContext 更新 CLB SNI 域名证书。
@@ -146,8 +153,12 @@ func (p *Provider) deployCLBCertificate(ctx context.Context, certificate provide
 		return providers.DeploymentResult{}, err
 	}
 	if strings.EqualFold(slot.CurrentCertificate, uploaded.CertificateID) {
+		fingerprintRequestID, err := p.verifyCertificateFingerprint(ctx, uploaded.CertificateID, certificate.CertificatePEM)
+		if err != nil {
+			return providers.DeploymentResult{}, err
+		}
 		return providers.DeploymentResult{
-			RequestID: firstTencentRequestID(uploaded.RequestID, requestID),
+			RequestID: firstTencentRequestID(uploaded.RequestID, requestID, fingerprintRequestID),
 			Message:   "腾讯云 CLB 监听器已配置当前证书",
 		}, nil
 	}
@@ -171,9 +182,13 @@ func (p *Provider) deployCLBCertificate(ctx context.Context, certificate provide
 	if !strings.EqualFold(confirmed.CurrentCertificate, uploaded.CertificateID) {
 		return providers.DeploymentResult{}, providers.NewDeploymentError("腾讯云 CLB 证书回读尚未生效", true, firstTencentRequestID(writeRequestID, readRequestID), nil)
 	}
+	fingerprintRequestID, err := p.verifyCertificateFingerprint(ctx, confirmed.CurrentCertificate, certificate.CertificatePEM)
+	if err != nil {
+		return providers.DeploymentResult{}, err
+	}
 
 	return providers.DeploymentResult{
-		RequestID: firstTencentRequestID(writeRequestID, uploaded.RequestID, readRequestID),
+		RequestID: firstTencentRequestID(writeRequestID, uploaded.RequestID, readRequestID, fingerprintRequestID),
 		Message:   "腾讯云 CLB 监听器证书部署成功",
 	}, nil
 }
@@ -265,14 +280,7 @@ func selectCLBCertificateSlot(domain string, listener *tencentclb.Listener) (clb
 		}
 		return clbCertificateSlot{}, fmt.Errorf("未找到配置域名对应的 SNI 转发规则")
 	}
-	if listener.Certificate == nil {
-		return clbCertificateSlot{}, fmt.Errorf("监听器缺少服务器证书")
-	}
-	return clbCertificateSlot{
-		Listener:           listener,
-		Certificate:        listener.Certificate,
-		CurrentCertificate: strings.TrimSpace(stringValue(listener.Certificate.CertId)),
-	}, nil
+	return clbCertificateSlot{}, fmt.Errorf("仅支持已开启 SNI 的 HTTPS 域名规则")
 }
 
 // collapseCLBRuleMatches 按实际域名合并多路径规则，并拒绝同域名下不一致的证书配置。

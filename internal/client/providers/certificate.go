@@ -5,12 +5,41 @@ import (
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/rsa"
+	"crypto/sha256"
+	"crypto/subtle"
 	"crypto/x509"
+	"encoding/hex"
 	"encoding/pem"
 	"fmt"
 	"strings"
 	"time"
 )
+
+// LeafCertificateSHA256 计算 PEM 中叶证书 DER 内容的 SHA-256 指纹。
+func LeafCertificateSHA256(certificatePEM string) (string, error) {
+	leaf, err := parseLeafCertificate([]byte(certificatePEM))
+	if err != nil {
+		return "", fmt.Errorf("解析叶证书失败: %w", err)
+	}
+	fingerprint := sha256.Sum256(leaf.Raw)
+	return hex.EncodeToString(fingerprint[:]), nil
+}
+
+// VerifyLeafCertificateSHA256 比较提交证书与控制面回读证书的叶证书 SHA-256 指纹。
+func VerifyLeafCertificateSHA256(expectedPEM, actualPEM string) error {
+	expected, err := LeafCertificateSHA256(expectedPEM)
+	if err != nil {
+		return fmt.Errorf("计算提交证书指纹失败: %w", err)
+	}
+	actual, err := LeafCertificateSHA256(actualPEM)
+	if err != nil {
+		return fmt.Errorf("计算回读证书指纹失败: %w", err)
+	}
+	if subtle.ConstantTimeCompare([]byte(expected), []byte(actual)) != 1 {
+		return fmt.Errorf("控制面回读证书指纹与提交证书不一致")
+	}
+	return nil
+}
 
 // ValidateCertificateMaterial 校验证书有效期、域名覆盖关系和证书私钥匹配关系。
 func ValidateCertificateMaterial(certificate CertificateMaterial, targetDomain string, now time.Time) error {
@@ -42,6 +71,20 @@ func ValidateCertificateMaterial(certificate CertificateMaterial, targetDomain s
 	}
 	if err := verifyPrivateKeyMatchesCertificate(leaf, privateKey); err != nil {
 		return err
+	}
+	return nil
+}
+
+// ValidateCertificateForDomains 校验证书材料覆盖资源的全部域名。
+func ValidateCertificateForDomains(certificate CertificateMaterial, targetDomains []string, now time.Time) error {
+	domains := NormalizeDomains(targetDomains...)
+	if len(domains) == 0 {
+		return fmt.Errorf("目标域名不能为空")
+	}
+	for _, domain := range domains {
+		if err := ValidateCertificateMaterial(certificate, domain, now); err != nil {
+			return err
+		}
 	}
 	return nil
 }

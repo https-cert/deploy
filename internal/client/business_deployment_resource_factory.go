@@ -9,9 +9,14 @@ import (
 	"github.com/https-cert/deploy/pb/deployPB"
 )
 
-// getDeploymentResourceDeployer 构建与 provider 和明确业务对应的资源部署器。
-func (be *BusinessExecutor) getDeploymentResourceDeployer(providerName string, business deployPB.ExecuteBusinesType) (providers.DeploymentResourceDeployer, error) {
+// getDeploymentResourceProvider 构建与 provider 和明确业务对应的动态资源适配器。
+func (be *BusinessExecutor) getDeploymentResourceProvider(providerName string, business deployPB.ExecuteBusinesType) (providers.DeploymentResourceProvider, error) {
 	_ = be
+	return newDeploymentResourceProvider(providerName, business)
+}
+
+// newDeploymentResourceProvider 从本地凭据创建动态资源适配器。
+func newDeploymentResourceProvider(providerName string, business deployPB.ExecuteBusinesType) (providers.DeploymentResourceProvider, error) {
 	if !providerSupportsDeploymentBusiness(providerName, business) {
 		return nil, providers.NewDeploymentError("部署业务与 provider 不匹配", false, "", nil)
 	}
@@ -63,7 +68,9 @@ func providerSupportsDeploymentBusiness(providerName string, business deployPB.E
 			business == deployPB.ExecuteBusinesType_EXECUTE_BUSINES_DCDN ||
 			business == deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ESA ||
 			business == deployPB.ExecuteBusinesType_EXECUTE_BUSINES_OSS_CUSTOM_DOMAIN ||
-			business == deployPB.ExecuteBusinesType_EXECUTE_BUSINES_CLB
+			business == deployPB.ExecuteBusinesType_EXECUTE_BUSINES_CLB ||
+			business == deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ALB ||
+			business == deployPB.ExecuteBusinesType_EXECUTE_BUSINES_NLB
 	case config.ProviderTencentCloud:
 		return business == deployPB.ExecuteBusinesType_EXECUTE_BUSINES_CDN ||
 			business == deployPB.ExecuteBusinesType_EXECUTE_BUSINES_EDGEONE ||

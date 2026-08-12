@@ -134,9 +134,7 @@ func selectLoadBalancerCertificateSlot(targetDomain, region string, defaultCerti
 	if len(wildcardMatches) == 1 {
 		return loadBalancerCertificateSlot{CurrentCertificateID: wildcardMatches[0].CertificateID}, nil
 	}
-	if casCertificateDomainPriority(defaultCertificate, targetDomain) > 0 {
-		return loadBalancerCertificateSlot{IsDefault: true, CurrentCertificateID: defaultCertificateID}, nil
-	}
+	_ = defaultCertificate
 	return loadBalancerCertificateSlot{}, nil
 }
 
@@ -245,6 +243,26 @@ func (p *Provider) findOrUploadCASCertificate(ctx context.Context, certificate p
 		return "", uploaded.RequestID, fmt.Errorf("CAS 上传响应缺少有效证书 ID")
 	}
 	return casGlobalCertificateID(certificateIDValue, region), uploaded.RequestID, nil
+}
+
+// verifyCASCertificateFingerprint 在监听器回读后再次从 CAS 目录核对证书叶节点 SHA-256 指纹。
+func (p *Provider) verifyCASCertificateFingerprint(ctx context.Context, certificateID, region, certificatePEM string) (string, error) {
+	certificates, requestID, err := p.listCASCertificates(ctx)
+	if err != nil {
+		return requestID, newAliyunDeploymentErrorWithRequestID("回读 CAS 证书", requestID, err)
+	}
+	certificate, matchCount := findCASCertificateByListenerID(certificates, region, certificateID)
+	if matchCount != 1 {
+		return requestID, providers.NewDeploymentError("阿里云 CAS 未返回唯一的监听器证书", true, requestID, nil)
+	}
+	expectedFingerprint, _, err := extractCertFingerprintAndSerial(certificatePEM)
+	if err != nil {
+		return requestID, providers.NewDeploymentError("阿里云 CAS 提交证书指纹计算失败", false, requestID, newSafeAliyunCause("CAS 证书指纹", err))
+	}
+	if certificate.SHA256Fingerprint == "" || certificate.SHA256Fingerprint != normalizeSHA256Fingerprint(expectedFingerprint) {
+		return requestID, providers.NewDeploymentError("阿里云 CAS 证书指纹回读校验失败", false, requestID, nil)
+	}
+	return requestID, nil
 }
 
 // selectReusableCASCertificateID 优先复用当前槽位证书，否则稳定选择相同指纹的最小证书 ID。

@@ -36,6 +36,7 @@ func NewScheduler(ctx context.Context) (*Scheduler, error) {
 		ClientID:  client.GetClientID(),
 		AccessKey: client.GetAccessKey(),
 	})
+	logger.SetSensitiveValues(configuredSensitiveValues(config.GetConfig())...)
 
 	// 创建 HTTP-01 验证服务器
 	httpServer := server.NewHTTPServer()
@@ -48,6 +49,46 @@ func NewScheduler(ctx context.Context) (*Scheduler, error) {
 		httpServer: httpServer,
 		ctx:        ctx,
 	}, nil
+}
+
+// configuredSensitiveValues 收集可能被第三方 SDK 回显的本地凭据，仅用于在线日志脱敏。
+func configuredSensitiveValues(configuration *config.Configuration) []string {
+	if configuration == nil {
+		return nil
+	}
+
+	values := make([]string, 0, 16)
+	if configuration.Server != nil {
+		values = append(values, configuration.Server.AccessKey)
+	}
+	if configuration.SSL != nil {
+		if configuration.SSL.OnePanel != nil {
+			values = append(values, configuration.SSL.OnePanel.APIKey)
+		}
+		if configuration.SSL.SafeLine != nil {
+			values = append(values, configuration.SSL.SafeLine.APIToken)
+		}
+		if configuration.SSL.FeiNiu != nil {
+			values = append(values, configuration.SSL.FeiNiu.Password, configuration.SSL.FeiNiu.PrivateKeyPassphrase)
+		}
+		if configuration.SSL.RustFS != nil {
+			values = append(values, configuration.SSL.RustFS.Password, configuration.SSL.RustFS.PrivateKeyPassphrase)
+		}
+	}
+	for _, provider := range configuration.Provider {
+		if provider == nil || provider.Auth == nil {
+			continue
+		}
+		values = append(values,
+			provider.Auth.AccessKeyId,
+			provider.Auth.AccessKeySecret,
+			provider.Auth.SecretId,
+			provider.Auth.SecretKey,
+			provider.Auth.AccessKey,
+			provider.Auth.AccessSecret,
+		)
+	}
+	return values
 }
 
 // Start 启动调度器

@@ -54,8 +54,12 @@ func (p *Provider) deployALB(ctx context.Context, certificate providers.Certific
 		return providers.DeploymentResult{}, newAliyunDeploymentErrorWithRequestID("准备 ALB 证书", firstNonEmpty(casRequestID, listenerCertificatesResponse.RequestID, listener.RequestID), err)
 	}
 	if strings.EqualFold(strings.TrimSpace(slot.CurrentCertificateID), strings.TrimSpace(certificateID)) {
+		fingerprintRequestID, err := p.verifyCASCertificateFingerprint(ctx, certificateID, target.Region, certificate.CertificatePEM)
+		if err != nil {
+			return providers.DeploymentResult{}, err
+		}
 		return providers.DeploymentResult{
-			RequestID: firstNonEmpty(uploadRequestID, casRequestID, listenerCertificatesResponse.RequestID, listener.RequestID),
+			RequestID: firstNonEmpty(fingerprintRequestID, uploadRequestID, casRequestID, listenerCertificatesResponse.RequestID, listener.RequestID),
 			Message:   "阿里云 ALB 监听器已配置当前证书",
 		}, nil
 	}
@@ -73,8 +77,12 @@ func (p *Provider) deployALB(ctx context.Context, certificate providers.Certific
 		if err != nil {
 			return providers.DeploymentResult{}, providers.NewDeploymentError("阿里云 ALB 默认服务器证书回读超时", true, firstNonEmpty(written.RequestID, jobID, uploadRequestID, readbackRequestID), newSafeAliyunCause("ALB 默认证书回读", err))
 		}
+		fingerprintRequestID, err := p.verifyCASCertificateFingerprint(ctx, certificateID, target.Region, certificate.CertificatePEM)
+		if err != nil {
+			return providers.DeploymentResult{}, err
+		}
 		return providers.DeploymentResult{
-			RequestID: firstNonEmpty(written.RequestID, readbackRequestID, uploadRequestID),
+			RequestID: firstNonEmpty(fingerprintRequestID, written.RequestID, readbackRequestID, uploadRequestID),
 			Message:   "阿里云 ALB 默认服务器证书部署成功",
 		}, nil
 	}
@@ -92,8 +100,12 @@ func (p *Provider) deployALB(ctx context.Context, certificate providers.Certific
 		return providers.DeploymentResult{}, providers.NewDeploymentError("阿里云 ALB 新 SNI 证书回读超时", true, firstNonEmpty(associated.RequestID, associateJobID, uploadRequestID, readbackRequestID), newSafeAliyunCause("ALB SNI 证书回读", err))
 	}
 	if slot.CurrentCertificateID == "" {
+		fingerprintRequestID, err := p.verifyCASCertificateFingerprint(ctx, certificateID, target.Region, certificate.CertificatePEM)
+		if err != nil {
+			return providers.DeploymentResult{}, err
+		}
 		return providers.DeploymentResult{
-			RequestID: firstNonEmpty(associated.RequestID, readbackRequestID, uploadRequestID),
+			RequestID: firstNonEmpty(fingerprintRequestID, associated.RequestID, readbackRequestID, uploadRequestID),
 			Message:   "阿里云 ALB SNI 证书部署成功",
 		}, nil
 	}
@@ -110,8 +122,12 @@ func (p *Provider) deployALB(ctx context.Context, certificate providers.Certific
 	if err != nil {
 		return providers.DeploymentResult{}, providers.NewDeploymentError("阿里云 ALB 旧 SNI 证书解除超时", true, firstNonEmpty(dissociated.RequestID, dissociateJobID, associated.RequestID, uploadRequestID, removedRequestID), newSafeAliyunCause("ALB 旧 SNI 证书回读", err))
 	}
+	fingerprintRequestID, err := p.verifyCASCertificateFingerprint(ctx, certificateID, target.Region, certificate.CertificatePEM)
+	if err != nil {
+		return providers.DeploymentResult{}, err
+	}
 	return providers.DeploymentResult{
-		RequestID: firstNonEmpty(dissociated.RequestID, removedRequestID, associated.RequestID, uploadRequestID),
+		RequestID: firstNonEmpty(fingerprintRequestID, dissociated.RequestID, removedRequestID, associated.RequestID, uploadRequestID),
 		Message:   "阿里云 ALB SNI 证书部署成功",
 	}, nil
 }

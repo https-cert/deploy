@@ -27,14 +27,18 @@ const (
 	aliyunESAEndpoint  = "esa.cn-hangzhou.aliyuncs.com"
 	aliyunSLBEndpoint  = "slb.aliyuncs.com"
 	aliyunCASEndpoint  = "cas.aliyuncs.com"
+	aliyunECSEndpoint  = "ecs.aliyuncs.com"
 
 	aliyunCDNVersion  = "2018-05-10"
 	aliyunDCDNVersion = "2018-01-15"
 	aliyunESAVersion  = "2024-09-10"
 	aliyunSLBVersion  = "2014-05-15"
 	aliyunCASVersion  = "2020-04-07"
+	aliyunECSVersion  = "2014-05-26"
 	aliyunALBVersion  = "2020-06-16"
 	aliyunNLBVersion  = "2022-04-30"
+
+	aliyunAPICallTimeout = 30 * time.Second
 )
 
 // deploymentAPI 是阿里云各产品资源部署共用的最小 OpenAPI 调用接口。
@@ -148,6 +152,7 @@ func newOpenAPIDeploymentAPI(accessKeyID, accessKeySecret string) (deploymentAPI
 		aliyunESAEndpoint,
 		aliyunSLBEndpoint,
 		aliyunCASEndpoint,
+		aliyunECSEndpoint,
 	}
 	clients := make(map[string]*openapi.Client, len(endpoints))
 	for _, endpoint := range endpoints {
@@ -294,18 +299,19 @@ func callOpenAPIWithContext(ctx context.Context, client *openapi.Client, params 
 	}
 
 	runtime := &util.RuntimeOptions{}
+	requestTimeout := aliyunAPICallTimeout
 	if deadline, hasDeadline := ctx.Deadline(); hasDeadline {
 		remaining := time.Until(deadline)
 		if remaining <= 0 {
 			return nil, context.DeadlineExceeded
 		}
-		milliseconds := int(remaining / time.Millisecond)
-		if milliseconds < 1 {
-			milliseconds = 1
+		if remaining < requestTimeout {
+			requestTimeout = remaining
 		}
-		runtime.ReadTimeout = &milliseconds
-		runtime.ConnectTimeout = &milliseconds
 	}
+	milliseconds := max(int(requestTimeout/time.Millisecond), 1)
+	runtime.ReadTimeout = &milliseconds
+	runtime.ConnectTimeout = &milliseconds
 
 	type result struct {
 		// response 是 SDK 返回的原始响应。

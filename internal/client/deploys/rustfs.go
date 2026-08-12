@@ -132,7 +132,7 @@ func (cd *CertDeployer) DeployToRemoteRustFS(sourceDir, safeDomain string, rustF
 	}
 	defer func() {
 		if cleanupErr := executor.removeTempDir(remoteTempDir); cleanupErr != nil {
-			logger.Warn("清理 RustFS SSH 临时目录失败", "error", cleanupErr, "host", rustFS.Host)
+			logger.WarnLocal("清理 RustFS SSH 临时目录失败", "error", cleanupErr, "host", rustFS.Host)
 		}
 	}()
 
@@ -148,7 +148,7 @@ func (cd *CertDeployer) DeployToRemoteRustFS(sourceDir, safeDomain string, rustF
 		return err
 	}
 
-	logger.Info("证书已通过 SSH 部署到 RustFS", "host", rustFS.Host, "path", path.Join(rustFS.Path, safeDomain), "domain", safeDomain)
+	logger.InfoLocal("证书已通过 SSH 部署到 RustFS", "host", rustFS.Host, "path", path.Join(rustFS.Path, safeDomain), "domain", safeDomain)
 	return nil
 }
 

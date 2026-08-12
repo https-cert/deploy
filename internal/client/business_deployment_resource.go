@@ -5,13 +5,14 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/https-cert/deploy/internal/client/deploys"
 	"github.com/https-cert/deploy/internal/client/providers"
 	"github.com/https-cert/deploy/internal/config"
 	"github.com/https-cert/deploy/pb/deployPB"
 )
 
-// deploymentResourceDeployerFactory 根据明确业务和已解析资源创建对应云厂商部署器。
-type deploymentResourceDeployerFactory func(providerName string, business deployPB.ExecuteBusinesType) (providers.DeploymentResourceDeployer, error)
+// deploymentResourceProviderFactory 根据明确业务创建支持发现和部署的云厂商适配器。
+type deploymentResourceProviderFactory func(providerName string, business deployPB.ExecuteBusinesType) (providers.DeploymentResourceProvider, error)
 
 // BusinessRequest 描述一次由 WebSocket 下发的业务执行请求。
 type BusinessRequest struct {
@@ -59,29 +60,24 @@ func (be *BusinessExecutor) executeDeploymentResource(ctx context.Context, reque
 	if !config.IsDeploymentResourceBusiness(request.ExecuteBusinesType) {
 		return providers.DeploymentResult{}, providers.NewDeploymentError("请求不是资源部署业务", false, "", nil)
 	}
-
-	configuredResource, ok := config.GetDeploymentResource(request.ProviderName, request.ExecuteBusinesType, request.TargetRef)
-	if !ok || configuredResource == nil {
-		return providers.DeploymentResult{}, providers.NewDeploymentError(
-			fmt.Sprintf("部署资源不存在: provider=%s, business=%s, targetRef=%s", request.ProviderName, request.ExecuteBusinesType.String(), request.TargetRef),
-			false,
-			"",
-			nil,
-		)
+	if request.ExecuteBusinesType == deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_1PANEL_WEBSITE_CERT {
+		return be.executeOnePanelWebsiteResource(ctx, request)
 	}
 
-	resource := providers.DeploymentResource{
-		TargetRef:      configuredResource.TargetRef,
-		Label:          configuredResource.Label,
-		Domain:         configuredResource.Domain,
-		Region:         configuredResource.Region,
-		Endpoint:       configuredResource.Endpoint,
-		Bucket:         configuredResource.Bucket,
-		SiteID:         configuredResource.SiteID,
-		ZoneID:         configuredResource.ZoneID,
-		LoadBalancerID: configuredResource.LoadBalancerID,
-		ListenerPort:   configuredResource.ListenerPort,
-		ListenerID:     configuredResource.ListenerID,
+	factory := be.deploymentResourceProviderFactory
+	if factory == nil {
+		factory = be.getDeploymentResourceProvider
+	}
+	resourceProvider, err := factory(request.ProviderName, request.ExecuteBusinesType)
+	if err != nil {
+		return providers.DeploymentResult{}, err
+	}
+	resource, err := resourceProvider.ResolveResource(ctx, request.ExecuteBusinesType, request.TargetRef)
+	if err != nil {
+		return providers.DeploymentResult{}, providers.NewDeploymentError("部署资源已失效，请删除后重新关联", false, "", err)
+	}
+	if err := providers.EnsureResourceReady(resource); err != nil {
+		return providers.DeploymentResult{}, providers.NewDeploymentError("部署资源当前不可用", false, "", err)
 	}
 	certificate := providers.CertificateMaterial{
 		Name:           request.Remark,
@@ -89,19 +85,14 @@ func (be *BusinessExecutor) executeDeploymentResource(ctx context.Context, reque
 		CertificatePEM: request.CertificatePEM,
 		PrivateKeyPEM:  request.PrivateKeyPEM,
 	}
-	if err := providers.ValidateCertificateMaterial(certificate, resource.Domain, time.Now()); err != nil {
+	domains := resource.Domains
+	if len(domains) == 0 {
+		domains = []string{resource.Domain}
+	}
+	if err := providers.ValidateCertificateForDomains(certificate, domains, time.Now()); err != nil {
 		return providers.DeploymentResult{}, providers.NewDeploymentError("部署资源证书校验失败: "+err.Error(), false, "", err)
 	}
-
-	factory := be.deploymentResourceDeployerFactory
-	if factory == nil {
-		factory = be.getDeploymentResourceDeployer
-	}
-	deployer, err := factory(request.ProviderName, request.ExecuteBusinesType)
-	if err != nil {
-		return providers.DeploymentResult{}, err
-	}
-	result, err := deployer.DeployCertificate(ctx, certificate, request.ExecuteBusinesType, resource)
+	result, err := resourceProvider.DeployCertificate(ctx, certificate, request.ExecuteBusinesType, resource)
 	if err != nil {
 		return result, err
 	}
@@ -109,4 +100,20 @@ func (be *BusinessExecutor) executeDeploymentResource(ctx context.Context, reque
 		result.Message = "证书部署成功"
 	}
 	return result, nil
+}
+
+// executeOnePanelWebsiteResource 在客户端本地重新解析网站引用并精确替换所选网站证书。
+func (be *BusinessExecutor) executeOnePanelWebsiteResource(ctx context.Context, request BusinessRequest) (providers.DeploymentResult, error) {
+	if request.ProviderName != "ansslCli" {
+		return providers.DeploymentResult{}, providers.NewDeploymentError(localDeploymentFailureMessage, false, "", fmt.Errorf("1Panel 网站业务 provider 不匹配"))
+	}
+	if err := deploys.DeployCertificateTo1PanelWebsite(ctx, request.TargetRef, request.CertificatePEM, request.PrivateKeyPEM); err != nil {
+		return providers.DeploymentResult{}, providers.NewDeploymentError(
+			localDeploymentFailureMessage,
+			deploys.IsOnePanelErrorRetryable(err),
+			"",
+			err,
+		)
+	}
+	return providers.DeploymentResult{Message: "1Panel 网站证书部署成功"}, nil
 }

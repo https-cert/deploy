@@ -460,7 +460,7 @@ func (cd *CertDeployer) DeployCertificateToFeiNiu(domain, url string) error {
 		if err := cd.DeployToRemoteFeiNiu(extractDir, domain, sslConfig.FeiNiu); err != nil {
 			return fmt.Errorf("通过 SSH 部署到飞牛失败: %w", err)
 		}
-		logger.Info("飞牛远程证书部署完成", "domain", domain, "host", sslConfig.FeiNiu.Host)
+		logger.InfoLocal("飞牛远程证书部署完成", "domain", domain, "host", sslConfig.FeiNiu.Host)
 		return nil
 	}
 

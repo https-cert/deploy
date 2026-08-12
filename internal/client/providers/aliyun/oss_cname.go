@@ -30,10 +30,19 @@ type ossHTTPClient interface {
 
 // ossCnameAPI 隔离 OSS CNAME 控制面，便于测试 PreviousCertId 和 Force 行为。
 type ossCnameAPI interface {
+	// ListBuckets 返回账户下的 Bucket 目录。
+	ListBuckets(ctx context.Context) ([]ossBucketRecord, error)
 	// ListCname 返回 Bucket 中所有自定义域名，由上层执行精确匹配。
 	ListCname(ctx context.Context, target providers.DeploymentResource) (ossCnameListResult, error)
 	// PutCname 为一个已经过预检的自定义域名提交证书和私钥。
 	PutCname(ctx context.Context, request ossCnamePutRequest) (ossCnamePutResult, error)
+}
+
+// ossBucketRecord 描述 OSS Bucket 的稳定身份和地域。
+type ossBucketRecord struct {
+	Name      string // Name 是 Bucket 名称，仅在 deploy 本地使用。
+	Region    string // Region 是 Bucket 地域。
+	CreatedAt string // CreatedAt 用于区分删除后重建的同名 Bucket。
 }
 
 // ossCnameCertificate 保存 OSS CNAME 控制面返回的证书元数据。
@@ -163,6 +172,18 @@ type ossErrorXML struct {
 	RequestID string `xml:"RequestId"`
 }
 
+// ossListBucketsResultXML 是 OSS 服务级 Bucket 列表响应。
+type ossListBucketsResultXML struct {
+	Buckets []ossBucketXML `xml:"Buckets>Bucket"` // Buckets 是账户下的 Bucket 记录。
+}
+
+// ossBucketXML 是 OSS 服务级目录中的单个 Bucket。
+type ossBucketXML struct {
+	Name         string `xml:"Name"`         // Name 是 Bucket 名称。
+	Location     string `xml:"Location"`     // Location 是 OSS endpoint 地域名。
+	CreationDate string `xml:"CreationDate"` // CreationDate 是 Bucket 创建时间。
+}
+
 // newSignedOSSCnameAPI 创建生产 OSS CNAME 适配器。
 func newSignedOSSCnameAPI(accessKeyID, accessKeySecret string, httpClient ossHTTPClient) ossCnameAPI {
 	if httpClient == nil {
@@ -174,6 +195,56 @@ func newSignedOSSCnameAPI(accessKeyID, accessKeySecret string, httpClient ossHTT
 		HTTPClient:      httpClient,
 		Now:             time.Now,
 	}
+}
+
+// ListBuckets 查询当前凭据可见的全部 OSS Bucket。
+func (a *signedOSSCnameAPI) ListBuckets(ctx context.Context) ([]ossBucketRecord, error) {
+	if a == nil || a.HTTPClient == nil || strings.TrimSpace(a.AccessKeyID) == "" || strings.TrimSpace(a.AccessKeySecret) == "" {
+		return nil, &cloudAPIError{Message: "OSS Bucket 目录客户端未初始化"}
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://oss.aliyuncs.com/", nil)
+	if err != nil {
+		return nil, &cloudAPIError{Message: "OSS Bucket 目录请求构造失败", Cause: err}
+	}
+	now := time.Now().UTC()
+	if a.Now != nil {
+		now = a.Now().UTC()
+	}
+	date := now.Format(http.TimeFormat)
+	request.Header.Set("Date", date)
+	request.Header.Set("Authorization", ossAuthorization(a.AccessKeyID, a.AccessKeySecret, http.MethodGet, "", "", date, "/"))
+	response, err := a.HTTPClient.Do(request)
+	if err != nil {
+		return nil, &cloudAPIError{Message: "OSS Bucket 目录网络请求失败", Cause: err}
+	}
+	defer response.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(response.Body, maxOSSResponseBodySize+1))
+	if err != nil || len(body) > maxOSSResponseBodySize {
+		return nil, &cloudAPIError{StatusCode: response.StatusCode, RequestID: ossRequestID(response.Header), Message: "OSS Bucket 目录响应读取失败", Cause: err}
+	}
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		var responseError ossErrorXML
+		_ = xml.Unmarshal(body, &responseError)
+		return nil, &cloudAPIError{
+			StatusCode: response.StatusCode,
+			Code:       strings.TrimSpace(responseError.Code),
+			RequestID:  firstNonEmpty(ossRequestID(response.Header), responseError.RequestID),
+			Message:    "OSS Bucket 目录请求失败",
+		}
+	}
+	var decoded ossListBucketsResultXML
+	if err := xml.Unmarshal(body, &decoded); err != nil {
+		return nil, &cloudAPIError{RequestID: ossRequestID(response.Header), Message: "OSS Bucket 目录响应格式异常", Cause: err}
+	}
+	result := make([]ossBucketRecord, 0, len(decoded.Buckets))
+	for _, bucket := range decoded.Buckets {
+		region := strings.TrimPrefix(strings.ToLower(strings.TrimSpace(bucket.Location)), "oss-")
+		if strings.TrimSpace(bucket.Name) == "" || region == "" {
+			continue
+		}
+		result = append(result, ossBucketRecord{Name: strings.TrimSpace(bucket.Name), Region: region, CreatedAt: strings.TrimSpace(bucket.CreationDate)})
+	}
+	return result, nil
 }
 
 // ListCname 查询一个 Bucket 的 CNAME 列表并保留响应 request ID。
