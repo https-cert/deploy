@@ -46,25 +46,36 @@ func CreateStartCmd() *cobra.Command {
 			defer cancel()
 
 			// 在 goroutine 中启动调度器
-			done := make(chan struct{})
+			done := make(chan error, 1)
 			go func() {
-				scheduler.Start(ctx)
-				close(done)
+				done <- scheduler.Start(ctx)
 			}()
 
 			sigChan := make(chan os.Signal, 1)
 			signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+			defer signal.Stop(sigChan)
 
-			<-sigChan
-			logger.Info("收到停止信号，正在关闭...")
-			cancel()
-
-			// 等待调度器完全停止，最多等待 10 秒
 			select {
-			case <-done:
-				logger.Info("已停止")
-			case <-time.After(10 * time.Second):
-				logger.Warn("停止超时，强制退出")
+			case err := <-done:
+				cancel()
+				if err != nil {
+					return err
+				}
+				return nil
+			case <-sigChan:
+				logger.Info("收到停止信号，正在关闭...")
+				cancel()
+
+				// 等待调度器完全停止，最多等待 10 秒。
+				select {
+				case err := <-done:
+					if err != nil {
+						return err
+					}
+					logger.Info("已停止")
+				case <-time.After(10 * time.Second):
+					logger.Warn("停止超时，强制退出")
+				}
 			}
 
 			return nil

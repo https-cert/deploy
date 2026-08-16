@@ -28,7 +28,10 @@ type WSClient struct {
 	httpClient           *http.Client                      // httpClient 复用证书下载连接。
 	ctx                  context.Context                   // ctx 控制客户端完整生命周期。
 	accessKey            string                            // accessKey 是服务端鉴权令牌。
-	lastDisconnectLogged atomic.Bool                       // lastDisconnectLogged 标记是否需要记录重连成功。
+	connectionLogged     atomic.Bool                       // connectionLogged 保证连接建立日志只记录一次。
+	registrationLogged   atomic.Bool                       // registrationLogged 保证 v2 注册成功日志只记录一次。
+	reconnectPending     atomic.Bool                       // reconnectPending 标记是否发生过异常断线。
+	connected            atomic.Bool                       // connected 表示当前消息循环是否已收到有效 v2 消息。
 	systemInfo           *system.SystemInfo                // systemInfo 缓存本机系统信息。
 	systemInfoOnce       sync.Once                         // systemInfoOnce 保证系统信息只采集一次。
 	httpServer           httpChallengeServer               // httpServer 提供 HTTP-01 challenge 能力。
@@ -37,7 +40,8 @@ type WSClient struct {
 	connMu               sync.Mutex                        // connMu 保护连接替换和关闭。
 	writeMu              sync.Mutex                        // writeMu 保证 WebSocket 只有一个并发写入者。
 	reconnectDelay       time.Duration                     // reconnectDelay 是当前重连退避时间。
-	businessExecutor     *BusinessExecutor                 // businessExecutor 执行部署和 provider 业务。
+	deploymentExecutor   *DeploymentExecutor               // deploymentExecutor 执行部署和 provider 业务。
+	deploymentHandlers   *DeploymentHandlerRegistry        // deploymentHandlers 按 provider/type 路由 v2 业务。
 	protojsonMarshaler   protojson.MarshalOptions          // protojsonMarshaler 序列化 WebSocket 消息。
 	protojsonUnmarshaler protojson.UnmarshalOptions        // protojsonUnmarshaler 反序列化 WebSocket 消息。
 	startOnce            sync.Once                         // startOnce 保证连接循环只启动一次。
@@ -70,7 +74,7 @@ func (c *WSClient) Start() {
 		c.started.Store(true)
 		go func() {
 			defer close(c.done)
-			c.StartWSNotify()
+			c.startWebSocketLoop()
 		}()
 	})
 }

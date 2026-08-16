@@ -20,32 +20,32 @@ const (
 )
 
 // DiscoverResources 实时读取阿里云指定产品的资源目录。
-func (p *Provider) DiscoverResources(ctx context.Context, business deployPB.ExecuteBusinesType) providers.ResourceCatalogResult {
+func (p *Provider) DiscoverResources(ctx context.Context, deploymentType deployPB.DeploymentType) providers.ResourceCatalogResult {
 	if strings.TrimSpace(p.AccessKeyId) == "" || strings.TrimSpace(p.AccessKeySecret) == "" {
 		return providers.ResourceCatalogResult{Status: deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_NOT_CONFIGURED}
 	}
 	var resources []providers.DeploymentResource
 	var partial bool
 	var err error
-	switch business {
-	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_CDN:
-		resources, partial, err = p.discoverAcceleratedResources(ctx, business, acceleratedProduct{
+	switch deploymentType {
+	case deployPB.DeploymentType_DEPLOYMENT_TYPE_CDN:
+		resources, partial, err = p.discoverAcceleratedResources(ctx, deploymentType, acceleratedProduct{
 			Endpoint: aliyunCDNEndpoint, Version: aliyunCDNVersion, DisplayName: "CDN",
 		}, "DescribeUserDomains", "Domains", "PageNumber", "PageSize")
-	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_DCDN:
-		resources, partial, err = p.discoverAcceleratedResources(ctx, business, acceleratedProduct{
+	case deployPB.DeploymentType_DEPLOYMENT_TYPE_DCDN:
+		resources, partial, err = p.discoverAcceleratedResources(ctx, deploymentType, acceleratedProduct{
 			Endpoint: aliyunDCDNEndpoint, Version: aliyunDCDNVersion, DisplayName: "DCDN",
 		}, "DescribeDcdnUserDomains", "Domains", "PageNumber", "PageSize")
-	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ESA:
+	case deployPB.DeploymentType_DEPLOYMENT_TYPE_ESA:
 		resources, partial, err = p.discoverESAResources(ctx)
-	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_OSS_CUSTOM_DOMAIN:
+	case deployPB.DeploymentType_DEPLOYMENT_TYPE_OSS_CUSTOM_DOMAIN:
 		resources, partial, err = p.discoverOSSResources(ctx)
-	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_CLB:
+	case deployPB.DeploymentType_DEPLOYMENT_TYPE_CLB:
 		resources, partial, err = p.discoverCLBResources(ctx)
-	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ALB:
-		resources, partial, err = p.discoverModernLoadBalancerResources(ctx, business, "alb", aliyunALBVersion)
-	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_NLB:
-		resources, partial, err = p.discoverModernLoadBalancerResources(ctx, business, "nlb", aliyunNLBVersion)
+	case deployPB.DeploymentType_DEPLOYMENT_TYPE_ALB:
+		resources, partial, err = p.discoverModernLoadBalancerResources(ctx, deploymentType, "alb", aliyunALBVersion)
+	case deployPB.DeploymentType_DEPLOYMENT_TYPE_NLB:
+		resources, partial, err = p.discoverModernLoadBalancerResources(ctx, deploymentType, "nlb", aliyunNLBVersion)
 	default:
 		return providers.ResourceCatalogResult{Status: deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_UNAVAILABLE, Error: fmt.Errorf("阿里云不支持该资源业务")}
 	}
@@ -71,8 +71,8 @@ func isAliyunPermissionDenied(err error) bool {
 }
 
 // ResolveResource 实时扫描阿里云产品并按引用唯一解析私有资源。
-func (p *Provider) ResolveResource(ctx context.Context, business deployPB.ExecuteBusinesType, targetRef string) (providers.DeploymentResource, error) {
-	catalog := p.DiscoverResources(ctx, business)
+func (p *Provider) ResolveResource(ctx context.Context, deploymentType deployPB.DeploymentType, targetRef string) (providers.DeploymentResource, error) {
+	catalog := p.DiscoverResources(ctx, deploymentType)
 	if catalog.Status == deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_UNAVAILABLE ||
 		catalog.Status == deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_NOT_CONFIGURED ||
 		catalog.Status == deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_PERMISSION_DENIED {
@@ -82,30 +82,30 @@ func (p *Provider) ResolveResource(ctx context.Context, business deployPB.Execut
 }
 
 // TestResource 只读确认阿里云资源仍存在且具备精确证书槽位。
-func (p *Provider) TestResource(ctx context.Context, business deployPB.ExecuteBusinesType, targetRef string) error {
-	resource, err := p.ResolveResource(ctx, business, targetRef)
+func (p *Provider) TestResource(ctx context.Context, deploymentType deployPB.DeploymentType, targetRef string) error {
+	resource, err := p.ResolveResource(ctx, deploymentType, targetRef)
 	if err != nil {
 		return err
 	}
 	if err := providers.EnsureResourceReady(resource); err != nil {
 		return err
 	}
-	switch business {
-	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_CDN:
+	switch deploymentType {
+	case deployPB.DeploymentType_DEPLOYMENT_TYPE_CDN:
 		product := aliyunCDNProduct()
 		response, err := p.readAcceleratedDomain(ctx, resource.Domain, product)
 		if err != nil {
 			return err
 		}
 		return validateAcceleratedDomain(response.Body, resource.Domain, product)
-	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_DCDN:
+	case deployPB.DeploymentType_DEPLOYMENT_TYPE_DCDN:
 		product := aliyunDCDNProduct()
 		response, err := p.readAcceleratedDomain(ctx, resource.Domain, product)
 		if err != nil {
 			return err
 		}
 		return validateAcceleratedDomain(response.Body, resource.Domain, product)
-	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ESA:
+	case deployPB.DeploymentType_DEPLOYMENT_TYPE_ESA:
 		response, err := p.listESACertificatesByRecord(ctx, resource.SiteID, resource.Domain)
 		if err != nil {
 			return err
@@ -114,7 +114,7 @@ func (p *Provider) TestResource(ctx context.Context, business deployPB.ExecuteBu
 			return fmt.Errorf("ESA Record 已失效")
 		}
 		return nil
-	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_OSS_CUSTOM_DOMAIN:
+	case deployPB.DeploymentType_DEPLOYMENT_TYPE_OSS_CUSTOM_DOMAIN:
 		result, err := p.ossAPI.ListCname(ctx, resource)
 		if err != nil {
 			return err
@@ -124,7 +124,7 @@ func (p *Provider) TestResource(ctx context.Context, business deployPB.ExecuteBu
 			return fmt.Errorf("OSS 自定义域名已失效")
 		}
 		return nil
-	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_CLB:
+	case deployPB.DeploymentType_DEPLOYMENT_TYPE_CLB:
 		response, err := p.describeCLBDomainExtensions(ctx, resource, "")
 		if err != nil {
 			return err
@@ -135,9 +135,9 @@ func (p *Provider) TestResource(ctx context.Context, business deployPB.ExecuteBu
 		}
 		_, err = selectCLBCertificateSlot(resource.Domain, "", extensions)
 		return err
-	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ALB:
+	case deployPB.DeploymentType_DEPLOYMENT_TYPE_ALB:
 		return p.testModernLoadBalancerResource(ctx, resource, true)
-	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_NLB:
+	case deployPB.DeploymentType_DEPLOYMENT_TYPE_NLB:
 		return p.testModernLoadBalancerResource(ctx, resource, false)
 	default:
 		return fmt.Errorf("阿里云不支持该资源业务")
@@ -163,7 +163,7 @@ func aliyunDCDNProduct() acceleratedProduct {
 }
 
 // discoverAcceleratedResources 分页读取 CDN 或 DCDN 加速域名。
-func (p *Provider) discoverAcceleratedResources(ctx context.Context, business deployPB.ExecuteBusinesType, product acceleratedProduct, action, containerKey, pageKey, sizeKey string) ([]providers.DeploymentResource, bool, error) {
+func (p *Provider) discoverAcceleratedResources(ctx context.Context, deploymentType deployPB.DeploymentType, product acceleratedProduct, action, containerKey, pageKey, sizeKey string) ([]providers.DeploymentResource, bool, error) {
 	resources := make([]providers.DeploymentResource, 0)
 	for page := 1; page <= aliyunCatalogMaxPages && len(resources) < aliyunCatalogMaxCount; page++ {
 		response, err := p.deploymentAPI.Call(ctx, cloudAPIRequest{
@@ -193,7 +193,7 @@ func (p *Provider) discoverAcceleratedResources(ctx context.Context, business de
 				continue
 			}
 			resources = append(resources, providers.DeploymentResource{
-				TargetRef: providers.BuildTargetRef("aliyun", business, identity), Label: domain, Domain: domain,
+				TargetRef: providers.BuildTargetRef("aliyun", deploymentType, identity), Label: domain, Domain: domain,
 				Domains: []string{domain}, Protocol: "HTTPS", Status: status, Availability: availability,
 				ResourceID: identity, CreatedAt: createdAt,
 			})
@@ -299,7 +299,7 @@ func (p *Provider) listESARecords(ctx context.Context, site map[string]any) ([]p
 				availability = deployPB.DeploymentResourceAvailability_DEPLOYMENT_RESOURCE_AVAILABILITY_STOPPED
 			}
 			resources = append(resources, providers.DeploymentResource{
-				TargetRef: providers.BuildTargetRef("aliyun", deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ESA, siteID, recordID),
+				TargetRef: providers.BuildTargetRef("aliyun", deployPB.DeploymentType_DEPLOYMENT_TYPE_ESA, siteID, recordID),
 				Label:     domain, Domain: domain, Domains: []string{domain}, Group: firstMapString(site, "SiteName", "SiteNameCN"),
 				Protocol: "HTTPS", Status: status, Availability: availability, SiteID: siteID, ResourceID: recordID,
 			})
@@ -349,7 +349,7 @@ func (p *Provider) discoverOSSResources(ctx context.Context) ([]providers.Deploy
 					availability = deployPB.DeploymentResourceAvailability_DEPLOYMENT_RESOURCE_AVAILABILITY_STOPPED
 				}
 				resources = append(resources, providers.DeploymentResource{
-					TargetRef: providers.BuildTargetRef("aliyun", deployPB.ExecuteBusinesType_EXECUTE_BUSINES_OSS_CUSTOM_DOMAIN, bucket.Name, bucket.CreatedAt, domain),
+					TargetRef: providers.BuildTargetRef("aliyun", deployPB.DeploymentType_DEPLOYMENT_TYPE_OSS_CUSTOM_DOMAIN, bucket.Name, bucket.CreatedAt, domain),
 					Label:     domain, Domain: domain, Domains: []string{domain}, Group: "OSS Bucket", Region: bucket.Region,
 					Protocol: "HTTPS", Status: record.Status, Availability: availability, Bucket: bucket.Name, CreatedAt: bucket.CreatedAt,
 				})
@@ -428,7 +428,7 @@ func (p *Provider) listRegionCLBResources(ctx context.Context, region string) ([
 						continue
 					}
 					resources = append(resources, providers.DeploymentResource{
-						TargetRef: providers.BuildTargetRef("aliyun", deployPB.ExecuteBusinesType_EXECUTE_BUSINES_CLB, region, loadBalancerID, strconv.Itoa(int(port)), extension.ExtensionID),
+						TargetRef: providers.BuildTargetRef("aliyun", deployPB.DeploymentType_DEPLOYMENT_TYPE_CLB, region, loadBalancerID, strconv.Itoa(int(port)), extension.ExtensionID),
 						Label:     domain, Domain: domain, Domains: []string{domain}, Group: firstMapString(loadBalancer, "LoadBalancerName"), Region: region,
 						Protocol: "HTTPS", Status: firstMapString(loadBalancer, "LoadBalancerStatus"), Availability: deployPB.DeploymentResourceAvailability_DEPLOYMENT_RESOURCE_AVAILABILITY_READY,
 						LoadBalancerID: loadBalancerID, ListenerPort: int(port), ResourceID: extension.ExtensionID,
@@ -444,7 +444,7 @@ func (p *Provider) listRegionCLBResources(ctx context.Context, region string) ([
 }
 
 // discoverModernLoadBalancerResources 跨地域读取 ALB 或 NLB 的现有 SNI 证书域名集合。
-func (p *Provider) discoverModernLoadBalancerResources(ctx context.Context, business deployPB.ExecuteBusinesType, product, version string) ([]providers.DeploymentResource, bool, error) {
+func (p *Provider) discoverModernLoadBalancerResources(ctx context.Context, deploymentType deployPB.DeploymentType, product, version string) ([]providers.DeploymentResource, bool, error) {
 	regions, err := p.listAliyunRegions(ctx)
 	if err != nil {
 		return nil, false, err
@@ -454,12 +454,12 @@ func (p *Provider) discoverModernLoadBalancerResources(ctx context.Context, busi
 		return nil, false, err
 	}
 	return p.scanAliyunRegions(ctx, regions, func(ctx context.Context, region string) ([]providers.DeploymentResource, error) {
-		return p.listModernLoadBalancerRegion(ctx, business, product, version, region, casCertificates)
+		return p.listModernLoadBalancerRegion(ctx, deploymentType, product, version, region, casCertificates)
 	})
 }
 
 // listModernLoadBalancerRegion 读取一个地域的 ALB/NLB 监听器和非默认证书。
-func (p *Provider) listModernLoadBalancerRegion(ctx context.Context, business deployPB.ExecuteBusinesType, product, version, region string, casCertificates []casCertificateMetadata) ([]providers.DeploymentResource, error) {
+func (p *Provider) listModernLoadBalancerRegion(ctx context.Context, deploymentType deployPB.DeploymentType, product, version, region string, casCertificates []casCertificateMetadata) ([]providers.DeploymentResource, error) {
 	endpoint, err := aliyunRegionalEndpoint(product, region)
 	if err != nil {
 		return nil, err
@@ -528,7 +528,7 @@ func (p *Provider) listModernLoadBalancerRegion(ctx context.Context, business de
 						availability = deployPB.DeploymentResourceAvailability_DEPLOYMENT_RESOURCE_AVAILABILITY_STOPPED
 					}
 					resources = append(resources, providers.DeploymentResource{
-						TargetRef: providers.BuildTargetRef("aliyun", business, region, loadBalancerID, listenerID, strings.Join(domains, ",")),
+						TargetRef: providers.BuildTargetRef("aliyun", deploymentType, region, loadBalancerID, listenerID, strings.Join(domains, ",")),
 						Label:     domains[0], Domain: domains[0], Domains: domains, Group: firstMapString(loadBalancer, "LoadBalancerName"), Region: region,
 						Protocol: protocol, Status: status, Availability: availability, LoadBalancerID: loadBalancerID, ListenerID: listenerID, ListenerPort: int(port),
 					})

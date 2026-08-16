@@ -13,86 +13,72 @@ import (
 	"github.com/https-cert/deploy/pkg/logger"
 )
 
-// BusinessExecutor 业务执行器，封装可复用的业务逻辑
-type BusinessExecutor struct {
+// DeploymentExecutor 封装 v2 provider/type 对应的本地和云端部署逻辑。
+type DeploymentExecutor struct {
 	downloadFile                      func(downloadURL, filePath string) error // downloadFile 下载本地部署所需的证书压缩包。
 	deploymentResourceProviderFactory deploymentResourceProviderFactory        // deploymentResourceProviderFactory 允许测试替换云厂商适配器构造逻辑。
 }
 
-// NewBusinessExecutor 创建业务执行器
-func NewBusinessExecutor(downloadFile func(downloadURL, filePath string) error) *BusinessExecutor {
-	return &BusinessExecutor{
+// NewDeploymentExecutor 创建 v2 部署执行器。
+func NewDeploymentExecutor(downloadFile func(downloadURL, filePath string) error) *DeploymentExecutor {
+	return &DeploymentExecutor{
 		downloadFile: downloadFile,
 	}
 }
 
-// ExecuteBusiness 执行业务（根据提供商和业务类型）
-func (be *BusinessExecutor) ExecuteBusiness(providerName string, executeBusinesType deployPB.ExecuteBusinesType, domain, downloadURL, remark, cert, key string) error {
-	switch providerName {
-	case "ansslCli":
-		// 根据业务类型选择部署方式
-		switch executeBusinesType {
-		case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_CERT:
+// executeNonResourceDeployment 执行不需要动态 targetRef 的 v2 部署类型。
+func (be *DeploymentExecutor) executeNonResourceDeployment(provider deployPB.Provider, deploymentType deployPB.DeploymentType, domain, downloadURL, remark, cert, key string) error {
+	switch provider {
+	case deployPB.Provider_PROVIDER_ANSSL_CLI:
+		switch deploymentType {
+		case deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_NGINX_CERT:
 			// 部署证书到本地 nginx
 			return be.handleNginxCertificateDeploy(domain, downloadURL)
-		case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_APACHE_CERT:
+		case deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_APACHE_CERT:
 			// 部署证书到本地 apache
 			return be.handleApacheCertificateDeploy(domain, downloadURL)
-		case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_OPENVPN_AS_CERT:
+		case deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_OPENVPN_AS_CERT:
 			// 部署证书到 OpenVPN-AS
 			return be.handleOpenVPNASCertificateDeploy(domain, downloadURL)
-		case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_UPLOAD_ONLY_CERT:
+		case deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_UPLOAD_ONLY_CERT:
 			// 仅将证书保存到本地目录
 			return be.handleUploadOnlyCertificateDeploy(domain, downloadURL)
-		case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_RUSTFS_CERT:
+		case deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_RUSTFS_CERT:
 			// 部署证书到本地 RustFS
 			return be.handleRustFSCertificateDeploy(domain, downloadURL)
-		case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_FEINIU_CERT:
+		case deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_FEINIU_CERT:
 			// 部署证书到本地 Feiniu
 			return be.handleFeiniuCertificateDeploy(domain, downloadURL)
-		case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_1PANEL_CERT:
+		case deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_1PANEL_CERT:
 			// 部署证书到 1Panel
 			return be.handle1PanelCertificateDeploy(domain, downloadURL)
-		case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_BT_PANEL_CERT:
+		case deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_BT_PANEL_CERT:
 			// 仅上传证书到宝塔证书库
 			return be.handleBTPanelCertificateStoreDeploy(domain, downloadURL)
-		case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_SAFELINE_CERT:
+		case deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_SAFELINE_CERT:
 			// 部署证书到雷池 WAF
 			return be.handleSafeLineCertificateDeploy(domain, downloadURL)
 		default:
-			logger.Warn("不支持的业务类型", "executeBusinesType", executeBusinesType)
-			return fmt.Errorf("不支持的业务类型: %d", executeBusinesType)
+			logger.Warn("不支持的部署类型", "deploymentType", deploymentType)
+			return fmt.Errorf("不支持的部署类型: %s", deploymentType.String())
 		}
 
-	case "aliyun":
-		// 证书中心上传与固定资源部署分别通过独立业务路径执行。
-		if executeBusinesType != deployPB.ExecuteBusinesType_EXECUTE_BUSINES_UPLOAD_CERT {
-			return fmt.Errorf("不支持的业务类型: %d", executeBusinesType)
+	case deployPB.Provider_PROVIDER_ALIYUN,
+		deployPB.Provider_PROVIDER_QINIU,
+		deployPB.Provider_PROVIDER_TENCENT_CLOUD:
+		if deploymentType != deployPB.DeploymentType_DEPLOYMENT_TYPE_UPLOAD_CERT {
+			return fmt.Errorf("provider %s 不支持部署类型 %s", provider.String(), deploymentType.String())
 		}
-		return be.handleCertificateProvider(providerName, domain, remark, cert, key)
-
-	case "qiniu":
-		// 上传证书到云服务商
-		if executeBusinesType != deployPB.ExecuteBusinesType_EXECUTE_BUSINES_UPLOAD_CERT {
-			return fmt.Errorf("不支持的业务类型: %d", executeBusinesType)
-		}
-		return be.handleCertificateProvider(providerName, domain, remark, cert, key)
-
-	case "cloudTencent":
-		// 腾讯云仅支持上传证书
-		if executeBusinesType != deployPB.ExecuteBusinesType_EXECUTE_BUSINES_UPLOAD_CERT {
-			return fmt.Errorf("不支持的业务类型: %d", executeBusinesType)
-		}
-		return be.handleCertificateProvider(providerName, domain, remark, cert, key)
+		return be.handleCertificateProvider(provider, domain, remark, cert, key)
 
 	default:
-		logger.Warn("不支持的提供商", "provider", providerName)
-		return fmt.Errorf("不支持的提供商: %s", providerName)
+		logger.Warn("不支持的部署平台", "provider", provider.String())
+		return fmt.Errorf("不支持的部署平台: %s", provider.String())
 	}
 }
 
 // handleNginxCertificateDeploy 处理证书部署到本地 nginx
-func (be *BusinessExecutor) handleNginxCertificateDeploy(domain, downloadURL string) error {
+func (be *DeploymentExecutor) handleNginxCertificateDeploy(domain, downloadURL string) error {
 	if domain == "" {
 		return fmt.Errorf("域名不能为空")
 	}
@@ -108,7 +94,7 @@ func (be *BusinessExecutor) handleNginxCertificateDeploy(domain, downloadURL str
 }
 
 // handleApacheCertificateDeploy 处理证书部署到本地 apache
-func (be *BusinessExecutor) handleApacheCertificateDeploy(domain, downloadURL string) error {
+func (be *DeploymentExecutor) handleApacheCertificateDeploy(domain, downloadURL string) error {
 	if domain == "" {
 		return fmt.Errorf("域名不能为空")
 	}
@@ -124,7 +110,7 @@ func (be *BusinessExecutor) handleApacheCertificateDeploy(domain, downloadURL st
 }
 
 // handleOpenVPNASCertificateDeploy 处理证书部署到 OpenVPN-AS
-func (be *BusinessExecutor) handleOpenVPNASCertificateDeploy(domain, downloadURL string) error {
+func (be *DeploymentExecutor) handleOpenVPNASCertificateDeploy(domain, downloadURL string) error {
 	if domain == "" {
 		return fmt.Errorf("域名不能为空")
 	}
@@ -140,7 +126,7 @@ func (be *BusinessExecutor) handleOpenVPNASCertificateDeploy(domain, downloadURL
 }
 
 // handleUploadOnlyCertificateDeploy 仅将证书保存到本地目录
-func (be *BusinessExecutor) handleUploadOnlyCertificateDeploy(domain, downloadURL string) error {
+func (be *DeploymentExecutor) handleUploadOnlyCertificateDeploy(domain, downloadURL string) error {
 	if domain == "" {
 		return fmt.Errorf("域名不能为空")
 	}
@@ -156,7 +142,7 @@ func (be *BusinessExecutor) handleUploadOnlyCertificateDeploy(domain, downloadUR
 }
 
 // handleRustFSCertificateDeploy 处理证书部署到本地 RustFS
-func (be *BusinessExecutor) handleRustFSCertificateDeploy(domain, downloadURL string) error {
+func (be *DeploymentExecutor) handleRustFSCertificateDeploy(domain, downloadURL string) error {
 	if domain == "" {
 		return fmt.Errorf("域名不能为空")
 	}
@@ -172,7 +158,7 @@ func (be *BusinessExecutor) handleRustFSCertificateDeploy(domain, downloadURL st
 }
 
 // handleFeiniuCertificateDeploy 处理证书部署到本地飞牛
-func (be *BusinessExecutor) handleFeiniuCertificateDeploy(domain, downloadURL string) error {
+func (be *DeploymentExecutor) handleFeiniuCertificateDeploy(domain, downloadURL string) error {
 	if domain == "" {
 		return fmt.Errorf("域名不能为空")
 	}
@@ -188,7 +174,7 @@ func (be *BusinessExecutor) handleFeiniuCertificateDeploy(domain, downloadURL st
 }
 
 // handle1PanelCertificateDeploy 处理证书部署到 1Panel
-func (be *BusinessExecutor) handle1PanelCertificateDeploy(domain, downloadURL string) error {
+func (be *DeploymentExecutor) handle1PanelCertificateDeploy(domain, downloadURL string) error {
 	if domain == "" {
 		return fmt.Errorf("域名不能为空")
 	}
@@ -204,7 +190,7 @@ func (be *BusinessExecutor) handle1PanelCertificateDeploy(domain, downloadURL st
 }
 
 // handleBTPanelCertificateStoreDeploy 处理证书上传到宝塔证书库。
-func (be *BusinessExecutor) handleBTPanelCertificateStoreDeploy(domain, downloadURL string) error {
+func (be *DeploymentExecutor) handleBTPanelCertificateStoreDeploy(domain, downloadURL string) error {
 	if domain == "" {
 		return fmt.Errorf("域名不能为空")
 	}
@@ -218,7 +204,7 @@ func (be *BusinessExecutor) handleBTPanelCertificateStoreDeploy(domain, download
 }
 
 // handleSafeLineCertificateDeploy 处理证书部署到雷池 WAF。
-func (be *BusinessExecutor) handleSafeLineCertificateDeploy(domain, downloadURL string) error {
+func (be *DeploymentExecutor) handleSafeLineCertificateDeploy(domain, downloadURL string) error {
 	if domain == "" {
 		return fmt.Errorf("域名不能为空")
 	}
@@ -233,10 +219,13 @@ func (be *BusinessExecutor) handleSafeLineCertificateDeploy(domain, downloadURL 
 	return nil
 }
 
-// handleCertificateProvider 处理证书提供商的上传操作
-func (be *BusinessExecutor) handleCertificateProvider(providerName, domain, remark, cert, key string) error {
-	// 获取 provider 实例
-	providerHandler, err := be.getProviderHandler(providerName)
+// handleCertificateProvider 处理证书提供商的上传操作。
+func (be *DeploymentExecutor) handleCertificateProvider(provider deployPB.Provider, domain, remark, cert, key string) error {
+	providerName, ok := config.DeploymentProviderName(provider)
+	if !ok {
+		return fmt.Errorf("不支持的部署平台: %s", provider.String())
+	}
+	providerHandler, err := be.getProviderHandler(provider)
 	if err != nil {
 		logger.ErrorLocal("创建提供商实例失败", "provider", providerName, "error", err)
 		return err
@@ -253,7 +242,7 @@ func (be *BusinessExecutor) handleCertificateProvider(providerName, domain, rema
 }
 
 // getCloudTencentProvider 获取腾讯云 provider
-func (be *BusinessExecutor) getCloudTencentProvider() (*cloud_tencent.Provider, error) {
+func (be *DeploymentExecutor) getCloudTencentProvider() (*cloud_tencent.Provider, error) {
 	providerConfig := config.GetProvider("cloudTencent")
 	if providerConfig == nil {
 		return nil, fmt.Errorf("未配置【腾讯云】提供商配置")
@@ -268,32 +257,36 @@ func (be *BusinessExecutor) getCloudTencentProvider() (*cloud_tencent.Provider, 
 	return cloud_tencent.New(secretID, secretKey), nil
 }
 
-// getProviderHandler 根据提供商名称获取对应的 handler
-func (be *BusinessExecutor) getProviderHandler(providerName string) (providers.ProviderHandler, error) {
+// getProviderHandler 根据 v2 provider 获取对应的证书上传 handler。
+func (be *DeploymentExecutor) getProviderHandler(provider deployPB.Provider) (providers.ProviderHandler, error) {
+	providerName, ok := config.DeploymentProviderName(provider)
+	if !ok {
+		return nil, fmt.Errorf("不支持的部署平台: %s", provider.String())
+	}
 	providerConfig := config.GetProvider(providerName)
 	if providerConfig == nil {
 		return nil, fmt.Errorf("提供商配置不存在: %s", providerName)
 	}
 
-	switch providerName {
-	case "aliyun":
+	switch provider {
+	case deployPB.Provider_PROVIDER_ALIYUN:
 		accessKeyID := providerConfig.GetAccessKeyId()
 		accessKeySecret := providerConfig.GetAccessKeySecret()
 		if accessKeyID == "" || accessKeySecret == "" {
 			return nil, fmt.Errorf("阿里云配置不完整: accessKeyId 或 accessKeySecret 为空")
 		}
 		return aliyun.New(accessKeyID, accessKeySecret)
-	case "qiniu":
+	case deployPB.Provider_PROVIDER_QINIU:
 		accessKey := providerConfig.GetAccessKey()
 		accessSecret := providerConfig.GetAccessSecret()
 		if accessKey == "" || accessSecret == "" {
 			return nil, fmt.Errorf("七牛云配置不完整: accessKey 或 accessSecret 为空")
 		}
 		return qiniu.New(accessKey, accessSecret), nil
-	case "cloudTencent":
+	case deployPB.Provider_PROVIDER_TENCENT_CLOUD:
 		return be.getCloudTencentProvider()
 
 	default:
-		return nil, fmt.Errorf("不支持的提供商: %s", providerName)
+		return nil, fmt.Errorf("不支持的部署平台: %s", provider.String())
 	}
 }

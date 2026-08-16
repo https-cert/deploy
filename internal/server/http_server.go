@@ -142,7 +142,6 @@ func (s *HTTPServer) IsReady() bool {
 
 // Stop 停止 HTTP 服务器
 func (s *HTTPServer) Stop(ctx context.Context) error {
-	logger.Info("正在停止 HTTP-01 验证服务")
 	s.stopOnce.Do(func() {
 		s.cancelCleanup()
 		s.stopErr = s.server.Shutdown(ctx)

@@ -350,34 +350,34 @@ func stringPointers(values map[string]string) map[string]*string {
 }
 
 // DeployCertificate 将证书部署到一个明确阿里云业务下精确解析出的资源。
-func (p *Provider) DeployCertificate(ctx context.Context, certificate providers.CertificateMaterial, business deployPB.ExecuteBusinesType, resource providers.DeploymentResource) (providers.DeploymentResult, error) {
+func (p *Provider) DeployCertificate(ctx context.Context, certificate providers.CertificateMaterial, deploymentType deployPB.DeploymentType, resource providers.DeploymentResource) (providers.DeploymentResult, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	if err := ctx.Err(); err != nil {
 		return providers.DeploymentResult{}, newAliyunDeploymentError("资源部署", err)
 	}
-	if err := validateAliyunDeploymentResource(business, resource); err != nil {
+	if err := validateAliyunDeploymentResource(deploymentType, resource); err != nil {
 		return providers.DeploymentResult{}, providers.NewDeploymentError("阿里云部署资源配置无效", false, "", newSafeAliyunCause("资源校验", err))
 	}
 	if err := providers.ValidateCertificateMaterial(certificate, resource.Domain, time.Now()); err != nil {
 		return providers.DeploymentResult{}, providers.NewDeploymentError("阿里云部署资源证书校验失败", false, "", newSafeAliyunCause("证书校验", err))
 	}
 
-	switch business {
-	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_CDN:
+	switch deploymentType {
+	case deployPB.DeploymentType_DEPLOYMENT_TYPE_CDN:
 		return p.deployCDN(ctx, certificate, resource)
-	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_DCDN:
+	case deployPB.DeploymentType_DEPLOYMENT_TYPE_DCDN:
 		return p.deployDCDN(ctx, certificate, resource)
-	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ESA:
+	case deployPB.DeploymentType_DEPLOYMENT_TYPE_ESA:
 		return p.deployESA(ctx, certificate, resource)
-	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_OSS_CUSTOM_DOMAIN:
+	case deployPB.DeploymentType_DEPLOYMENT_TYPE_OSS_CUSTOM_DOMAIN:
 		return p.deployOSS(ctx, certificate, resource)
-	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_CLB:
+	case deployPB.DeploymentType_DEPLOYMENT_TYPE_CLB:
 		return p.deployCLB(ctx, certificate, resource)
-	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ALB:
+	case deployPB.DeploymentType_DEPLOYMENT_TYPE_ALB:
 		return p.deployALB(ctx, certificate, resource)
-	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_NLB:
+	case deployPB.DeploymentType_DEPLOYMENT_TYPE_NLB:
 		return p.deployNLB(ctx, certificate, resource)
 	default:
 		return providers.DeploymentResult{}, providers.NewDeploymentError("阿里云不支持该部署业务", false, "", nil)
@@ -385,7 +385,7 @@ func (p *Provider) DeployCertificate(ctx context.Context, certificate providers.
 }
 
 // validateAliyunDeploymentResource 拒绝缺少引用和产品专属定位字段的直接调用。
-func validateAliyunDeploymentResource(business deployPB.ExecuteBusinesType, resource providers.DeploymentResource) error {
+func validateAliyunDeploymentResource(deploymentType deployPB.DeploymentType, resource providers.DeploymentResource) error {
 	if strings.TrimSpace(resource.TargetRef) == "" {
 		return fmt.Errorf("targetRef 不能为空")
 	}
@@ -393,20 +393,20 @@ func validateAliyunDeploymentResource(business deployPB.ExecuteBusinesType, reso
 		return fmt.Errorf("目标域名不能为空")
 	}
 
-	switch business {
-	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_CDN, deployPB.ExecuteBusinesType_EXECUTE_BUSINES_DCDN:
+	switch deploymentType {
+	case deployPB.DeploymentType_DEPLOYMENT_TYPE_CDN, deployPB.DeploymentType_DEPLOYMENT_TYPE_DCDN:
 		return nil
-	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ESA:
+	case deployPB.DeploymentType_DEPLOYMENT_TYPE_ESA:
 		if _, err := parseESASiteID(resource.SiteID); err != nil {
 			return err
 		}
 		return nil
-	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_OSS_CUSTOM_DOMAIN:
+	case deployPB.DeploymentType_DEPLOYMENT_TYPE_OSS_CUSTOM_DOMAIN:
 		if strings.TrimSpace(resource.Region) == "" || strings.TrimSpace(resource.Bucket) == "" {
 			return fmt.Errorf("OSS 目标缺少地域或 Bucket")
 		}
 		return nil
-	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_CLB:
+	case deployPB.DeploymentType_DEPLOYMENT_TYPE_CLB:
 		if strings.TrimSpace(resource.Region) == "" || strings.TrimSpace(resource.LoadBalancerID) == "" {
 			return fmt.Errorf("CLB 目标缺少地域或负载均衡实例")
 		}
@@ -414,12 +414,12 @@ func validateAliyunDeploymentResource(business deployPB.ExecuteBusinesType, reso
 			return fmt.Errorf("CLB 监听端口无效")
 		}
 		return nil
-	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ALB:
+	case deployPB.DeploymentType_DEPLOYMENT_TYPE_ALB:
 		if strings.TrimSpace(resource.Region) == "" || strings.TrimSpace(resource.LoadBalancerID) == "" || strings.TrimSpace(resource.ListenerID) == "" {
 			return fmt.Errorf("ALB 目标缺少地域、负载均衡实例或监听器")
 		}
 		return nil
-	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_NLB:
+	case deployPB.DeploymentType_DEPLOYMENT_TYPE_NLB:
 		if strings.TrimSpace(resource.Region) == "" || strings.TrimSpace(resource.LoadBalancerID) == "" || strings.TrimSpace(resource.ListenerID) == "" {
 			return fmt.Errorf("NLB 目标缺少地域、负载均衡实例或监听器")
 		}

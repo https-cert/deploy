@@ -15,12 +15,12 @@ type ResourceCatalogResult struct {
 
 // ResourceDiscoverer 统一云资源的实时发现、引用解析和只读连接测试。
 type ResourceDiscoverer interface {
-	// DiscoverResources 实时读取指定业务下的全部可识别资源。
-	DiscoverResources(ctx context.Context, business deployPB.ExecuteBusinesType) ResourceCatalogResult
+	// DiscoverResources 实时读取指定部署类型下的全部可识别资源。
+	DiscoverResources(ctx context.Context, deploymentType deployPB.DeploymentType) ResourceCatalogResult
 	// ResolveResource 实时读取目录并按不透明引用唯一解析资源。
-	ResolveResource(ctx context.Context, business deployPB.ExecuteBusinesType, targetRef string) (DeploymentResource, error)
+	ResolveResource(ctx context.Context, deploymentType deployPB.DeploymentType, targetRef string) (DeploymentResource, error)
 	// TestResource 确认资源仍存在、可读且具备精确证书部署条件。
-	TestResource(ctx context.Context, business deployPB.ExecuteBusinesType, targetRef string) error
+	TestResource(ctx context.Context, deploymentType deployPB.DeploymentType, targetRef string) error
 }
 
 // ConnectionTester 测试云厂商凭据是否可以访问对应控制面。
@@ -41,7 +41,8 @@ type ProviderHandler interface {
 
 // DeploymentResourceDeployer 将证书部署到一个明确业务下已经精确解析的资源。
 type DeploymentResourceDeployer interface {
-	DeployCertificate(ctx context.Context, certificate CertificateMaterial, business deployPB.ExecuteBusinesType, resource DeploymentResource) (DeploymentResult, error)
+	// DeployCertificate 将证书部署到指定 v2 部署类型对应的精确资源。
+	DeployCertificate(ctx context.Context, certificate CertificateMaterial, deploymentType deployPB.DeploymentType, resource DeploymentResource) (DeploymentResult, error)
 }
 
 // DeploymentResourceProvider 组合动态发现、解析、测试和精确部署能力。

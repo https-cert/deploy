@@ -26,21 +26,21 @@ const (
 )
 
 // DiscoverResources 实时读取腾讯云指定产品的资源目录。
-func (p *Provider) DiscoverResources(ctx context.Context, business deployPB.ExecuteBusinesType) providers.ResourceCatalogResult {
+func (p *Provider) DiscoverResources(ctx context.Context, deploymentType deployPB.DeploymentType) providers.ResourceCatalogResult {
 	if strings.TrimSpace(p.SecretId) == "" || strings.TrimSpace(p.SecretKey) == "" {
 		return providers.ResourceCatalogResult{Status: deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_NOT_CONFIGURED}
 	}
 	var resources []providers.DeploymentResource
 	var partial bool
 	var err error
-	switch business {
-	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_CDN:
+	switch deploymentType {
+	case deployPB.DeploymentType_DEPLOYMENT_TYPE_CDN:
 		resources, partial, err = p.discoverCDNResources(ctx)
-	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_EDGEONE:
+	case deployPB.DeploymentType_DEPLOYMENT_TYPE_EDGEONE:
 		resources, partial, err = p.discoverEdgeOneResources(ctx)
-	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_COS:
+	case deployPB.DeploymentType_DEPLOYMENT_TYPE_COS:
 		resources, partial, err = p.discoverCOSResources(ctx)
-	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_CLB:
+	case deployPB.DeploymentType_DEPLOYMENT_TYPE_CLB:
 		resources, partial, err = p.discoverCLBResources(ctx)
 	default:
 		return providers.ResourceCatalogResult{Status: deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_UNAVAILABLE, Error: fmt.Errorf("腾讯云不支持该资源业务")}
@@ -61,8 +61,8 @@ func (p *Provider) DiscoverResources(ctx context.Context, business deployPB.Exec
 }
 
 // ResolveResource 实时扫描腾讯云产品并按引用唯一解析私有资源。
-func (p *Provider) ResolveResource(ctx context.Context, business deployPB.ExecuteBusinesType, targetRef string) (providers.DeploymentResource, error) {
-	catalog := p.DiscoverResources(ctx, business)
+func (p *Provider) ResolveResource(ctx context.Context, deploymentType deployPB.DeploymentType, targetRef string) (providers.DeploymentResource, error) {
+	catalog := p.DiscoverResources(ctx, deploymentType)
 	if catalog.Status == deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_UNAVAILABLE ||
 		catalog.Status == deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_NOT_CONFIGURED ||
 		catalog.Status == deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_PERMISSION_DENIED {
@@ -72,30 +72,30 @@ func (p *Provider) ResolveResource(ctx context.Context, business deployPB.Execut
 }
 
 // TestResource 只读确认腾讯云资源仍存在且可精确部署。
-func (p *Provider) TestResource(ctx context.Context, business deployPB.ExecuteBusinesType, targetRef string) error {
-	resource, err := p.ResolveResource(ctx, business, targetRef)
+func (p *Provider) TestResource(ctx context.Context, deploymentType deployPB.DeploymentType, targetRef string) error {
+	resource, err := p.ResolveResource(ctx, deploymentType, targetRef)
 	if err != nil {
 		return err
 	}
 	if err := providers.EnsureResourceReady(resource); err != nil {
 		return err
 	}
-	switch business {
-	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_CDN:
+	switch deploymentType {
+	case deployPB.DeploymentType_DEPLOYMENT_TYPE_CDN:
 		client, err := p.getCDNClient()
 		if err != nil {
 			return err
 		}
 		_, _, err = describeCDNDomain(ctx, client, resource.Domain)
 		return err
-	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_EDGEONE:
+	case deployPB.DeploymentType_DEPLOYMENT_TYPE_EDGEONE:
 		client, err := p.getTEOClient()
 		if err != nil {
 			return err
 		}
 		_, _, err = describeEdgeOneHost(ctx, client, resource.ZoneID, resource.Domain)
 		return err
-	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_COS:
+	case deployPB.DeploymentType_DEPLOYMENT_TYPE_COS:
 		client, err := p.getCOSClient(resource)
 		if err != nil {
 			return err
@@ -108,7 +108,7 @@ func (p *Provider) TestResource(ctx context.Context, business deployPB.ExecuteBu
 			return fmt.Errorf("COS 自定义域名已失效")
 		}
 		return nil
-	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_CLB:
+	case deployPB.DeploymentType_DEPLOYMENT_TYPE_CLB:
 		client, err := p.getCLBClient(resource)
 		if err != nil {
 			return err
@@ -181,7 +181,7 @@ func tencentCDNResource(detail *tencentcdn.DetailDomain) (providers.DeploymentRe
 		availability = deployPB.DeploymentResourceAvailability_DEPLOYMENT_RESOURCE_AVAILABILITY_UNSUPPORTED
 	}
 	return providers.DeploymentResource{
-		TargetRef:    providers.BuildTargetRef("cloudTencent", deployPB.ExecuteBusinesType_EXECUTE_BUSINES_CDN, identity),
+		TargetRef:    providers.BuildTargetRef("cloudTencent", deployPB.DeploymentType_DEPLOYMENT_TYPE_CDN, identity),
 		Label:        domain,
 		Domain:       domain,
 		Domains:      []string{domain},
@@ -315,7 +315,7 @@ func tencentEdgeOneResource(zone *tencentteo.Zone, host *tencentteo.DetailHost) 
 		availability = deployPB.DeploymentResourceAvailability_DEPLOYMENT_RESOURCE_AVAILABILITY_STOPPED
 	}
 	return providers.DeploymentResource{
-		TargetRef:    providers.BuildTargetRef("cloudTencent", deployPB.ExecuteBusinesType_EXECUTE_BUSINES_EDGEONE, stringValue(zone.ZoneId), stringValue(host.Id)),
+		TargetRef:    providers.BuildTargetRef("cloudTencent", deployPB.DeploymentType_DEPLOYMENT_TYPE_EDGEONE, stringValue(zone.ZoneId), stringValue(host.Id)),
 		Label:        domain,
 		Domain:       domain,
 		Domains:      []string{domain},
@@ -340,7 +340,7 @@ func tencentEdgeOneZoneResource(zone *tencentteo.Zone) (providers.DeploymentReso
 		return providers.DeploymentResource{}, false
 	}
 	return providers.DeploymentResource{
-		TargetRef:    providers.BuildTargetRef("cloudTencent", deployPB.ExecuteBusinesType_EXECUTE_BUSINES_EDGEONE, zoneID, "zone"),
+		TargetRef:    providers.BuildTargetRef("cloudTencent", deployPB.DeploymentType_DEPLOYMENT_TYPE_EDGEONE, zoneID, "zone"),
 		Label:        zoneName,
 		Domain:       zoneName,
 		Domains:      []string{zoneName},
@@ -441,7 +441,7 @@ func (p *Provider) readCOSBucketResources(ctx context.Context, bucket cos.Bucket
 			availability = deployPB.DeploymentResourceAvailability_DEPLOYMENT_RESOURCE_AVAILABILITY_DISABLED
 		}
 		resources = append(resources, providers.DeploymentResource{
-			TargetRef:    providers.BuildTargetRef("cloudTencent", deployPB.ExecuteBusinesType_EXECUTE_BUSINES_COS, bucket.Name, bucket.CreationDate, domain),
+			TargetRef:    providers.BuildTargetRef("cloudTencent", deployPB.DeploymentType_DEPLOYMENT_TYPE_COS, bucket.Name, bucket.CreationDate, domain),
 			Label:        domain,
 			Domain:       domain,
 			Domains:      []string{domain},
@@ -601,7 +601,7 @@ func listTencentCLBListeners(ctx context.Context, client clbClient, region strin
 					availability = deployPB.DeploymentResourceAvailability_DEPLOYMENT_RESOURCE_AVAILABILITY_UNSUPPORTED
 				}
 				resources = append(resources, providers.DeploymentResource{
-					TargetRef:      providers.BuildTargetRef("cloudTencent", deployPB.ExecuteBusinesType_EXECUTE_BUSINES_CLB, region, stringValue(loadBalancer.LoadBalancerId), stringValue(listener.ListenerId), normalized),
+					TargetRef:      providers.BuildTargetRef("cloudTencent", deployPB.DeploymentType_DEPLOYMENT_TYPE_CLB, region, stringValue(loadBalancer.LoadBalancerId), stringValue(listener.ListenerId), normalized),
 					Label:          normalized,
 					Domain:         normalized,
 					Domains:        []string{normalized},

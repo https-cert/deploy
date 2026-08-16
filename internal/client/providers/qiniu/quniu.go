@@ -195,8 +195,8 @@ func (p *Provider) TestConnectionWithContext(ctx context.Context) (bool, error) 
 }
 
 // DiscoverResources 实时发现七牛 CDN 或 DCDN 域名资源。
-func (p *Provider) DiscoverResources(ctx context.Context, business deployPB.ExecuteBusinesType) providers.ResourceCatalogResult {
-	product, err := productForBusiness(business)
+func (p *Provider) DiscoverResources(ctx context.Context, deploymentType deployPB.DeploymentType) providers.ResourceCatalogResult {
+	product, err := productForDeploymentType(deploymentType)
 	if err != nil {
 		return providers.ResourceCatalogResult{Status: deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_UNAVAILABLE}
 	}
@@ -212,7 +212,7 @@ func (p *Provider) DiscoverResources(ctx context.Context, business deployPB.Exec
 		}
 		return providers.ResourceCatalogResult{Status: status, Error: err}
 	}
-	resources, detailPartial := p.readDomainResources(ctx, summaries, product, business)
+	resources, detailPartial := p.readDomainResources(ctx, summaries, product, deploymentType)
 	partial = partial || detailPartial
 	sort.Slice(resources, func(left, right int) bool {
 		return resources[left].Domain < resources[right].Domain
@@ -227,8 +227,8 @@ func (p *Provider) DiscoverResources(ctx context.Context, business deployPB.Exec
 }
 
 // ResolveResource 实时发现目录并按引用唯一解析七牛域名。
-func (p *Provider) ResolveResource(ctx context.Context, business deployPB.ExecuteBusinesType, targetRef string) (providers.DeploymentResource, error) {
-	catalog := p.DiscoverResources(ctx, business)
+func (p *Provider) ResolveResource(ctx context.Context, deploymentType deployPB.DeploymentType, targetRef string) (providers.DeploymentResource, error) {
+	catalog := p.DiscoverResources(ctx, deploymentType)
 	if catalog.Status == deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_UNAVAILABLE ||
 		catalog.Status == deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_NOT_CONFIGURED ||
 		catalog.Status == deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_PERMISSION_DENIED {
@@ -245,15 +245,15 @@ func isQiniuPermissionDenied(err error) bool {
 }
 
 // TestResource 只读确认七牛域名仍存在、产品一致且已启用 HTTPS。
-func (p *Provider) TestResource(ctx context.Context, business deployPB.ExecuteBusinesType, targetRef string) error {
-	resource, err := p.ResolveResource(ctx, business, targetRef)
+func (p *Provider) TestResource(ctx context.Context, deploymentType deployPB.DeploymentType, targetRef string) error {
+	resource, err := p.ResolveResource(ctx, deploymentType, targetRef)
 	if err != nil {
 		return err
 	}
 	if err := providers.EnsureResourceReady(resource); err != nil {
 		return err
 	}
-	product, err := productForBusiness(business)
+	product, err := productForDeploymentType(deploymentType)
 	if err != nil {
 		return err
 	}
@@ -261,12 +261,12 @@ func (p *Provider) TestResource(ctx context.Context, business deployPB.ExecuteBu
 	return err
 }
 
-// productForBusiness 将公共业务枚举映射为七牛产品类型。
-func productForBusiness(business deployPB.ExecuteBusinesType) (Product, error) {
-	switch business {
-	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_CDN:
+// productForDeploymentType 将公共业务枚举映射为七牛产品类型。
+func productForDeploymentType(deploymentType deployPB.DeploymentType) (Product, error) {
+	switch deploymentType {
+	case deployPB.DeploymentType_DEPLOYMENT_TYPE_CDN:
 		return ProductCDN, nil
-	case deployPB.ExecuteBusinesType_EXECUTE_BUSINES_DCDN:
+	case deployPB.DeploymentType_DEPLOYMENT_TYPE_DCDN:
 		return ProductDCDN, nil
 	default:
 		return "", fmt.Errorf("七牛云不支持该资源业务")
@@ -307,7 +307,7 @@ func (p *Provider) listDomainSummaries(ctx context.Context) ([]domainSummary, bo
 }
 
 // readDomainResources 有限并发读取域名详情并构建脱敏资源。
-func (p *Provider) readDomainResources(ctx context.Context, summaries []domainSummary, product Product, business deployPB.ExecuteBusinesType) ([]providers.DeploymentResource, bool) {
+func (p *Provider) readDomainResources(ctx context.Context, summaries []domainSummary, product Product, deploymentType deployPB.DeploymentType) ([]providers.DeploymentResource, bool) {
 	type detailResult struct {
 		resource *providers.DeploymentResource
 		err      error
@@ -330,7 +330,7 @@ func (p *Provider) readDomainResources(ctx context.Context, summaries []domainSu
 					results <- detailResult{}
 					continue
 				}
-				resource, ok := buildDomainResource(detail, business)
+				resource, ok := buildDomainResource(detail, deploymentType)
 				if !ok {
 					results <- detailResult{}
 					continue
@@ -372,7 +372,7 @@ func (p *Provider) readDomainResources(ctx context.Context, summaries []domainSu
 }
 
 // buildDomainResource 将具备稳定生命周期身份的七牛详情映射为本地私有资源和公开展示字段。
-func buildDomainResource(detail *domainInfo, business deployPB.ExecuteBusinesType) (providers.DeploymentResource, bool) {
+func buildDomainResource(detail *domainInfo, deploymentType deployPB.DeploymentType) (providers.DeploymentResource, bool) {
 	if detail == nil {
 		return providers.DeploymentResource{}, false
 	}
@@ -391,7 +391,7 @@ func buildDomainResource(detail *domainInfo, business deployPB.ExecuteBusinesTyp
 		availability = deployPB.DeploymentResourceAvailability_DEPLOYMENT_RESOURCE_AVAILABILITY_STOPPED
 	}
 	return providers.DeploymentResource{
-		TargetRef:    providers.BuildTargetRef("qiniu", business, identity),
+		TargetRef:    providers.BuildTargetRef("qiniu", deploymentType, identity),
 		Label:        domain,
 		Domain:       domain,
 		Domains:      []string{domain},
@@ -403,8 +403,8 @@ func buildDomainResource(detail *domainInfo, business deployPB.ExecuteBusinesTyp
 	}, true
 }
 
-// UploadCertificate uploads a certificate for the legacy ProviderHandler interface.
-// Call UploadCertificateWithContext when the caller needs Qiniu's certID.
+// UploadCertificate 将证书上传到七牛云证书中心，供 v2 无资源部署类型复用。
+// 需要七牛云 certID 时使用 UploadCertificateWithContext。
 func (p *Provider) UploadCertificate(name, domain, cert, key string) error {
 	_, err := p.UploadCertificateWithContext(context.Background(), name, domain, cert, key)
 	return err
@@ -454,11 +454,11 @@ func (p *Provider) UploadCertificateWithContext(ctx context.Context, name, domai
 }
 
 // DeployCertificate 为明确的七牛 CDN 或 DCDN 业务部署精确域名证书。
-func (p *Provider) DeployCertificate(ctx context.Context, certificate providers.CertificateMaterial, business deployPB.ExecuteBusinesType, target providers.DeploymentResource) (providers.DeploymentResult, error) {
+func (p *Provider) DeployCertificate(ctx context.Context, certificate providers.CertificateMaterial, deploymentType deployPB.DeploymentType, target providers.DeploymentResource) (providers.DeploymentResult, error) {
 	if strings.TrimSpace(target.TargetRef) == "" {
 		return providers.DeploymentResult{}, providers.NewDeploymentError("七牛云 targetRef 不能为空", false, "", nil)
 	}
-	product, err := productForBusiness(business)
+	product, err := productForDeploymentType(deploymentType)
 	if err != nil {
 		return providers.DeploymentResult{}, providers.NewDeploymentError("七牛云不支持该部署业务", false, "", nil)
 	}

@@ -12,10 +12,10 @@ import (
 	"golang.org/x/net/idna"
 )
 
-// BuildTargetRef 使用稳定资源身份生成不透明引用。
-func BuildTargetRef(provider string, business deployPB.ExecuteBusinesType, identityParts ...string) string {
+// BuildTargetRef 使用稳定资源身份和 v2 部署类型生成不透明引用。
+func BuildTargetRef(provider string, deploymentType deployPB.DeploymentType, identityParts ...string) string {
 	parts := make([]string, 0, len(identityParts)+2)
-	parts = append(parts, strings.ToLower(strings.TrimSpace(provider)), BusinessRefName(business))
+	parts = append(parts, strings.ToLower(strings.TrimSpace(provider)), DeploymentTypeRefName(deploymentType))
 	for _, part := range identityParts {
 		parts = append(parts, strings.ToLower(strings.TrimSpace(part)))
 	}
@@ -37,9 +37,9 @@ func StableDomainIdentity(stableID, normalizedDomain, createdAt string) (string,
 	return normalizedDomain + "\x00" + createdAt, true
 }
 
-// BusinessRefName 返回 targetRef 使用的简短稳定业务名。
-func BusinessRefName(business deployPB.ExecuteBusinesType) string {
-	name := strings.ToLower(strings.TrimPrefix(business.String(), "EXECUTE_BUSINES_"))
+// DeploymentTypeRefName 返回 targetRef 使用的简短稳定部署类型名。
+func DeploymentTypeRefName(deploymentType deployPB.DeploymentType) string {
+	name := strings.ToLower(strings.TrimPrefix(deploymentType.String(), "DEPLOYMENT_TYPE_"))
 	return strings.ReplaceAll(name, "_", "-")
 }
 

@@ -11,12 +11,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/https-cert/deploy/internal/config"
-	"github.com/https-cert/deploy/pb/deployPB"
-	"github.com/https-cert/deploy/pkg/logger"
 )
 
 // 共享常量
@@ -42,20 +39,6 @@ func waitForContext(ctx context.Context, delay time.Duration) bool {
 	case <-timer.C:
 		return true
 	}
-}
-
-// 共享变量
-var (
-	isConnected atomic.Bool
-)
-
-// ClientInterface 客户端接口，用于复用业务逻辑
-type ClientInterface interface {
-	GetClientID() string
-	GetAccessKey() string
-	GetContext() context.Context
-	GetHTTPClient() *http.Client
-	downloadFile(downloadURL, filePath string) error
 }
 
 // DownloadFile 公共的文件下载函数，可被所有客户端复用
@@ -222,31 +205,4 @@ func ensureDownloadContentType(resp *http.Response) error {
 	}
 
 	return nil
-}
-
-// shouldReportDeploymentDiagnostic 仅允许云 API 和 HTTP 面板诊断进入脱敏在线日志。
-func shouldReportDeploymentDiagnostic(providerName string, businessType deployPB.ExecuteBusinesType) bool {
-	switch strings.TrimSpace(providerName) {
-	case config.ProviderAliyun, config.ProviderTencentCloud, config.ProviderQiniu:
-		return true
-	case "ansslCli":
-		return businessType == deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_1PANEL_CERT ||
-			businessType == deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_1PANEL_WEBSITE_CERT ||
-			businessType == deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_BT_PANEL_WEBSITE_CERT ||
-			businessType == deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_BT_PANEL_CERT ||
-			businessType == deployPB.ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_SAFELINE_CERT
-	default:
-		return false
-	}
-}
-
-// logDeploymentDiagnostic 按业务边界选择脱敏在线日志或仅本机日志。
-func logDeploymentDiagnostic(message string, err error, providerName string, businessType deployPB.ExecuteBusinesType, args ...interface{}) {
-	fields := []any{"error", err, "provider", providerName, "business", businessType.String()}
-	fields = append(fields, args...)
-	if shouldReportDeploymentDiagnostic(providerName, businessType) {
-		logger.Error(message, fields...)
-		return
-	}
-	logger.ErrorLocal(message, fields...)
 }

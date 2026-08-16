@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/url"
 	"strings"
 	"time"
@@ -15,10 +16,10 @@ import (
 
 // Scheduler 定时任务调度器
 type Scheduler struct {
-	client     *client.WSClient
-	httpServer *server.HTTPServer
-	ticker     *time.Ticker
-	ctx        context.Context
+	client            *client.WSClient   // client 是 v2 WebSocket 客户端。
+	httpServer        *server.HTTPServer // httpServer 提供 HTTP-01 challenge 服务。
+	clientStarted     bool               // clientStarted 标记 WebSocket 是否已启动，用于失败清理。
+	httpServerStarted bool               // httpServerStarted 标记 HTTP-01 服务是否成功监听。
 }
 
 // NewScheduler 创建调度器
@@ -48,7 +49,6 @@ func NewScheduler(ctx context.Context) (*Scheduler, error) {
 	return &Scheduler{
 		client:     client,
 		httpServer: httpServer,
-		ctx:        ctx,
 	}, nil
 }
 
@@ -110,20 +110,19 @@ func sensitiveHTTPConfigValues(rawURL string) []string {
 	return values
 }
 
-// Start 启动调度器
-func Start(ctx context.Context) {
+// Start 启动调度器；基础 HTTP-01 服务不可用时返回错误，不再连接 WebSocket。
+func Start(ctx context.Context) error {
 	scheduler, err := NewScheduler(ctx)
 	if err != nil {
-		logger.Fatal("创建调度器失败", "error", err)
+		return fmt.Errorf("创建调度器失败: %w", err)
 	}
 
-	// 启动 HTTP-01 验证服务器
+	// 启动 HTTP-01 验证服务器，并通过错误通道阻止端口冲突的第二个进程继续连接。
+	httpErr := make(chan error, 1)
 	go func() {
 		cfg := config.GetConfig()
 		logger.Info("HTTP-01 验证服务启动", "port", cfg.Server.Port)
-		if err := scheduler.httpServer.Start(); err != nil {
-			logger.Error("HTTP-01 验证服务启动失败", "error", err)
-		}
+		httpErr <- scheduler.httpServer.Start()
 	}()
 
 	// HTTP 服务启动后再连接平台，避免刚上线就收到 challenge 却无法缓存。
@@ -136,12 +135,18 @@ func Start(ctx context.Context) {
 			readyTicker.Stop()
 			readyDeadline.Stop()
 			scheduler.stop()
-			return
+			return nil
+		case err := <-httpErr:
+			readyTicker.Stop()
+			readyDeadline.Stop()
+			scheduler.stop()
+			return fmt.Errorf("HTTP-01 验证服务启动失败: %w", err)
 		case <-readyDeadline.C:
-			logger.Error("HTTP-01 验证服务未能在限定时间内启动")
-			waiting = false
+			scheduler.stop()
+			return errors.New("HTTP-01 验证服务未能在限定时间内启动")
 		case <-readyTicker.C:
 			if scheduler.httpServer.IsReady() {
+				scheduler.httpServerStarted = true
 				waiting = false
 			}
 		}
@@ -154,26 +159,31 @@ func Start(ctx context.Context) {
 		}
 	}
 
-	// 即使 HTTP 服务启动失败也保持平台连接，challenge 请求会收到明确失败 ACK。
 	scheduler.client.Start()
+	scheduler.clientStarted = true
 
-	// 等待上下文取消
-	<-ctx.Done()
-
-	// 停止调度器
-	scheduler.stop()
+	select {
+	case <-ctx.Done():
+		scheduler.stop()
+		return nil
+	case err := <-httpErr:
+		scheduler.stop()
+		if err != nil {
+			return fmt.Errorf("HTTP-01 验证服务异常退出: %w", err)
+		}
+		return errors.New("HTTP-01 验证服务异常退出")
+	}
 }
 
 // stop 停止调度器
 func (s *Scheduler) stop() {
-	logger.Info("正在停止调度器...")
-
-	if s.ticker != nil {
-		s.ticker.Stop()
+	started := s.clientStarted || s.httpServerStarted
+	if started {
+		logger.Info("正在停止调度器...")
 	}
 
 	// 关闭 WebSocket 客户端连接
-	if s.client != nil {
+	if s.client != nil && s.clientStarted {
 		if err := s.client.Close(); err != nil {
 			logger.Error("关闭 WebSocket 客户端失败", "error", err)
 		} else {
@@ -193,10 +203,12 @@ func (s *Scheduler) stop() {
 
 		if err := s.httpServer.Stop(ctx); err != nil {
 			logger.Error("停止 HTTP-01 验证服务失败", "error", err)
-		} else {
+		} else if s.httpServerStarted {
 			logger.Info("HTTP-01 验证服务已停止")
 		}
 	}
 
-	logger.Info("调度器已停止")
+	if started {
+		logger.Info("调度器已停止")
+	}
 }

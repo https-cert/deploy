@@ -62,13 +62,13 @@ func (c *WSClient) buildWSURL() string {
 	}
 
 	if u.Path == "" || u.Path == "/" {
-		u.Path = "/deploy/ws"
+		u.Path = "/deploy/v2/ws"
 	} else {
 		// 确保路径以 / 结尾，然后追加 ws
 		if !strings.HasSuffix(u.Path, "/") {
 			u.Path += "/"
 		}
-		u.Path += "ws"
+		u.Path += "v2/ws"
 	}
 	q := u.Query()
 	q.Set("accessKey", c.accessKey)
@@ -97,15 +97,20 @@ func (c *WSClient) connect() error {
 
 	// 连接成功后立即发送注册消息
 	if err := c.sendRegister(); err != nil {
-		logger.Warn("发送注册消息失败", "error", err)
-		// 注册失败不影响连接，继续处理
+		c.connMu.Lock()
+		if c.conn == conn {
+			c.conn = nil
+		}
+		c.connMu.Unlock()
+		_ = conn.Close(websocket.StatusInternalError, "deployment v2 注册失败")
+		return fmt.Errorf("发送 deployment v2 注册消息失败: %w", err)
 	}
 
 	return nil
 }
 
-// StartWSNotify 启动 WebSocket 连接和重连循环
-func (c *WSClient) StartWSNotify() {
+// startWebSocketLoop 启动 v2 WebSocket 连接和重连循环。
+func (c *WSClient) startWebSocketLoop() {
 	c.reconnectDelay = minReconnectDelay
 	consecutiveFailures := 0
 
@@ -123,8 +128,7 @@ func (c *WSClient) StartWSNotify() {
 				logger.Info("WebSocket连接断开，尝试重连中...")
 			}
 
-			isConnected.Store(false)
-			c.lastDisconnectLogged.Store(true)
+			c.markReconnectPending()
 
 			var reconnectDelay time.Duration
 			// websocket 连接失败通常都是临时错误（服务端可能还未启动），使用较短的重连间隔
@@ -149,7 +153,9 @@ func (c *WSClient) StartWSNotify() {
 		consecutiveFailures = 0
 		c.reconnectDelay = minReconnectDelay
 
-		logger.Info("WebSocket连接已建立，开始处理消息")
+		if c.connectionLogged.CompareAndSwap(false, true) {
+			logger.Info("WebSocket连接已建立，开始处理消息")
+		}
 
 		if err := c.handleWSMessages(); err != nil {
 			busyOps := c.busyOperations.Load()
@@ -159,13 +165,19 @@ func (c *WSClient) StartWSNotify() {
 				logger.Info("WebSocket连接断开", "error", err)
 			}
 
-			isConnected.Store(false)
-			c.lastDisconnectLogged.Store(true)
+			c.markReconnectPending()
 		}
 
 		if !waitForContext(c.ctx, c.reconnectDelay) {
 			return
 		}
+	}
+}
+
+// markReconnectPending 只在客户端曾经建立过连接后标记重连，避免首次上线被误报为重连成功。
+func (c *WSClient) markReconnectPending() {
+	if c.connectionLogged.Load() {
+		c.reconnectPending.Store(true)
 	}
 }
 
@@ -229,7 +241,11 @@ func NewWSClient(ctx context.Context) (*WSClient, error) {
 	}
 
 	// 初始化业务执行器（需要先创建 client，然后才能传递 downloadFile 方法）
-	client.businessExecutor = NewBusinessExecutor(client.downloadFile)
+	client.deploymentExecutor = NewDeploymentExecutor(client.downloadFile)
+	client.deploymentHandlers, err = NewDeploymentHandlerRegistry(client)
+	if err != nil {
+		return nil, fmt.Errorf("初始化 deployment v2 handler registry 失败: %w", err)
+	}
 
 	return client, nil
 }
