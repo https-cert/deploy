@@ -313,6 +313,26 @@ func deploymentHandlerSpecs() []deploymentHandlerSpec {
 		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_QINIU, deployPB.DeploymentType_DEPLOYMENT_TYPE_UPLOAD_CERT, none, noDomain),
 		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_QINIU, deployPB.DeploymentType_DEPLOYMENT_TYPE_CDN, required, allDomains),
 		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_QINIU, deployPB.DeploymentType_DEPLOYMENT_TYPE_DCDN, required, allDomains),
+
+		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_DOGE_CLOUD, deployPB.DeploymentType_DEPLOYMENT_TYPE_UPLOAD_CERT, none, noDomain),
+		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_DOGE_CLOUD, deployPB.DeploymentType_DEPLOYMENT_TYPE_CDN, required, allDomains),
+		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_BAIDU_CLOUD, deployPB.DeploymentType_DEPLOYMENT_TYPE_UPLOAD_CERT, none, noDomain),
+		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_BAIDU_CLOUD, deployPB.DeploymentType_DEPLOYMENT_TYPE_CDN, required, allDomains),
+		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_JD_CLOUD, deployPB.DeploymentType_DEPLOYMENT_TYPE_UPLOAD_CERT, none, noDomain),
+		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_JD_CLOUD, deployPB.DeploymentType_DEPLOYMENT_TYPE_CDN, required, allDomains),
+		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_VOLCENGINE, deployPB.DeploymentType_DEPLOYMENT_TYPE_UPLOAD_CERT, none, noDomain),
+		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_VOLCENGINE, deployPB.DeploymentType_DEPLOYMENT_TYPE_CDN, required, allDomains),
+		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_VOLCENGINE, deployPB.DeploymentType_DEPLOYMENT_TYPE_DCDN, required, allDomains),
+		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_VOLCENGINE, deployPB.DeploymentType_DEPLOYMENT_TYPE_TOS_CUSTOM_DOMAIN, required, allDomains),
+		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_VOLCENGINE, deployPB.DeploymentType_DEPLOYMENT_TYPE_CLB, required, allDomains),
+		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_VOLCENGINE, deployPB.DeploymentType_DEPLOYMENT_TYPE_ALB, required, allDomains),
+		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_VOLCENGINE, deployPB.DeploymentType_DEPLOYMENT_TYPE_NLB, required, allDomains),
+		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_HUAWEI_CLOUD, deployPB.DeploymentType_DEPLOYMENT_TYPE_UPLOAD_CERT, none, noDomain),
+		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_HUAWEI_CLOUD, deployPB.DeploymentType_DEPLOYMENT_TYPE_CDN, required, allDomains),
+		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_HUAWEI_CLOUD, deployPB.DeploymentType_DEPLOYMENT_TYPE_DCDN, required, allDomains),
+		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_HUAWEI_CLOUD, deployPB.DeploymentType_DEPLOYMENT_TYPE_OBS_CUSTOM_DOMAIN, required, allDomains),
+		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_HUAWEI_CLOUD, deployPB.DeploymentType_DEPLOYMENT_TYPE_ELB, required, allDomains),
+		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_LECDN, deployPB.DeploymentType_DEPLOYMENT_TYPE_CDN, required, allDomains),
 	}
 }
 

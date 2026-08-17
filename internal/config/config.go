@@ -121,6 +121,9 @@ type (
 		// 阿里云认证字段
 		AccessKeyId     string `yaml:"accessKeyId,omitempty"`
 		AccessKeySecret string `yaml:"accessKeySecret,omitempty"`
+		// LeCDN API 地址和访问令牌
+		APIBaseURL string `yaml:"apiBaseUrl,omitempty"`
+		APIToken   string `yaml:"apiToken,omitempty"`
 		// 腾讯云认证字段
 		SecretId  string `yaml:"secretId,omitempty"`
 		SecretKey string `yaml:"secretKey,omitempty"`
@@ -131,9 +134,12 @@ type (
 
 	// Provider 云服务提供商配置
 	Provider struct {
-		Name   string        `yaml:"name"`   // Name 提供商内部名称
-		Remark string        `yaml:"remark"` // Remark 提供商展示备注
-		Auth   *ProviderAuth `yaml:"auth"`   // Auth 提供商认证配置
+		Name              string        `yaml:"name"`                        // Name 提供商内部名称
+		Remark            string        `yaml:"remark"`                      // Remark 提供商展示备注
+		Region            string        `yaml:"region,omitempty"`            // Region 默认资源地域
+		CertificateRegion string        `yaml:"certificateRegion,omitempty"` // CertificateRegion 证书中心地域
+		Regions           []string      `yaml:"regions,omitempty"`           // Regions 多地域资源发现列表
+		Auth              *ProviderAuth `yaml:"auth"`                        // Auth 提供商认证配置
 	}
 )
 
@@ -650,6 +656,22 @@ func (p *Provider) GetAccessKey() string {
 func (p *Provider) GetAccessSecret() string {
 	if p.Auth != nil {
 		return p.Auth.AccessSecret
+	}
+	return ""
+}
+
+// GetAPIBaseURL 获取 provider 自定义 API 基础地址。
+func (p *Provider) GetAPIBaseURL() string {
+	if p.Auth != nil {
+		return p.Auth.APIBaseURL
+	}
+	return ""
+}
+
+// GetAPIToken 获取 provider API Token。
+func (p *Provider) GetAPIToken() string {
+	if p.Auth != nil {
+		return p.Auth.APIToken
 	}
 	return ""
 }

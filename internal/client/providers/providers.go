@@ -73,6 +73,7 @@ type DeploymentResource struct {
 	Endpoint       string                                  // Endpoint OSS endpoint 覆盖值。
 	Bucket         string                                  // Bucket 对象存储 Bucket。
 	SiteID         string                                  // SiteID 阿里云 ESA Site ID。
+	SiteIDs        []string                                // SiteIDs 是需要联动更新或同步的多个站点 ID，不得上报。
 	ZoneID         string                                  // ZoneID 腾讯云 EdgeOne Zone ID。
 	LoadBalancerID string                                  // LoadBalancerID 负载均衡实例 ID。
 	ListenerPort   int                                     // ListenerPort 负载均衡监听端口。

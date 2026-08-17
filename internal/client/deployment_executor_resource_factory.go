@@ -3,8 +3,14 @@ package client
 import (
 	"github.com/https-cert/deploy/internal/client/providers"
 	"github.com/https-cert/deploy/internal/client/providers/aliyun"
+	"github.com/https-cert/deploy/internal/client/providers/baidu"
 	cloud_tencent "github.com/https-cert/deploy/internal/client/providers/cloud_tencent"
+	"github.com/https-cert/deploy/internal/client/providers/dogecloud"
+	"github.com/https-cert/deploy/internal/client/providers/huawei"
+	"github.com/https-cert/deploy/internal/client/providers/jdcloud"
+	"github.com/https-cert/deploy/internal/client/providers/lecdn"
 	"github.com/https-cert/deploy/internal/client/providers/qiniu"
+	"github.com/https-cert/deploy/internal/client/providers/volcengine"
 	"github.com/https-cert/deploy/internal/config"
 	"github.com/https-cert/deploy/pb/deployPB"
 )
@@ -52,6 +58,66 @@ func newDeploymentResourceProvider(provider deployPB.Provider, deploymentType de
 		}
 		return qiniu.New(accessKey, accessSecret), nil
 
+	case deployPB.Provider_PROVIDER_LECDN:
+		apiBaseURL := providerConfig.GetAPIBaseURL()
+		apiToken := providerConfig.GetAPIToken()
+		if apiBaseURL == "" || apiToken == "" {
+			return nil, providers.NewDeploymentError("LeCDN 配置不完整: apiBaseUrl 或 apiToken 为空", false, "", nil)
+		}
+		return lecdn.New(apiBaseURL, apiToken), nil
+
+	case deployPB.Provider_PROVIDER_DOGE_CLOUD:
+		accessKey := providerConfig.GetAccessKey()
+		accessSecret := providerConfig.GetAccessSecret()
+		if accessKey == "" || accessSecret == "" {
+			return nil, providers.NewDeploymentError("多吉云配置不完整: accessKey 或 accessSecret 为空", false, "", nil)
+		}
+		return dogecloud.New(accessKey, accessSecret), nil
+
+	case deployPB.Provider_PROVIDER_BAIDU_CLOUD:
+		accessKeyID := providerConfig.GetAccessKeyId()
+		accessKeySecret := providerConfig.GetAccessKeySecret()
+		if accessKeyID == "" || accessKeySecret == "" {
+			return nil, providers.NewDeploymentError("百度云配置不完整: accessKeyId 或 accessKeySecret 为空", false, "", nil)
+		}
+		deployer, err := baidu.New(accessKeyID, accessKeySecret)
+		if err != nil {
+			return nil, providers.NewDeploymentError("初始化百度云部署客户端失败", false, "", err)
+		}
+		return deployer, nil
+
+	case deployPB.Provider_PROVIDER_JD_CLOUD:
+		accessKeyID := providerConfig.GetAccessKeyId()
+		accessKeySecret := providerConfig.GetAccessKeySecret()
+		if accessKeyID == "" || accessKeySecret == "" {
+			return nil, providers.NewDeploymentError("京东云配置不完整: accessKeyId 或 accessKeySecret 为空", false, "", nil)
+		}
+		return jdcloud.New(accessKeyID, accessKeySecret), nil
+
+	case deployPB.Provider_PROVIDER_VOLCENGINE:
+		accessKeyID := providerConfig.GetAccessKeyId()
+		accessKeySecret := providerConfig.GetAccessKeySecret()
+		if accessKeyID == "" || accessKeySecret == "" {
+			return nil, providers.NewDeploymentError("火山引擎配置不完整: accessKeyId 或 accessKeySecret 为空", false, "", nil)
+		}
+		deployer, err := volcengine.NewConfigured(accessKeyID, accessKeySecret, providerConfig.Region, providerConfig.CertificateRegion, providerConfig.Regions)
+		if err != nil {
+			return nil, providers.NewDeploymentError("初始化火山引擎部署客户端失败", false, "", err)
+		}
+		return deployer, nil
+
+	case deployPB.Provider_PROVIDER_HUAWEI_CLOUD:
+		accessKeyID := providerConfig.GetAccessKeyId()
+		accessKeySecret := providerConfig.GetAccessKeySecret()
+		if accessKeyID == "" || accessKeySecret == "" {
+			return nil, providers.NewDeploymentError("华为云配置不完整: accessKeyId 或 accessKeySecret 为空", false, "", nil)
+		}
+		deployer, err := huawei.New(accessKeyID, accessKeySecret, providerConfig.Region, providerConfig.CertificateRegion, providerConfig.Regions)
+		if err != nil {
+			return nil, providers.NewDeploymentError("初始化华为云部署客户端失败", false, "", err)
+		}
+		return deployer, nil
+
 	default:
 		return nil, providers.NewDeploymentError("暂不支持部署资源 provider: "+providerName, false, "", nil)
 	}
@@ -76,6 +142,26 @@ func providerSupportsDeploymentType(provider deployPB.Provider, deploymentType d
 	case deployPB.Provider_PROVIDER_QINIU:
 		return deploymentType == deployPB.DeploymentType_DEPLOYMENT_TYPE_CDN ||
 			deploymentType == deployPB.DeploymentType_DEPLOYMENT_TYPE_DCDN
+	case deployPB.Provider_PROVIDER_LECDN:
+		return deploymentType == deployPB.DeploymentType_DEPLOYMENT_TYPE_CDN
+	case deployPB.Provider_PROVIDER_DOGE_CLOUD:
+		return deploymentType == deployPB.DeploymentType_DEPLOYMENT_TYPE_CDN
+	case deployPB.Provider_PROVIDER_BAIDU_CLOUD:
+		return deploymentType == deployPB.DeploymentType_DEPLOYMENT_TYPE_CDN
+	case deployPB.Provider_PROVIDER_JD_CLOUD:
+		return deploymentType == deployPB.DeploymentType_DEPLOYMENT_TYPE_CDN
+	case deployPB.Provider_PROVIDER_VOLCENGINE:
+		return deploymentType == deployPB.DeploymentType_DEPLOYMENT_TYPE_CDN ||
+			deploymentType == deployPB.DeploymentType_DEPLOYMENT_TYPE_DCDN ||
+			deploymentType == deployPB.DeploymentType_DEPLOYMENT_TYPE_TOS_CUSTOM_DOMAIN ||
+			deploymentType == deployPB.DeploymentType_DEPLOYMENT_TYPE_CLB ||
+			deploymentType == deployPB.DeploymentType_DEPLOYMENT_TYPE_ALB ||
+			deploymentType == deployPB.DeploymentType_DEPLOYMENT_TYPE_NLB
+	case deployPB.Provider_PROVIDER_HUAWEI_CLOUD:
+		return deploymentType == deployPB.DeploymentType_DEPLOYMENT_TYPE_CDN ||
+			deploymentType == deployPB.DeploymentType_DEPLOYMENT_TYPE_DCDN ||
+			deploymentType == deployPB.DeploymentType_DEPLOYMENT_TYPE_OBS_CUSTOM_DOMAIN ||
+			deploymentType == deployPB.DeploymentType_DEPLOYMENT_TYPE_ELB
 	default:
 		return false
 	}

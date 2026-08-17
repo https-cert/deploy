@@ -8,7 +8,7 @@ An automated SSL certificate deployment tool for downloading certificates from [
 
 - 🚀 Automatically deploys certificates to Nginx, Apache, RustFS, 1Panel, and SafeLine WAF, then reloads local services
 - ✅ Built-in HTTP-01 validation service to automatically respond to ACME challenges
-- ☁️ Supports uploading certificates to cloud providers (Alibaba Cloud, Qiniu Cloud, Tencent Cloud)
+- ☁️ Supports automatic deployment to Alibaba Cloud, Tencent Cloud, Qiniu Cloud, Huawei Cloud, Volcengine, JD Cloud, Baidu Cloud, DogeCloud, and LeCDN
 - 🔧 Daemon mode for long-running background execution
 - 🖥️ Multi-platform support: macOS, Linux, Windows (amd64/arm64)
 
@@ -79,6 +79,24 @@ anssl log -f
 6. Nginx and Apache are reloaded automatically
 
 **Fully automated end-to-end, with no manual intervention.**
+
+## Cloud Provider Capabilities
+
+For resource-based deployments, the deploy client discovers resources in real time and reads the certificate state back after every update. A product is exposed in the console only after resource discovery, certificate update, and read-back verification are all implemented.
+
+| Cloud provider | Provider name | Supported capabilities |
+| --- | --- | --- |
+| Alibaba Cloud | `aliyun` | Certificate upload, CDN, DCDN, ESA, OSS custom domains, CLB, ALB, NLB |
+| Tencent Cloud | `cloudTencent` | Certificate upload, CDN, EdgeOne, COS custom domains, CLB |
+| Qiniu Cloud | `qiniu` | Certificate upload, CDN, DCDN |
+| Huawei Cloud | `huawei` | Certificate upload, CDN, DCDN, OBS custom domains, ELB |
+| Volcengine | `volcengine` | Certificate upload, CDN, DCDN, TOS custom domains, CLB, ALB, NLB |
+| JD Cloud | `jdcloud` | Certificate upload, CDN |
+| Baidu Cloud | `baidu` | Certificate upload, CDN |
+| DogeCloud | `dogecloud` | Certificate upload, CDN |
+| LeCDN | `lecdn` | CDN |
+
+JD Cloud, Baidu Cloud, and DogeCloud do not currently expose DCDN. LeCDN exposes CDN only. Additional products will be enabled after the complete lifecycle is available.
 
 ## Common Commands
 
@@ -208,7 +226,7 @@ A: 1Panel → Settings → Security → API Interface → Generate API Key.
 A: SafeLine management console → General Settings → API Token. Store it only in `ssl.safeLine.apiToken` on the deploy client.
 
 **Q: Can certificates be deployed to both local services and cloud providers?**  
-A: Yes. In the [anssl.cn](https://anssl.cn) console, you can configure deployment to local CLI targets (Nginx/Apache/RustFS/1Panel/SafeLine WAF/FeiNiu OS) and/or cloud providers (Alibaba Cloud/Qiniu Cloud/Tencent Cloud). Each certificate can have multiple deployment targets.
+A: Yes. In the [anssl.cn](https://anssl.cn) console, you can configure deployment to local CLI targets (Nginx/Apache/RustFS/1Panel/SafeLine WAF/FeiNiu OS) and/or any supported cloud provider. Each certificate can have multiple deployment targets.
 
 **Q: Is manual action required for HTTP-01 validation?**  
 A: No. Once Nginx reverse proxy is configured, validation is fully automated.

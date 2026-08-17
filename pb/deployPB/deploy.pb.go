@@ -25,21 +25,33 @@ const (
 type Provider int32
 
 const (
-	Provider_PROVIDER_UNSPECIFIED   Provider = 0 // 未指定服务商
-	Provider_PROVIDER_ANSSL_CLI     Provider = 1 // anssl 自动部署客户端
-	Provider_PROVIDER_ALIYUN        Provider = 2 // 阿里云
-	Provider_PROVIDER_TENCENT_CLOUD Provider = 3 // 腾讯云
-	Provider_PROVIDER_QINIU         Provider = 4 // 七牛云
+	Provider_PROVIDER_UNSPECIFIED   Provider = 0  // 未指定服务商
+	Provider_PROVIDER_ANSSL_CLI     Provider = 1  // anssl 自动部署客户端
+	Provider_PROVIDER_ALIYUN        Provider = 2  // 阿里云
+	Provider_PROVIDER_TENCENT_CLOUD Provider = 3  // 腾讯云
+	Provider_PROVIDER_QINIU         Provider = 4  // 七牛云
+	Provider_PROVIDER_HUAWEI_CLOUD  Provider = 5  // 华为云
+	Provider_PROVIDER_VOLCENGINE    Provider = 6  // 火山引擎
+	Provider_PROVIDER_JD_CLOUD      Provider = 7  // 京东云
+	Provider_PROVIDER_BAIDU_CLOUD   Provider = 8  // 百度云
+	Provider_PROVIDER_DOGE_CLOUD    Provider = 9  // 多吉云
+	Provider_PROVIDER_LECDN         Provider = 10 // LeCDN
 )
 
 // Enum value maps for Provider.
 var (
 	Provider_name = map[int32]string{
-		0: "PROVIDER_UNSPECIFIED",
-		1: "PROVIDER_ANSSL_CLI",
-		2: "PROVIDER_ALIYUN",
-		3: "PROVIDER_TENCENT_CLOUD",
-		4: "PROVIDER_QINIU",
+		0:  "PROVIDER_UNSPECIFIED",
+		1:  "PROVIDER_ANSSL_CLI",
+		2:  "PROVIDER_ALIYUN",
+		3:  "PROVIDER_TENCENT_CLOUD",
+		4:  "PROVIDER_QINIU",
+		5:  "PROVIDER_HUAWEI_CLOUD",
+		6:  "PROVIDER_VOLCENGINE",
+		7:  "PROVIDER_JD_CLOUD",
+		8:  "PROVIDER_BAIDU_CLOUD",
+		9:  "PROVIDER_DOGE_CLOUD",
+		10: "PROVIDER_LECDN",
 	}
 	Provider_value = map[string]int32{
 		"PROVIDER_UNSPECIFIED":   0,
@@ -47,6 +59,12 @@ var (
 		"PROVIDER_ALIYUN":        2,
 		"PROVIDER_TENCENT_CLOUD": 3,
 		"PROVIDER_QINIU":         4,
+		"PROVIDER_HUAWEI_CLOUD":  5,
+		"PROVIDER_VOLCENGINE":    6,
+		"PROVIDER_JD_CLOUD":      7,
+		"PROVIDER_BAIDU_CLOUD":   8,
+		"PROVIDER_DOGE_CLOUD":    9,
+		"PROVIDER_LECDN":         10,
 	}
 )
 
@@ -103,6 +121,9 @@ const (
 	DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_1PANEL_WEBSITE_CERT   DeploymentType = 20 // 1Panel 网站证书部署
 	DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_BT_PANEL_WEBSITE_CERT DeploymentType = 21 // 宝塔面板网站证书部署
 	DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_BT_PANEL_CERT         DeploymentType = 22 // 宝塔面板证书库上传
+	DeploymentType_DEPLOYMENT_TYPE_OBS_CUSTOM_DOMAIN               DeploymentType = 23 // 华为云 OBS 自定义域名
+	DeploymentType_DEPLOYMENT_TYPE_TOS_CUSTOM_DOMAIN               DeploymentType = 24 // 火山引擎 TOS 自定义域名
+	DeploymentType_DEPLOYMENT_TYPE_ELB                             DeploymentType = 25 // 华为云 ELB
 )
 
 // Enum value maps for DeploymentType.
@@ -130,6 +151,9 @@ var (
 		20: "DEPLOYMENT_TYPE_ANSSL_CLI_1PANEL_WEBSITE_CERT",
 		21: "DEPLOYMENT_TYPE_ANSSL_CLI_BT_PANEL_WEBSITE_CERT",
 		22: "DEPLOYMENT_TYPE_ANSSL_CLI_BT_PANEL_CERT",
+		23: "DEPLOYMENT_TYPE_OBS_CUSTOM_DOMAIN",
+		24: "DEPLOYMENT_TYPE_TOS_CUSTOM_DOMAIN",
+		25: "DEPLOYMENT_TYPE_ELB",
 	}
 	DeploymentType_value = map[string]int32{
 		"DEPLOYMENT_TYPE_UNSPECIFIED":                     0,
@@ -154,6 +178,9 @@ var (
 		"DEPLOYMENT_TYPE_ANSSL_CLI_1PANEL_WEBSITE_CERT":   20,
 		"DEPLOYMENT_TYPE_ANSSL_CLI_BT_PANEL_WEBSITE_CERT": 21,
 		"DEPLOYMENT_TYPE_ANSSL_CLI_BT_PANEL_CERT":         22,
+		"DEPLOYMENT_TYPE_OBS_CUSTOM_DOMAIN":               23,
+		"DEPLOYMENT_TYPE_TOS_CUSTOM_DOMAIN":               24,
+		"DEPLOYMENT_TYPE_ELB":                             25,
 	}
 )
 
@@ -3969,13 +3996,20 @@ const file_deployPB_deploy_proto_rawDesc = "" +
 	"\x0echallengeToken\x18\a \x01(\tR\x0echallengeToken\x12,\n" +
 	"\x11challengeResponse\x18\b \x01(\tR\x11challengeResponse\x12\x1d\n" +
 	"\n" +
-	"target_ref\x18\t \x01(\tR\ttargetRef*\x81\x01\n" +
+	"target_ref\x18\t \x01(\tR\ttargetRef*\x93\x02\n" +
 	"\bProvider\x12\x18\n" +
 	"\x14PROVIDER_UNSPECIFIED\x10\x00\x12\x16\n" +
 	"\x12PROVIDER_ANSSL_CLI\x10\x01\x12\x13\n" +
 	"\x0fPROVIDER_ALIYUN\x10\x02\x12\x1a\n" +
 	"\x16PROVIDER_TENCENT_CLOUD\x10\x03\x12\x12\n" +
-	"\x0ePROVIDER_QINIU\x10\x04*\xc3\x06\n" +
+	"\x0ePROVIDER_QINIU\x10\x04\x12\x19\n" +
+	"\x15PROVIDER_HUAWEI_CLOUD\x10\x05\x12\x17\n" +
+	"\x13PROVIDER_VOLCENGINE\x10\x06\x12\x15\n" +
+	"\x11PROVIDER_JD_CLOUD\x10\a\x12\x18\n" +
+	"\x14PROVIDER_BAIDU_CLOUD\x10\b\x12\x17\n" +
+	"\x13PROVIDER_DOGE_CLOUD\x10\t\x12\x12\n" +
+	"\x0ePROVIDER_LECDN\x10\n" +
+	"*\xaa\a\n" +
 	"\x0eDeploymentType\x12\x1f\n" +
 	"\x1bDEPLOYMENT_TYPE_UNSPECIFIED\x10\x00\x12(\n" +
 	"$DEPLOYMENT_TYPE_ANSSL_CLI_NGINX_CERT\x10\x01\x12\x1f\n" +
@@ -3999,7 +4033,10 @@ const file_deployPB_deploy_proto_rawDesc = "" +
 	"'DEPLOYMENT_TYPE_ANSSL_CLI_SAFELINE_CERT\x10\x13\x121\n" +
 	"-DEPLOYMENT_TYPE_ANSSL_CLI_1PANEL_WEBSITE_CERT\x10\x14\x123\n" +
 	"/DEPLOYMENT_TYPE_ANSSL_CLI_BT_PANEL_WEBSITE_CERT\x10\x15\x12+\n" +
-	"'DEPLOYMENT_TYPE_ANSSL_CLI_BT_PANEL_CERT\x10\x16\"\x04\b\x05\x10\x05*\x84\x01\n" +
+	"'DEPLOYMENT_TYPE_ANSSL_CLI_BT_PANEL_CERT\x10\x16\x12%\n" +
+	"!DEPLOYMENT_TYPE_OBS_CUSTOM_DOMAIN\x10\x17\x12%\n" +
+	"!DEPLOYMENT_TYPE_TOS_CUSTOM_DOMAIN\x10\x18\x12\x17\n" +
+	"\x13DEPLOYMENT_TYPE_ELB\x10\x19\"\x04\b\x05\x10\x05*\x84\x01\n" +
 	"\x14DeploymentTargetMode\x12&\n" +
 	"\"DEPLOYMENT_TARGET_MODE_UNSPECIFIED\x10\x00\x12\x1f\n" +
 	"\x1bDEPLOYMENT_TARGET_MODE_NONE\x10\x01\x12#\n" +

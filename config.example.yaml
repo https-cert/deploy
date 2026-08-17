@@ -106,3 +106,53 @@ log:
 #       secretId: "your-tencent-secret-id"
 #       # 腾讯云 SecretKey。
 #       secretKey: "your-tencent-secret-key"
+#
+#   - name: "huawei"
+#     remark: "华为云"
+#     # 默认资源地域和 SCM 证书中心地域。
+#     region: "cn-north-4"
+#     certificateRegion: "cn-north-4"
+#     # OBS、ELB 等地域资源的发现范围。
+#     regions:
+#       - "cn-north-4"
+#     auth:
+#       accessKeyId: "your-huawei-access-key-id"
+#       accessKeySecret: "your-huawei-access-key-secret"
+#
+#   - name: "volcengine"
+#     remark: "火山引擎"
+#     # 默认资源地域和证书中心地域。
+#     region: "cn-beijing"
+#     certificateRegion: "cn-beijing"
+#     # TOS、CLB、ALB、NLB 等地域资源的发现范围。
+#     regions:
+#       - "cn-beijing"
+#     auth:
+#       accessKeyId: "your-volcengine-access-key-id"
+#       accessKeySecret: "your-volcengine-access-key-secret"
+#
+#   - name: "jdcloud"
+#     remark: "京东云"
+#     region: "cn-north-1"
+#     auth:
+#       accessKeyId: "your-jdcloud-access-key-id"
+#       accessKeySecret: "your-jdcloud-access-key-secret"
+#
+#   - name: "baidu"
+#     remark: "百度云"
+#     auth:
+#       accessKeyId: "your-baidu-access-key-id"
+#       accessKeySecret: "your-baidu-access-key-secret"
+#
+#   - name: "dogecloud"
+#     remark: "多吉云"
+#     auth:
+#       accessKey: "your-dogecloud-access-key"
+#       accessSecret: "your-dogecloud-access-secret"
+#
+#   - name: "lecdn"
+#     remark: "LeCDN"
+#     auth:
+#       # 生产环境必须使用 HTTPS；server.env 为 local 时仅允许回环 HTTP。
+#       apiBaseUrl: "https://lecdn.example.com/prod-api"
+#       apiToken: "your-lecdn-api-token"

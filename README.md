@@ -8,7 +8,7 @@
 
 - 🚀 自动化部署证书到 Nginx、Apache、RustFS、1Panel、雷池 WAF，并自动重载本地服务
 - ✅ 内置 HTTP-01 验证服务，自动响应 ACME challenge
-- ☁️ 支持自动上传证书到云服务（阿里云、七牛云、腾讯云）
+- ☁️ 支持阿里云、腾讯云、七牛云、华为云、火山引擎、京东云、百度云、多吉云和 LeCDN 自动部署
 - 🔧 守护进程模式，支持后台运行
 - 🖥️ 多平台支持：macOS、Linux、Windows（amd64/arm64）
 
@@ -79,6 +79,24 @@ anssl log -f
 6. 自动重载 Nginx 和 Apache 服务
 
 **全程自动化，无需手动操作。**
+
+## 云服务能力
+
+云资源类部署会先从 deploy 客户端实时发现资源，部署后再回读证书状态进行验收。只有具备资源发现、证书更新和回读验收闭环的产品才会出现在控制台。
+
+| 云服务 | Provider 名称 | 已接入能力 |
+| --- | --- | --- |
+| 阿里云 | `aliyun` | 上传证书、CDN、DCDN、ESA、OSS 自定义域名、CLB、ALB、NLB |
+| 腾讯云 | `cloudTencent` | 上传证书、CDN、EdgeOne、COS 自定义域名、CLB |
+| 七牛云 | `qiniu` | 上传证书、CDN、DCDN |
+| 华为云 | `huawei` | 上传证书、CDN、DCDN、OBS 自定义域名、ELB |
+| 火山引擎 | `volcengine` | 上传证书、CDN、DCDN、TOS 自定义域名、CLB、ALB、NLB |
+| 京东云 | `jdcloud` | 上传证书、CDN |
+| 百度云 | `baidu` | 上传证书、CDN |
+| 多吉云 | `dogecloud` | 上传证书、CDN |
+| LeCDN | `lecdn` | CDN |
+
+京东云、百度云和多吉云当前没有注册 DCDN；LeCDN 只注册 CDN。对应产品具备完整闭环后再开放能力。
 
 ## 常用命令
 
@@ -229,7 +247,7 @@ A: 登录宝塔面板 → 面板设置 → API 接口 → 开启 API 并生成�
 A: 登录雷池管理端 → 通用设置 → API Token。Token 只需填写在 deploy 客户端本机的 `ssl.safeLine.apiToken`。
 
 **Q: 证书会同时部署到本地和云服务吗？**
-A: 在 [anssl.cn](https://anssl.cn) 控制台配置部署目标时，可以选择部署到本地 CLI（Nginx/Apache/RustFS/1Panel/宝塔面板/雷池 WAF/飞牛OS）或云服务（阿里云/七牛云/腾讯云）。每个证书可以配置多个部署目标，实现同时部署
+A: 在 [anssl.cn](https://anssl.cn) 控制台配置部署目标时，可以选择部署到本地 CLI（Nginx/Apache/RustFS/1Panel/宝塔面板/雷池 WAF/飞牛OS）或已接入的云服务。每个证书可以配置多个部署目标，实现同时部署。
 
 **Q: HTTP-01 验证需要手动操作吗？**
 A: 不需要。配置好 Nginx 反向代理后，验证全程自动完成

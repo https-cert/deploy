@@ -6,8 +6,13 @@ import (
 	"github.com/https-cert/deploy/internal/client/deploys"
 	"github.com/https-cert/deploy/internal/client/providers"
 	"github.com/https-cert/deploy/internal/client/providers/aliyun"
+	"github.com/https-cert/deploy/internal/client/providers/baidu"
 	cloud_tencent "github.com/https-cert/deploy/internal/client/providers/cloud_tencent"
+	"github.com/https-cert/deploy/internal/client/providers/dogecloud"
+	"github.com/https-cert/deploy/internal/client/providers/huawei"
+	"github.com/https-cert/deploy/internal/client/providers/jdcloud"
 	"github.com/https-cert/deploy/internal/client/providers/qiniu"
+	"github.com/https-cert/deploy/internal/client/providers/volcengine"
 	"github.com/https-cert/deploy/internal/config"
 	"github.com/https-cert/deploy/pb/deployPB"
 	"github.com/https-cert/deploy/pkg/logger"
@@ -65,7 +70,12 @@ func (be *DeploymentExecutor) executeNonResourceDeployment(provider deployPB.Pro
 
 	case deployPB.Provider_PROVIDER_ALIYUN,
 		deployPB.Provider_PROVIDER_QINIU,
-		deployPB.Provider_PROVIDER_TENCENT_CLOUD:
+		deployPB.Provider_PROVIDER_TENCENT_CLOUD,
+		deployPB.Provider_PROVIDER_DOGE_CLOUD,
+		deployPB.Provider_PROVIDER_BAIDU_CLOUD,
+		deployPB.Provider_PROVIDER_JD_CLOUD,
+		deployPB.Provider_PROVIDER_VOLCENGINE,
+		deployPB.Provider_PROVIDER_HUAWEI_CLOUD:
 		if deploymentType != deployPB.DeploymentType_DEPLOYMENT_TYPE_UPLOAD_CERT {
 			return fmt.Errorf("provider %s 不支持部署类型 %s", provider.String(), deploymentType.String())
 		}
@@ -285,6 +295,41 @@ func (be *DeploymentExecutor) getProviderHandler(provider deployPB.Provider) (pr
 		return qiniu.New(accessKey, accessSecret), nil
 	case deployPB.Provider_PROVIDER_TENCENT_CLOUD:
 		return be.getCloudTencentProvider()
+	case deployPB.Provider_PROVIDER_DOGE_CLOUD:
+		accessKey := providerConfig.GetAccessKey()
+		accessSecret := providerConfig.GetAccessSecret()
+		if accessKey == "" || accessSecret == "" {
+			return nil, fmt.Errorf("多吉云配置不完整: accessKey 或 accessSecret 为空")
+		}
+		return dogecloud.New(accessKey, accessSecret), nil
+	case deployPB.Provider_PROVIDER_BAIDU_CLOUD:
+		accessKeyID := providerConfig.GetAccessKeyId()
+		accessKeySecret := providerConfig.GetAccessKeySecret()
+		if accessKeyID == "" || accessKeySecret == "" {
+			return nil, fmt.Errorf("百度云配置不完整: accessKeyId 或 accessKeySecret 为空")
+		}
+		return baidu.New(accessKeyID, accessKeySecret)
+	case deployPB.Provider_PROVIDER_JD_CLOUD:
+		accessKeyID := providerConfig.GetAccessKeyId()
+		accessKeySecret := providerConfig.GetAccessKeySecret()
+		if accessKeyID == "" || accessKeySecret == "" {
+			return nil, fmt.Errorf("京东云配置不完整: accessKeyId 或 accessKeySecret 为空")
+		}
+		return jdcloud.New(accessKeyID, accessKeySecret), nil
+	case deployPB.Provider_PROVIDER_VOLCENGINE:
+		accessKeyID := providerConfig.GetAccessKeyId()
+		accessKeySecret := providerConfig.GetAccessKeySecret()
+		if accessKeyID == "" || accessKeySecret == "" {
+			return nil, fmt.Errorf("火山引擎配置不完整: accessKeyId 或 accessKeySecret 为空")
+		}
+		return volcengine.NewConfigured(accessKeyID, accessKeySecret, providerConfig.Region, providerConfig.CertificateRegion, providerConfig.Regions)
+	case deployPB.Provider_PROVIDER_HUAWEI_CLOUD:
+		accessKeyID := providerConfig.GetAccessKeyId()
+		accessKeySecret := providerConfig.GetAccessKeySecret()
+		if accessKeyID == "" || accessKeySecret == "" {
+			return nil, fmt.Errorf("华为云配置不完整: accessKeyId 或 accessKeySecret 为空")
+		}
+		return huawei.New(accessKeyID, accessKeySecret, providerConfig.Region, providerConfig.CertificateRegion, providerConfig.Regions)
 
 	default:
 		return nil, fmt.Errorf("不支持的部署平台: %s", provider.String())
