@@ -35,17 +35,21 @@ func reloadFeiniuServicesContext(ctx context.Context) error {
 		ctx = context.Background()
 	}
 	services := []string{"webdav.service", "smbftpd.service", "trim_nginx.service"}
+	var firstErr error
 	for _, service := range services {
 		if output, err := runFeiniuCommandContext(ctx, feiniuCommandTimeout, "systemctl", "restart", service); err != nil {
 			logger.Warn("重启服务失败", "service", service, "error", err, "output", string(output))
 			if output, err := runFeiniuCommandContext(ctx, feiniuCommandTimeout, "sudo", "systemctl", "restart", service); err != nil {
 				logger.Warn("使用sudo重启服务也失败", "service", service, "error", err, "output", string(output))
+				if firstErr == nil {
+					firstErr = fmt.Errorf("重启飞牛服务 %s 失败: %w", service, err)
+				}
 			}
 		} else {
 			logger.Info("已重启服务", "service", service)
 		}
 	}
-	return nil
+	return firstErr
 }
 
 // runFeiniuCommandContext 使用调用方 context 执行飞牛系统命令。

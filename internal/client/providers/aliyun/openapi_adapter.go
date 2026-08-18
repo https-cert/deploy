@@ -277,7 +277,7 @@ func isSafeAliyunRegionID(region string) bool {
 	return true
 }
 
-// callOpenAPIWithContext 在 SDK 不直接接收 context 的情况下，将 deadline 映射为运行时超时并优先返回取消信号。
+// callOpenAPIWithContext 将 deadline 映射为 SDK 硬超时，并等待调用收敛后再返回取消。
 func callOpenAPIWithContext(ctx context.Context, client *openapi.Client, params *models.Params, request *models.OpenApiRequest) (map[string]any, error) {
 	if client == nil {
 		return nil, &cloudAPIError{Message: "阿里云控制面客户端未初始化"}
@@ -304,27 +304,14 @@ func callOpenAPIWithContext(ctx context.Context, client *openapi.Client, params 
 	runtime.ReadTimeout = &milliseconds
 	runtime.ConnectTimeout = &milliseconds
 
-	type result struct {
-		// response 是 SDK 返回的原始响应。
-		response map[string]any
-		// err 是 SDK 调用错误。
-		err error
+	response, err := client.CallApi(params, request, runtime)
+	if contextErr := ctx.Err(); contextErr != nil {
+		return nil, contextErr
 	}
-	done := make(chan result, 1)
-	go func() {
-		response, err := client.CallApi(params, request, runtime)
-		done <- result{response: response, err: err}
-	}()
-
-	select {
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	case callResult := <-done:
-		if callResult.err != nil {
-			return nil, callResult.err
-		}
-		return callResult.response, nil
+	if err != nil {
+		return nil, err
 	}
+	return response, nil
 }
 
 // stringPointers 将字符串 map 转为 Darabonba 需要的指针 map。

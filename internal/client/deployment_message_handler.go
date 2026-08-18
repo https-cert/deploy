@@ -35,21 +35,21 @@ func (c *WSClient) handleDeploymentResponse(response *deployPB.DeploymentRespons
 	case *deployPB.DeploymentResponse_TestRequest:
 		requestID := deploymentRequestID(response.GetRequestId(), data.TestRequest.GetRequestId())
 		c.runOperation("deployment-v2-test", func() {
-			c.sendDeploymentTestResponse(requestID, data.TestRequest.GetSelector(), failedDeploymentResult("客户端业务并发已达上限", true))
+			c.sendDeploymentTestResponse(requestID, data.TestRequest.GetSelector(), failedDeploymentResultWithKind("客户端业务并发已达上限", true, deployPB.FailureKind_FAILURE_KIND_BUSY))
 		}, func() {
 			c.handleDeploymentTestRequest(requestID, data.TestRequest)
 		})
 	case *deployPB.DeploymentResponse_ExecuteRequest:
 		requestID := deploymentRequestID(response.GetRequestId(), data.ExecuteRequest.GetRequestId())
 		c.runOperation("deployment-v2-execute", func() {
-			c.sendDeploymentExecuteResponse(requestID, data.ExecuteRequest.GetSelector(), failedDeploymentResult("客户端业务并发已达上限", true))
+			c.sendDeploymentExecuteResponse(requestID, data.ExecuteRequest.GetSelector(), failedDeploymentResultWithKind("客户端业务并发已达上限", true, deployPB.FailureKind_FAILURE_KIND_BUSY))
 		}, func() {
 			c.handleDeploymentExecuteRequest(requestID, data.ExecuteRequest)
 		})
 	case *deployPB.DeploymentResponse_ChallengeRequest:
 		requestID := deploymentRequestID(response.GetRequestId(), data.ChallengeRequest.GetRequestId())
 		c.runOperation("deployment-v2-challenge", func() {
-			c.sendDeploymentChallengeResponse(requestID, data.ChallengeRequest, failedDeploymentResult("客户端业务并发已达上限", true))
+			c.sendDeploymentChallengeResponse(requestID, data.ChallengeRequest, failedDeploymentResultWithKind("客户端业务并发已达上限", true, deployPB.FailureKind_FAILURE_KIND_BUSY))
 		}, func() {
 			c.handleDeploymentChallengeRequest(requestID, data.ChallengeRequest)
 		})
@@ -110,6 +110,7 @@ func (c *WSClient) handleDeploymentTestRequest(requestID string, request *deploy
 		logger.ErrorLocal("deployment v2 目标测试失败", "error", err, "provider", selector.GetProvider().String(), "deploymentType", selector.GetDeploymentType().String(), "requestId", requestID)
 		result := failedDeploymentResult(message, retryable)
 		result.ProviderRequestId = providerRequestID(err)
+		result.FailureKind = providers.FailureKind(err)
 		c.sendDeploymentTestResponse(requestID, selector, result)
 		return
 	}
@@ -143,6 +144,16 @@ func (c *WSClient) handleDeploymentExecuteRequest(requestID string, request *dep
 		message, retryable := providers.DeploymentErrorInfo(err)
 		executionResult := failedDeploymentResult(message, retryable)
 		executionResult.ProviderRequestId = providerRequestID(err)
+		executionResult.FailureKind = providers.FailureKind(err)
+		c.sendDeploymentExecuteResponse(requestID, selector, executionResult)
+		return
+	}
+	if err := operationCtx.Err(); err != nil {
+		if c.ctx != nil && c.ctx.Err() != nil {
+			return
+		}
+		message, retryable := providers.DeploymentErrorInfo(err)
+		executionResult := failedDeploymentResultWithKind(message, retryable, providers.FailureKind(err))
 		c.sendDeploymentExecuteResponse(requestID, selector, executionResult)
 		return
 	}
@@ -242,6 +253,13 @@ func successfulDeploymentResult(message, providerRequestID string) *deployPB.Dep
 // failedDeploymentResult 构造失败结果。
 func failedDeploymentResult(message string, retryable bool) *deployPB.DeploymentExecutionResult {
 	return &deployPB.DeploymentExecutionResult{Status: deployPB.DeploymentExecutionResult_STATUS_FAILED, Message: message, Retryable: &retryable}
+}
+
+// failedDeploymentResultWithKind 构造带稳定失败类型的失败结果。
+func failedDeploymentResultWithKind(message string, retryable bool, kind deployPB.FailureKind) *deployPB.DeploymentExecutionResult {
+	result := failedDeploymentResult(message, retryable)
+	result.FailureKind = kind
+	return result
 }
 
 // unsupportedDeploymentResult 构造不支持结果。

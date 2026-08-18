@@ -150,6 +150,9 @@ func downloadFileWithRuntime(ctx context.Context, runtime *config.Runtime, httpC
 	if err := tmpFile.Close(); err != nil {
 		return err
 	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 
 	// Windows 下如果目标文件存在需要先删除
 	if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+
+	"github.com/https-cert/deploy/pb/deployPB"
 )
 
 const deploymentFailureMessage = "部署失败，请查看 deploy 客户端日志"
@@ -68,6 +70,37 @@ func RequestID(err error) string {
 // IsContextFailure 判断错误是否由调用方取消或超时引起。
 func IsContextFailure(err error) bool {
 	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
+}
+
+// FailureKind 将错误归类为跨端稳定的部署失败类型。
+func FailureKind(err error) deployPB.FailureKind {
+	if err == nil {
+		return deployPB.FailureKind_FAILURE_KIND_UNSPECIFIED
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return deployPB.FailureKind_FAILURE_KIND_TIMEOUT
+	}
+	if errors.Is(err, context.Canceled) {
+		return deployPB.FailureKind_FAILURE_KIND_CANCELED
+	}
+	message := strings.ToLower(err.Error())
+	if strings.Contains(message, "并发") || strings.Contains(message, "繁忙") || strings.Contains(message, "busy") {
+		return deployPB.FailureKind_FAILURE_KIND_BUSY
+	}
+	if strings.Contains(message, "目标") || strings.Contains(message, "target") || strings.Contains(message, "资源已失效") || strings.Contains(message, "不存在") {
+		return deployPB.FailureKind_FAILURE_KIND_TARGET_UNAVAILABLE
+	}
+	var deploymentError *DeploymentError
+	if errors.As(err, &deploymentError) {
+		if errors.Is(deploymentError.Cause, context.DeadlineExceeded) {
+			return deployPB.FailureKind_FAILURE_KIND_TIMEOUT
+		}
+		if errors.Is(deploymentError.Cause, context.Canceled) {
+			return deployPB.FailureKind_FAILURE_KIND_CANCELED
+		}
+		return deployPB.FailureKind_FAILURE_KIND_PROVIDER
+	}
+	return deployPB.FailureKind_FAILURE_KIND_LOCAL_PUBLISH
 }
 
 // DeploymentErrorInfo 只提取可返回后端的固定文案和重试分类。

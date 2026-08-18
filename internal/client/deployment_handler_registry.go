@@ -192,7 +192,10 @@ func (h *nativeDeploymentHandler) Deploy(ctx context.Context, request Deployment
 	} else {
 		lockKey += canonicalDomain
 	}
-	release := h.client.lockOperation(lockKey)
+	release, err := h.client.lockOperationWithContext(ctx, lockKey)
+	if err != nil {
+		return providers.DeploymentResult{}, err
+	}
 	defer release()
 	result, err := h.client.deploymentExecutor.Execute(ctx, DeploymentExecutionRequest{
 		ExecutionKind:  h.spec.executionKind,

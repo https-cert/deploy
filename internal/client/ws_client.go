@@ -29,6 +29,7 @@ type WSClient struct {
 	serverURL            string                             // serverURL 是 deploy 服务基础地址。
 	httpClient           *http.Client                       // httpClient 复用证书下载连接。
 	ctx                  context.Context                    // ctx 控制客户端完整生命周期。
+	cancel               context.CancelFunc                 // cancel 终止连接循环和所有派生业务 context。
 	accessKey            string                             // accessKey 是服务端鉴权令牌。
 	connectionLogged     atomic.Bool                        // connectionLogged 保证连接建立日志只记录一次。
 	registrationLogged   atomic.Bool                        // registrationLogged 保证 v2 注册成功日志只记录一次。
@@ -48,9 +49,11 @@ type WSClient struct {
 	protojsonMarshaler   protojson.MarshalOptions           // protojsonMarshaler 序列化 WebSocket 消息。
 	protojsonUnmarshaler protojson.UnmarshalOptions         // protojsonUnmarshaler 反序列化 WebSocket 消息。
 	startOnce            sync.Once                          // startOnce 保证连接循环只启动一次。
+	closeOnce            sync.Once                          // closeOnce 保证 Close 幂等。
 	started              atomic.Bool                        // started 标记连接循环是否已经启动。
 	done                 chan struct{}                      // done 在连接循环完全退出时关闭。
 	operationSem         chan struct{}                      // operationSem 限制并发业务数量。
+	operationWG          sync.WaitGroup                     // operationWG 等待已经启动的业务在关闭前收敛。
 	operationOnce        sync.Once                          // operationOnce 惰性初始化并发限制器。
 	operationLocksMu     sync.Mutex                         // operationLocksMu 保护资源操作锁表。
 	operationLocks       map[string]*resourceOperationLock  // operationLocks 保存正在使用的资源串行锁。
@@ -59,8 +62,8 @@ type WSClient struct {
 
 // resourceOperationLock 串行化同一个本地部署域名或精确部署资源的操作。
 type resourceOperationLock struct {
-	mu   sync.Mutex // mu 串行化同一个资源键的操作。
-	refs int        // refs 记录使用者数量，以便清理空闲锁。
+	mu   chan struct{} // mu 串行化同一个资源键的操作。
+	refs int           // refs 记录使用者数量，以便清理空闲锁。
 }
 
 // wsClientDependencies 保存 WebSocket 客户端可替换的进程外依赖。
@@ -71,7 +74,7 @@ type wsClientDependencies struct {
 	newHandlerRegistry func(*WSClient) (*DeploymentHandlerRegistry, error) // newHandlerRegistry 构造 v2 handler 注册表。
 }
 
-// Start starts the WebSocket lifecycle loop once.
+// Start 启动 WebSocket 生命周期循环，重复调用不会创建额外连接。
 func (c *WSClient) Start() {
 	if c.done == nil {
 		c.done = make(chan struct{})
@@ -90,7 +93,7 @@ func (c *WSClient) Start() {
 	})
 }
 
-// getSystemInfo returns cached system information and preserves the first collection error.
+// getSystemInfo 返回缓存的系统信息，并保留首次采集错误。
 func (c *WSClient) getSystemInfo() (*system.SystemInfo, error) {
 	c.systemInfoOnce.Do(func() {
 		loader := c.loadSystemInfo
@@ -102,10 +105,13 @@ func (c *WSClient) getSystemInfo() (*system.SystemInfo, error) {
 	return c.systemInfo, c.systemInfoErr
 }
 
-// Wait blocks until the WebSocket lifecycle loop exits or ctx is canceled.
+// Wait 等待 WebSocket 生命周期退出或调用方 context 取消。
 func (c *WSClient) Wait(ctx context.Context) error {
 	if !c.started.Load() {
 		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
 	}
 	select {
 	case <-c.done:
@@ -115,7 +121,7 @@ func (c *WSClient) Wait(ctx context.Context) error {
 	}
 }
 
-// runOperation starts a bounded asynchronous operation and invokes onBusy when capacity is exhausted.
+// runOperation 启动有并发上限的异步业务，并在容量耗尽时调用 onBusy。
 func (c *WSClient) runOperation(name string, onBusy func(), operation func()) {
 	c.operationOnce.Do(func() {
 		if c.operationSem == nil {
@@ -125,7 +131,9 @@ func (c *WSClient) runOperation(name string, onBusy func(), operation func()) {
 	operationSem := c.operationSem
 	select {
 	case operationSem <- struct{}{}:
+		c.operationWG.Add(1)
 		go func() {
+			defer c.operationWG.Done()
 			defer func() { <-operationSem }()
 			operation()
 		}()
@@ -137,29 +145,42 @@ func (c *WSClient) runOperation(name string, onBusy func(), operation func()) {
 	}
 }
 
-// lockOperation 获取一个按资源键引用计数的串行锁。
-func (c *WSClient) lockOperation(resourceKey string) func() {
+// lockOperationWithContext 获取可取消的资源串行锁，取消时不会占用业务槽位。
+func (c *WSClient) lockOperationWithContext(ctx context.Context, resourceKey string) (func(), error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	c.operationLocksMu.Lock()
 	if c.operationLocks == nil {
 		c.operationLocks = make(map[string]*resourceOperationLock)
 	}
 	entry := c.operationLocks[resourceKey]
 	if entry == nil {
-		entry = &resourceOperationLock{}
+		entry = &resourceOperationLock{mu: make(chan struct{}, 1)}
 		c.operationLocks[resourceKey] = entry
 	}
 	entry.refs++
 	c.operationLocksMu.Unlock()
 
-	entry.mu.Lock()
-	return func() {
-		entry.mu.Unlock()
+	select {
+	case entry.mu <- struct{}{}:
+		return func() {
+			<-entry.mu
+			c.operationLocksMu.Lock()
+			entry.refs--
+			if entry.refs == 0 {
+				delete(c.operationLocks, resourceKey)
+			}
+			c.operationLocksMu.Unlock()
+		}, nil
+	case <-ctx.Done():
 		c.operationLocksMu.Lock()
 		entry.refs--
 		if entry.refs == 0 {
 			delete(c.operationLocks, resourceKey)
 		}
 		c.operationLocksMu.Unlock()
+		return nil, ctx.Err()
 	}
 }
 

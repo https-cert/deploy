@@ -657,6 +657,68 @@ func (DeploymentResourceAvailability) EnumDescriptor() ([]byte, []int) {
 	return file_deployPB_deploy_proto_rawDescGZIP(), []int{8}
 }
 
+// FailureKind 描述部署失败的稳定原因分类。
+type FailureKind int32
+
+const (
+	FailureKind_FAILURE_KIND_UNSPECIFIED        FailureKind = 0 // 未分类或旧客户端未上报
+	FailureKind_FAILURE_KIND_TIMEOUT            FailureKind = 1 // 操作或传输超时
+	FailureKind_FAILURE_KIND_CANCELED           FailureKind = 2 // 调用方取消或客户端关闭
+	FailureKind_FAILURE_KIND_BUSY               FailureKind = 3 // 客户端并发或目标锁繁忙
+	FailureKind_FAILURE_KIND_TARGET_UNAVAILABLE FailureKind = 4 // 目标失效或当前不可部署
+	FailureKind_FAILURE_KIND_PROVIDER           FailureKind = 5 // 云厂商 API 或 SDK 失败
+	FailureKind_FAILURE_KIND_LOCAL_PUBLISH      FailureKind = 6 // 本地文件、SSH 或发布失败
+)
+
+// Enum value maps for FailureKind.
+var (
+	FailureKind_name = map[int32]string{
+		0: "FAILURE_KIND_UNSPECIFIED",
+		1: "FAILURE_KIND_TIMEOUT",
+		2: "FAILURE_KIND_CANCELED",
+		3: "FAILURE_KIND_BUSY",
+		4: "FAILURE_KIND_TARGET_UNAVAILABLE",
+		5: "FAILURE_KIND_PROVIDER",
+		6: "FAILURE_KIND_LOCAL_PUBLISH",
+	}
+	FailureKind_value = map[string]int32{
+		"FAILURE_KIND_UNSPECIFIED":        0,
+		"FAILURE_KIND_TIMEOUT":            1,
+		"FAILURE_KIND_CANCELED":           2,
+		"FAILURE_KIND_BUSY":               3,
+		"FAILURE_KIND_TARGET_UNAVAILABLE": 4,
+		"FAILURE_KIND_PROVIDER":           5,
+		"FAILURE_KIND_LOCAL_PUBLISH":      6,
+	}
+)
+
+func (x FailureKind) Enum() *FailureKind {
+	p := new(FailureKind)
+	*p = x
+	return p
+}
+
+func (x FailureKind) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (FailureKind) Descriptor() protoreflect.EnumDescriptor {
+	return file_deployPB_deploy_proto_enumTypes[9].Descriptor()
+}
+
+func (FailureKind) Type() protoreflect.EnumType {
+	return &file_deployPB_deploy_proto_enumTypes[9]
+}
+
+func (x FailureKind) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use FailureKind.Descriptor instead.
+func (FailureKind) EnumDescriptor() ([]byte, []int) {
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{9}
+}
+
 type DeploymentExecutionResult_Status int32
 
 const (
@@ -693,11 +755,11 @@ func (x DeploymentExecutionResult_Status) String() string {
 }
 
 func (DeploymentExecutionResult_Status) Descriptor() protoreflect.EnumDescriptor {
-	return file_deployPB_deploy_proto_enumTypes[9].Descriptor()
+	return file_deployPB_deploy_proto_enumTypes[10].Descriptor()
 }
 
 func (DeploymentExecutionResult_Status) Type() protoreflect.EnumType {
-	return &file_deployPB_deploy_proto_enumTypes[9]
+	return &file_deployPB_deploy_proto_enumTypes[10]
 }
 
 func (x DeploymentExecutionResult_Status) Number() protoreflect.EnumNumber {
@@ -742,11 +804,11 @@ func (x DeploymentChallengeRequest_Action) String() string {
 }
 
 func (DeploymentChallengeRequest_Action) Descriptor() protoreflect.EnumDescriptor {
-	return file_deployPB_deploy_proto_enumTypes[10].Descriptor()
+	return file_deployPB_deploy_proto_enumTypes[11].Descriptor()
 }
 
 func (DeploymentChallengeRequest_Action) Type() protoreflect.EnumType {
-	return &file_deployPB_deploy_proto_enumTypes[10]
+	return &file_deployPB_deploy_proto_enumTypes[11]
 }
 
 func (x DeploymentChallengeRequest_Action) Number() protoreflect.EnumNumber {
@@ -791,11 +853,11 @@ func (x ChallengeRequest_Action) String() string {
 }
 
 func (ChallengeRequest_Action) Descriptor() protoreflect.EnumDescriptor {
-	return file_deployPB_deploy_proto_enumTypes[11].Descriptor()
+	return file_deployPB_deploy_proto_enumTypes[12].Descriptor()
 }
 
 func (ChallengeRequest_Action) Type() protoreflect.EnumType {
-	return &file_deployPB_deploy_proto_enumTypes[11]
+	return &file_deployPB_deploy_proto_enumTypes[12]
 }
 
 func (x ChallengeRequest_Action) Number() protoreflect.EnumNumber {
@@ -843,11 +905,11 @@ func (x ChallengeResponse_Result) String() string {
 }
 
 func (ChallengeResponse_Result) Descriptor() protoreflect.EnumDescriptor {
-	return file_deployPB_deploy_proto_enumTypes[12].Descriptor()
+	return file_deployPB_deploy_proto_enumTypes[13].Descriptor()
 }
 
 func (ChallengeResponse_Result) Type() protoreflect.EnumType {
-	return &file_deployPB_deploy_proto_enumTypes[12]
+	return &file_deployPB_deploy_proto_enumTypes[13]
 }
 
 func (x ChallengeResponse_Result) Number() protoreflect.EnumNumber {
@@ -896,11 +958,11 @@ func (x ExecuteBusinesRequest_RequestResult) String() string {
 }
 
 func (ExecuteBusinesRequest_RequestResult) Descriptor() protoreflect.EnumDescriptor {
-	return file_deployPB_deploy_proto_enumTypes[13].Descriptor()
+	return file_deployPB_deploy_proto_enumTypes[14].Descriptor()
 }
 
 func (ExecuteBusinesRequest_RequestResult) Type() protoreflect.EnumType {
-	return &file_deployPB_deploy_proto_enumTypes[13]
+	return &file_deployPB_deploy_proto_enumTypes[14]
 }
 
 func (x ExecuteBusinesRequest_RequestResult) Number() protoreflect.EnumNumber {
@@ -1258,10 +1320,11 @@ func (x *DeploymentResource) GetAvailability() DeploymentResourceAvailability {
 // DeploymentExecutionResult 是 v2 测试和执行的统一结果。
 type DeploymentExecutionResult struct {
 	state             protoimpl.MessageState           `protogen:"open.v1"`
-	Status            DeploymentExecutionResult_Status `protobuf:"varint,1,opt,name=status,proto3,enum=deployPB.DeploymentExecutionResult_Status" json:"status,omitempty"`  // 执行结果
-	Message           string                           `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`                                                // 可安全返回的脱敏说明
-	Retryable         *bool                            `protobuf:"varint,3,opt,name=retryable,proto3,oneof" json:"retryable,omitempty"`                                     // 是否建议重试
-	ProviderRequestId string                           `protobuf:"bytes,4,opt,name=provider_request_id,json=providerRequestId,proto3" json:"provider_request_id,omitempty"` // 云厂商请求 ID
+	Status            DeploymentExecutionResult_Status `protobuf:"varint,1,opt,name=status,proto3,enum=deployPB.DeploymentExecutionResult_Status" json:"status,omitempty"`         // 执行结果
+	Message           string                           `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`                                                       // 可安全返回的脱敏说明
+	Retryable         *bool                            `protobuf:"varint,3,opt,name=retryable,proto3,oneof" json:"retryable,omitempty"`                                            // 是否建议重试
+	ProviderRequestId string                           `protobuf:"bytes,4,opt,name=provider_request_id,json=providerRequestId,proto3" json:"provider_request_id,omitempty"`        // 云厂商请求 ID
+	FailureKind       FailureKind                      `protobuf:"varint,5,opt,name=failure_kind,json=failureKind,proto3,enum=deployPB.FailureKind" json:"failure_kind,omitempty"` // 稳定失败原因分类
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -1322,6 +1385,13 @@ func (x *DeploymentExecutionResult) GetProviderRequestId() string {
 		return x.ProviderRequestId
 	}
 	return ""
+}
+
+func (x *DeploymentExecutionResult) GetFailureKind() FailureKind {
+	if x != nil {
+		return x.FailureKind
+	}
+	return FailureKind_FAILURE_KIND_UNSPECIFIED
 }
 
 // DeploymentRegisterV2 描述 v2 客户端注册能力。
@@ -3772,12 +3842,13 @@ const file_deployPB_deploy_proto_rawDesc = "" +
 	"\x06region\x18\b \x01(\tR\x06region\x12\x12\n" +
 	"\x04port\x18\t \x01(\rR\x04port\x12L\n" +
 	"\favailability\x18\n" +
-	" \x01(\x0e2(.deployPB.DeploymentResourceAvailabilityR\favailability\"\xbd\x02\n" +
+	" \x01(\x0e2(.deployPB.DeploymentResourceAvailabilityR\favailability\"\xf7\x02\n" +
 	"\x19DeploymentExecutionResult\x12B\n" +
 	"\x06status\x18\x01 \x01(\x0e2*.deployPB.DeploymentExecutionResult.StatusR\x06status\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12!\n" +
 	"\tretryable\x18\x03 \x01(\bH\x00R\tretryable\x88\x01\x01\x12.\n" +
-	"\x13provider_request_id\x18\x04 \x01(\tR\x11providerRequestId\"a\n" +
+	"\x13provider_request_id\x18\x04 \x01(\tR\x11providerRequestId\x128\n" +
+	"\ffailure_kind\x18\x05 \x01(\x0e2\x15.deployPB.FailureKindR\vfailureKind\"a\n" +
 	"\x06Status\x12\x16\n" +
 	"\x12STATUS_UNSPECIFIED\x10\x00\x12\x12\n" +
 	"\x0eSTATUS_SUCCESS\x10\x01\x12\x11\n" +
@@ -4097,7 +4168,15 @@ const file_deployPB_deploy_proto_rawDesc = "" +
 	"(DEPLOYMENT_RESOURCE_AVAILABILITY_STOPPED\x10\x02\x12-\n" +
 	")DEPLOYMENT_RESOURCE_AVAILABILITY_DISABLED\x10\x03\x12+\n" +
 	"'DEPLOYMENT_RESOURCE_AVAILABILITY_LOCKED\x10\x04\x120\n" +
-	",DEPLOYMENT_RESOURCE_AVAILABILITY_UNSUPPORTED\x10\x052P\n" +
+	",DEPLOYMENT_RESOURCE_AVAILABILITY_UNSUPPORTED\x10\x05*\xd7\x01\n" +
+	"\vFailureKind\x12\x1c\n" +
+	"\x18FAILURE_KIND_UNSPECIFIED\x10\x00\x12\x18\n" +
+	"\x14FAILURE_KIND_TIMEOUT\x10\x01\x12\x19\n" +
+	"\x15FAILURE_KIND_CANCELED\x10\x02\x12\x15\n" +
+	"\x11FAILURE_KIND_BUSY\x10\x03\x12#\n" +
+	"\x1fFAILURE_KIND_TARGET_UNAVAILABLE\x10\x04\x12\x19\n" +
+	"\x15FAILURE_KIND_PROVIDER\x10\x05\x12\x1e\n" +
+	"\x1aFAILURE_KIND_LOCAL_PUBLISH\x10\x062P\n" +
 	"\rDeployService\x12?\n" +
 	"\x06Notify\x12\x17.deployPB.NotifyRequest\x1a\x18.deployPB.NotifyResponse(\x010\x01B\x85\x01\n" +
 	"\fcom.deployPBB\vDeployProtoP\x01Z(github.com/https-cert/deploy/pb/deployPB\xa2\x02\x03DXX\xaa\x02\bDeployPB\xca\x02\bDeployPB\xe2\x02\x14DeployPB\\GPBMetadata\xea\x02\bDeployPBb\x06proto3"
@@ -4114,7 +4193,7 @@ func file_deployPB_deploy_proto_rawDescGZIP() []byte {
 	return file_deployPB_deploy_proto_rawDescData
 }
 
-var file_deployPB_deploy_proto_enumTypes = make([]protoimpl.EnumInfo, 14)
+var file_deployPB_deploy_proto_enumTypes = make([]protoimpl.EnumInfo, 15)
 var file_deployPB_deploy_proto_msgTypes = make([]protoimpl.MessageInfo, 34)
 var file_deployPB_deploy_proto_goTypes = []any{
 	(Provider)(0),                                 // 0: deployPB.Provider
@@ -4126,45 +4205,46 @@ var file_deployPB_deploy_proto_goTypes = []any{
 	(ExecuteBusinesType)(0),                       // 6: deployPB.ExecuteBusinesType
 	(DeploymentResourceStatus)(0),                 // 7: deployPB.DeploymentResourceStatus
 	(DeploymentResourceAvailability)(0),           // 8: deployPB.DeploymentResourceAvailability
-	(DeploymentExecutionResult_Status)(0),         // 9: deployPB.DeploymentExecutionResult.Status
-	(DeploymentChallengeRequest_Action)(0),        // 10: deployPB.DeploymentChallengeRequest.Action
-	(ChallengeRequest_Action)(0),                  // 11: deployPB.ChallengeRequest.Action
-	(ChallengeResponse_Result)(0),                 // 12: deployPB.ChallengeResponse.Result
-	(ExecuteBusinesRequest_RequestResult)(0),      // 13: deployPB.ExecuteBusinesRequest.RequestResult
-	(*DeploymentSelector)(nil),                    // 14: deployPB.DeploymentSelector
-	(*DeploymentCapability)(nil),                  // 15: deployPB.DeploymentCapability
-	(*DeploymentResource)(nil),                    // 16: deployPB.DeploymentResource
-	(*DeploymentExecutionResult)(nil),             // 17: deployPB.DeploymentExecutionResult
-	(*DeploymentRegisterV2)(nil),                  // 18: deployPB.DeploymentRegisterV2
-	(*DeploymentDiscoverRequest)(nil),             // 19: deployPB.DeploymentDiscoverRequest
-	(*DeploymentDiscoverResponse)(nil),            // 20: deployPB.DeploymentDiscoverResponse
-	(*DeploymentTestRequest)(nil),                 // 21: deployPB.DeploymentTestRequest
-	(*DeploymentTestResponse)(nil),                // 22: deployPB.DeploymentTestResponse
-	(*DeploymentExecuteRequest)(nil),              // 23: deployPB.DeploymentExecuteRequest
-	(*DeploymentExecuteResponse)(nil),             // 24: deployPB.DeploymentExecuteResponse
-	(*DeploymentChallengeRequest)(nil),            // 25: deployPB.DeploymentChallengeRequest
-	(*DeploymentChallengeResponse)(nil),           // 26: deployPB.DeploymentChallengeResponse
-	(*DeploymentHeartbeat)(nil),                   // 27: deployPB.DeploymentHeartbeat
-	(*DeploymentUpdateRequest)(nil),               // 28: deployPB.DeploymentUpdateRequest
-	(*DeploymentRequest)(nil),                     // 29: deployPB.DeploymentRequest
-	(*DeploymentResponse)(nil),                    // 30: deployPB.DeploymentResponse
-	(*NotifyRequest)(nil),                         // 31: deployPB.NotifyRequest
-	(*NotifyResponse)(nil),                        // 32: deployPB.NotifyResponse
-	(*ConnectRequest)(nil),                        // 33: deployPB.ConnectRequest
-	(*CertUpdateRequest)(nil),                     // 34: deployPB.CertUpdateRequest
-	(*CertUpdateResponse)(nil),                    // 35: deployPB.CertUpdateResponse
-	(*ChallengeRequest)(nil),                      // 36: deployPB.ChallengeRequest
-	(*ChallengeResponse)(nil),                     // 37: deployPB.ChallengeResponse
-	(*GetProviderRequest)(nil),                    // 38: deployPB.GetProviderRequest
-	(*DeployResource)(nil),                        // 39: deployPB.DeployResource
-	(*GetProviderResponse)(nil),                   // 40: deployPB.GetProviderResponse
-	(*RegisterRequest)(nil),                       // 41: deployPB.RegisterRequest
-	(*RegisterResponse)(nil),                      // 42: deployPB.RegisterResponse
-	(*ExecuteBusinesRequest)(nil),                 // 43: deployPB.ExecuteBusinesRequest
-	(*ExecuteBusinesResponse)(nil),                // 44: deployPB.ExecuteBusinesResponse
-	(*GetProviderResponse_Provider)(nil),          // 45: deployPB.GetProviderResponse.Provider
-	(*GetProviderResponse_Provider_Business)(nil), // 46: deployPB.GetProviderResponse.Provider.Business
-	(*RegisterResponse_SystemInfo)(nil),           // 47: deployPB.RegisterResponse.SystemInfo
+	(FailureKind)(0),                              // 9: deployPB.FailureKind
+	(DeploymentExecutionResult_Status)(0),         // 10: deployPB.DeploymentExecutionResult.Status
+	(DeploymentChallengeRequest_Action)(0),        // 11: deployPB.DeploymentChallengeRequest.Action
+	(ChallengeRequest_Action)(0),                  // 12: deployPB.ChallengeRequest.Action
+	(ChallengeResponse_Result)(0),                 // 13: deployPB.ChallengeResponse.Result
+	(ExecuteBusinesRequest_RequestResult)(0),      // 14: deployPB.ExecuteBusinesRequest.RequestResult
+	(*DeploymentSelector)(nil),                    // 15: deployPB.DeploymentSelector
+	(*DeploymentCapability)(nil),                  // 16: deployPB.DeploymentCapability
+	(*DeploymentResource)(nil),                    // 17: deployPB.DeploymentResource
+	(*DeploymentExecutionResult)(nil),             // 18: deployPB.DeploymentExecutionResult
+	(*DeploymentRegisterV2)(nil),                  // 19: deployPB.DeploymentRegisterV2
+	(*DeploymentDiscoverRequest)(nil),             // 20: deployPB.DeploymentDiscoverRequest
+	(*DeploymentDiscoverResponse)(nil),            // 21: deployPB.DeploymentDiscoverResponse
+	(*DeploymentTestRequest)(nil),                 // 22: deployPB.DeploymentTestRequest
+	(*DeploymentTestResponse)(nil),                // 23: deployPB.DeploymentTestResponse
+	(*DeploymentExecuteRequest)(nil),              // 24: deployPB.DeploymentExecuteRequest
+	(*DeploymentExecuteResponse)(nil),             // 25: deployPB.DeploymentExecuteResponse
+	(*DeploymentChallengeRequest)(nil),            // 26: deployPB.DeploymentChallengeRequest
+	(*DeploymentChallengeResponse)(nil),           // 27: deployPB.DeploymentChallengeResponse
+	(*DeploymentHeartbeat)(nil),                   // 28: deployPB.DeploymentHeartbeat
+	(*DeploymentUpdateRequest)(nil),               // 29: deployPB.DeploymentUpdateRequest
+	(*DeploymentRequest)(nil),                     // 30: deployPB.DeploymentRequest
+	(*DeploymentResponse)(nil),                    // 31: deployPB.DeploymentResponse
+	(*NotifyRequest)(nil),                         // 32: deployPB.NotifyRequest
+	(*NotifyResponse)(nil),                        // 33: deployPB.NotifyResponse
+	(*ConnectRequest)(nil),                        // 34: deployPB.ConnectRequest
+	(*CertUpdateRequest)(nil),                     // 35: deployPB.CertUpdateRequest
+	(*CertUpdateResponse)(nil),                    // 36: deployPB.CertUpdateResponse
+	(*ChallengeRequest)(nil),                      // 37: deployPB.ChallengeRequest
+	(*ChallengeResponse)(nil),                     // 38: deployPB.ChallengeResponse
+	(*GetProviderRequest)(nil),                    // 39: deployPB.GetProviderRequest
+	(*DeployResource)(nil),                        // 40: deployPB.DeployResource
+	(*GetProviderResponse)(nil),                   // 41: deployPB.GetProviderResponse
+	(*RegisterRequest)(nil),                       // 42: deployPB.RegisterRequest
+	(*RegisterResponse)(nil),                      // 43: deployPB.RegisterResponse
+	(*ExecuteBusinesRequest)(nil),                 // 44: deployPB.ExecuteBusinesRequest
+	(*ExecuteBusinesResponse)(nil),                // 45: deployPB.ExecuteBusinesResponse
+	(*GetProviderResponse_Provider)(nil),          // 46: deployPB.GetProviderResponse.Provider
+	(*GetProviderResponse_Provider_Business)(nil), // 47: deployPB.GetProviderResponse.Provider.Business
+	(*RegisterResponse_SystemInfo)(nil),           // 48: deployPB.RegisterResponse.SystemInfo
 }
 var file_deployPB_deploy_proto_depIdxs = []int32{
 	0,  // 0: deployPB.DeploymentSelector.provider:type_name -> deployPB.Provider
@@ -4173,67 +4253,68 @@ var file_deployPB_deploy_proto_depIdxs = []int32{
 	1,  // 3: deployPB.DeploymentCapability.deployment_type:type_name -> deployPB.DeploymentType
 	2,  // 4: deployPB.DeploymentCapability.target_mode:type_name -> deployPB.DeploymentTargetMode
 	7,  // 5: deployPB.DeploymentCapability.resource_status:type_name -> deployPB.DeploymentResourceStatus
-	16, // 6: deployPB.DeploymentCapability.resources:type_name -> deployPB.DeploymentResource
+	17, // 6: deployPB.DeploymentCapability.resources:type_name -> deployPB.DeploymentResource
 	3,  // 7: deployPB.DeploymentCapability.category:type_name -> deployPB.DeploymentCategory
 	4,  // 8: deployPB.DeploymentCapability.domain_policy:type_name -> deployPB.DeploymentDomainPolicy
 	8,  // 9: deployPB.DeploymentResource.availability:type_name -> deployPB.DeploymentResourceAvailability
-	9,  // 10: deployPB.DeploymentExecutionResult.status:type_name -> deployPB.DeploymentExecutionResult.Status
-	15, // 11: deployPB.DeploymentRegisterV2.capabilities:type_name -> deployPB.DeploymentCapability
-	14, // 12: deployPB.DeploymentDiscoverRequest.selector:type_name -> deployPB.DeploymentSelector
-	15, // 13: deployPB.DeploymentDiscoverResponse.capability:type_name -> deployPB.DeploymentCapability
-	14, // 14: deployPB.DeploymentTestRequest.selector:type_name -> deployPB.DeploymentSelector
-	14, // 15: deployPB.DeploymentTestResponse.selector:type_name -> deployPB.DeploymentSelector
-	17, // 16: deployPB.DeploymentTestResponse.result:type_name -> deployPB.DeploymentExecutionResult
-	14, // 17: deployPB.DeploymentExecuteRequest.selector:type_name -> deployPB.DeploymentSelector
-	14, // 18: deployPB.DeploymentExecuteResponse.selector:type_name -> deployPB.DeploymentSelector
-	17, // 19: deployPB.DeploymentExecuteResponse.result:type_name -> deployPB.DeploymentExecutionResult
-	10, // 20: deployPB.DeploymentChallengeRequest.action:type_name -> deployPB.DeploymentChallengeRequest.Action
-	17, // 21: deployPB.DeploymentChallengeResponse.result:type_name -> deployPB.DeploymentExecutionResult
-	18, // 22: deployPB.DeploymentHeartbeat.registration:type_name -> deployPB.DeploymentRegisterV2
-	18, // 23: deployPB.DeploymentRequest.register:type_name -> deployPB.DeploymentRegisterV2
-	27, // 24: deployPB.DeploymentRequest.heartbeat:type_name -> deployPB.DeploymentHeartbeat
-	20, // 25: deployPB.DeploymentRequest.discover_response:type_name -> deployPB.DeploymentDiscoverResponse
-	22, // 26: deployPB.DeploymentRequest.test_response:type_name -> deployPB.DeploymentTestResponse
-	24, // 27: deployPB.DeploymentRequest.execute_response:type_name -> deployPB.DeploymentExecuteResponse
-	26, // 28: deployPB.DeploymentRequest.challenge_response:type_name -> deployPB.DeploymentChallengeResponse
-	18, // 29: deployPB.DeploymentResponse.register:type_name -> deployPB.DeploymentRegisterV2
-	19, // 30: deployPB.DeploymentResponse.discover_request:type_name -> deployPB.DeploymentDiscoverRequest
-	21, // 31: deployPB.DeploymentResponse.test_request:type_name -> deployPB.DeploymentTestRequest
-	23, // 32: deployPB.DeploymentResponse.execute_request:type_name -> deployPB.DeploymentExecuteRequest
-	25, // 33: deployPB.DeploymentResponse.challenge_request:type_name -> deployPB.DeploymentChallengeRequest
-	28, // 34: deployPB.DeploymentResponse.update_request:type_name -> deployPB.DeploymentUpdateRequest
-	40, // 35: deployPB.NotifyRequest.getProviderResponse:type_name -> deployPB.GetProviderResponse
-	42, // 36: deployPB.NotifyRequest.registerResponse:type_name -> deployPB.RegisterResponse
-	33, // 37: deployPB.NotifyRequest.connectRequest:type_name -> deployPB.ConnectRequest
-	43, // 38: deployPB.NotifyRequest.executeBusinesRequest:type_name -> deployPB.ExecuteBusinesRequest
-	37, // 39: deployPB.NotifyRequest.challengeResponse:type_name -> deployPB.ChallengeResponse
-	5,  // 40: deployPB.NotifyResponse.type:type_name -> deployPB.Type
-	40, // 41: deployPB.NotifyResponse.getProviderResponse:type_name -> deployPB.GetProviderResponse
-	41, // 42: deployPB.NotifyResponse.registerRequest:type_name -> deployPB.RegisterRequest
-	33, // 43: deployPB.NotifyResponse.connectRequest:type_name -> deployPB.ConnectRequest
-	44, // 44: deployPB.NotifyResponse.executeBusinesResponse:type_name -> deployPB.ExecuteBusinesResponse
-	36, // 45: deployPB.NotifyResponse.challengeRequest:type_name -> deployPB.ChallengeRequest
-	38, // 46: deployPB.NotifyResponse.getProviderRequest:type_name -> deployPB.GetProviderRequest
-	6,  // 47: deployPB.ConnectRequest.execute_busines_type:type_name -> deployPB.ExecuteBusinesType
-	11, // 48: deployPB.ChallengeRequest.action:type_name -> deployPB.ChallengeRequest.Action
-	12, // 49: deployPB.ChallengeResponse.result:type_name -> deployPB.ChallengeResponse.Result
-	6,  // 50: deployPB.GetProviderRequest.execute_busines_type:type_name -> deployPB.ExecuteBusinesType
-	8,  // 51: deployPB.DeployResource.availability:type_name -> deployPB.DeploymentResourceAvailability
-	45, // 52: deployPB.GetProviderResponse.providers:type_name -> deployPB.GetProviderResponse.Provider
-	47, // 53: deployPB.RegisterResponse.systemInfo:type_name -> deployPB.RegisterResponse.SystemInfo
-	13, // 54: deployPB.ExecuteBusinesRequest.requestResult:type_name -> deployPB.ExecuteBusinesRequest.RequestResult
-	6,  // 55: deployPB.ExecuteBusinesResponse.executeBusinesType:type_name -> deployPB.ExecuteBusinesType
-	46, // 56: deployPB.GetProviderResponse.Provider.businesses:type_name -> deployPB.GetProviderResponse.Provider.Business
-	6,  // 57: deployPB.GetProviderResponse.Provider.Business.execute_busines_type:type_name -> deployPB.ExecuteBusinesType
-	39, // 58: deployPB.GetProviderResponse.Provider.Business.resources:type_name -> deployPB.DeployResource
-	7,  // 59: deployPB.GetProviderResponse.Provider.Business.resource_status:type_name -> deployPB.DeploymentResourceStatus
-	31, // 60: deployPB.DeployService.Notify:input_type -> deployPB.NotifyRequest
-	32, // 61: deployPB.DeployService.Notify:output_type -> deployPB.NotifyResponse
-	61, // [61:62] is the sub-list for method output_type
-	60, // [60:61] is the sub-list for method input_type
-	60, // [60:60] is the sub-list for extension type_name
-	60, // [60:60] is the sub-list for extension extendee
-	0,  // [0:60] is the sub-list for field type_name
+	10, // 10: deployPB.DeploymentExecutionResult.status:type_name -> deployPB.DeploymentExecutionResult.Status
+	9,  // 11: deployPB.DeploymentExecutionResult.failure_kind:type_name -> deployPB.FailureKind
+	16, // 12: deployPB.DeploymentRegisterV2.capabilities:type_name -> deployPB.DeploymentCapability
+	15, // 13: deployPB.DeploymentDiscoverRequest.selector:type_name -> deployPB.DeploymentSelector
+	16, // 14: deployPB.DeploymentDiscoverResponse.capability:type_name -> deployPB.DeploymentCapability
+	15, // 15: deployPB.DeploymentTestRequest.selector:type_name -> deployPB.DeploymentSelector
+	15, // 16: deployPB.DeploymentTestResponse.selector:type_name -> deployPB.DeploymentSelector
+	18, // 17: deployPB.DeploymentTestResponse.result:type_name -> deployPB.DeploymentExecutionResult
+	15, // 18: deployPB.DeploymentExecuteRequest.selector:type_name -> deployPB.DeploymentSelector
+	15, // 19: deployPB.DeploymentExecuteResponse.selector:type_name -> deployPB.DeploymentSelector
+	18, // 20: deployPB.DeploymentExecuteResponse.result:type_name -> deployPB.DeploymentExecutionResult
+	11, // 21: deployPB.DeploymentChallengeRequest.action:type_name -> deployPB.DeploymentChallengeRequest.Action
+	18, // 22: deployPB.DeploymentChallengeResponse.result:type_name -> deployPB.DeploymentExecutionResult
+	19, // 23: deployPB.DeploymentHeartbeat.registration:type_name -> deployPB.DeploymentRegisterV2
+	19, // 24: deployPB.DeploymentRequest.register:type_name -> deployPB.DeploymentRegisterV2
+	28, // 25: deployPB.DeploymentRequest.heartbeat:type_name -> deployPB.DeploymentHeartbeat
+	21, // 26: deployPB.DeploymentRequest.discover_response:type_name -> deployPB.DeploymentDiscoverResponse
+	23, // 27: deployPB.DeploymentRequest.test_response:type_name -> deployPB.DeploymentTestResponse
+	25, // 28: deployPB.DeploymentRequest.execute_response:type_name -> deployPB.DeploymentExecuteResponse
+	27, // 29: deployPB.DeploymentRequest.challenge_response:type_name -> deployPB.DeploymentChallengeResponse
+	19, // 30: deployPB.DeploymentResponse.register:type_name -> deployPB.DeploymentRegisterV2
+	20, // 31: deployPB.DeploymentResponse.discover_request:type_name -> deployPB.DeploymentDiscoverRequest
+	22, // 32: deployPB.DeploymentResponse.test_request:type_name -> deployPB.DeploymentTestRequest
+	24, // 33: deployPB.DeploymentResponse.execute_request:type_name -> deployPB.DeploymentExecuteRequest
+	26, // 34: deployPB.DeploymentResponse.challenge_request:type_name -> deployPB.DeploymentChallengeRequest
+	29, // 35: deployPB.DeploymentResponse.update_request:type_name -> deployPB.DeploymentUpdateRequest
+	41, // 36: deployPB.NotifyRequest.getProviderResponse:type_name -> deployPB.GetProviderResponse
+	43, // 37: deployPB.NotifyRequest.registerResponse:type_name -> deployPB.RegisterResponse
+	34, // 38: deployPB.NotifyRequest.connectRequest:type_name -> deployPB.ConnectRequest
+	44, // 39: deployPB.NotifyRequest.executeBusinesRequest:type_name -> deployPB.ExecuteBusinesRequest
+	38, // 40: deployPB.NotifyRequest.challengeResponse:type_name -> deployPB.ChallengeResponse
+	5,  // 41: deployPB.NotifyResponse.type:type_name -> deployPB.Type
+	41, // 42: deployPB.NotifyResponse.getProviderResponse:type_name -> deployPB.GetProviderResponse
+	42, // 43: deployPB.NotifyResponse.registerRequest:type_name -> deployPB.RegisterRequest
+	34, // 44: deployPB.NotifyResponse.connectRequest:type_name -> deployPB.ConnectRequest
+	45, // 45: deployPB.NotifyResponse.executeBusinesResponse:type_name -> deployPB.ExecuteBusinesResponse
+	37, // 46: deployPB.NotifyResponse.challengeRequest:type_name -> deployPB.ChallengeRequest
+	39, // 47: deployPB.NotifyResponse.getProviderRequest:type_name -> deployPB.GetProviderRequest
+	6,  // 48: deployPB.ConnectRequest.execute_busines_type:type_name -> deployPB.ExecuteBusinesType
+	12, // 49: deployPB.ChallengeRequest.action:type_name -> deployPB.ChallengeRequest.Action
+	13, // 50: deployPB.ChallengeResponse.result:type_name -> deployPB.ChallengeResponse.Result
+	6,  // 51: deployPB.GetProviderRequest.execute_busines_type:type_name -> deployPB.ExecuteBusinesType
+	8,  // 52: deployPB.DeployResource.availability:type_name -> deployPB.DeploymentResourceAvailability
+	46, // 53: deployPB.GetProviderResponse.providers:type_name -> deployPB.GetProviderResponse.Provider
+	48, // 54: deployPB.RegisterResponse.systemInfo:type_name -> deployPB.RegisterResponse.SystemInfo
+	14, // 55: deployPB.ExecuteBusinesRequest.requestResult:type_name -> deployPB.ExecuteBusinesRequest.RequestResult
+	6,  // 56: deployPB.ExecuteBusinesResponse.executeBusinesType:type_name -> deployPB.ExecuteBusinesType
+	47, // 57: deployPB.GetProviderResponse.Provider.businesses:type_name -> deployPB.GetProviderResponse.Provider.Business
+	6,  // 58: deployPB.GetProviderResponse.Provider.Business.execute_busines_type:type_name -> deployPB.ExecuteBusinesType
+	40, // 59: deployPB.GetProviderResponse.Provider.Business.resources:type_name -> deployPB.DeployResource
+	7,  // 60: deployPB.GetProviderResponse.Provider.Business.resource_status:type_name -> deployPB.DeploymentResourceStatus
+	32, // 61: deployPB.DeployService.Notify:input_type -> deployPB.NotifyRequest
+	33, // 62: deployPB.DeployService.Notify:output_type -> deployPB.NotifyResponse
+	62, // [62:63] is the sub-list for method output_type
+	61, // [61:62] is the sub-list for method input_type
+	61, // [61:61] is the sub-list for extension type_name
+	61, // [61:61] is the sub-list for extension extendee
+	0,  // [0:61] is the sub-list for field type_name
 }
 
 func init() { file_deployPB_deploy_proto_init() }
@@ -4279,7 +4360,7 @@ func file_deployPB_deploy_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_deployPB_deploy_proto_rawDesc), len(file_deployPB_deploy_proto_rawDesc)),
-			NumEnums:      14,
+			NumEnums:      15,
 			NumMessages:   34,
 			NumExtensions: 0,
 			NumServices:   1,

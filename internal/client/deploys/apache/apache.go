@@ -14,6 +14,21 @@ import (
 
 // Deploy 部署证书到 Apache 目录。
 func Deploy(sourceDir, apachePath, folderName, safeDomain string) error {
+	return DeployWithContext(context.Background(), sourceDir, apachePath, folderName, safeDomain)
+}
+
+// DeployWithContext 部署证书并将调用方 context 传递给原子发布事务。
+func DeployWithContext(ctx context.Context, sourceDir, apachePath, folderName, safeDomain string) error {
+	return deployWithContext(ctx, sourceDir, apachePath, folderName, safeDomain, false)
+}
+
+// DeployAndReloadWithContext 将配置生成、校验和 reload 纳入同一发布事务。
+func DeployAndReloadWithContext(ctx context.Context, sourceDir, apachePath, folderName, safeDomain string) error {
+	return deployWithContext(ctx, sourceDir, apachePath, folderName, safeDomain, true)
+}
+
+// deployWithContext 执行 Apache 目录发布，并可选执行发布后校验与 reload。
+func deployWithContext(ctx context.Context, sourceDir, apachePath, folderName, safeDomain string, reload bool) error {
 	if err := shared.ValidateCertificateFiles(sourceDir, safeDomain); err != nil {
 		return err
 	}
@@ -25,11 +40,19 @@ func Deploy(sourceDir, apachePath, folderName, safeDomain string) error {
 	}
 
 	// 发布目录和生成配置必须作为一个事务处理，避免配置生成失败时覆盖旧证书目录。
-	if err := shared.PublishDirectoryWithValidation(sourceDir, targetDir, func() error {
+	if err := shared.PublishDirectoryWithValidationContext(ctx, sourceDir, targetDir, func() error {
 		if err := GenerateApacheSSLConfig(apachePath, folderName, safeDomain); err != nil {
 			return fmt.Errorf("生成Apache SSL配置失败: %w", err)
 		}
 		logger.Info("证书已部署到Apache目录", "path", targetDir)
+		if reload && IsApacheAvailable() {
+			if err := TestApacheConfigWithContext(ctx); err != nil {
+				return fmt.Errorf("apache配置测试失败: %w", err)
+			}
+			if err := ReloadApacheWithContext(ctx); err != nil {
+				return fmt.Errorf("apache重新加载失败: %w", err)
+			}
+		}
 		return nil
 	}); err != nil {
 		return fmt.Errorf("发布证书到Apache目录失败: %w", err)

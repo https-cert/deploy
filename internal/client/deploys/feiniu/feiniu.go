@@ -6,8 +6,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/https-cert/deploy/internal/client/deploys/shared"
@@ -19,7 +19,20 @@ const FixedPath = "/usr/trim/var/trim_connect/ssls"
 
 var feiniuNginxConfigFile = "/usr/trim/etc/network_gateway_cert.conf"
 
-var feiniuDeploymentMu sync.Mutex
+var feiniuDeploymentLock = make(chan struct{}, 1)
+
+// acquireDeploymentLock 获取飞牛本地和远程部署共享的可取消锁。
+func acquireDeploymentLock(ctx context.Context) (func(), error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	select {
+	case feiniuDeploymentLock <- struct{}{}:
+		return func() { <-feiniuDeploymentLock }, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
 
 // TestFeiNiuConnection 根据配置测试本机或 SSH 远程飞牛部署环境。
 func TestFeiNiuConnection() error {
@@ -37,7 +50,7 @@ func TestFeiNiuConnectionWithContext(ctx context.Context) error {
 	}
 	sshConfig := configuration.SSL.FeiNiu
 	if sshConfig != nil {
-		return TestRemoteFeiNiuConnection(sshConfig)
+		return TestRemoteFeiNiuConnectionWithContext(ctx, sshConfig)
 	}
 	return testLocalFeiNiuEnvironmentWithContext(ctx)
 }
@@ -84,99 +97,98 @@ func DeployLocalWithContext(ctx context.Context, sourceDir, feiNiuPath, domain s
 	if safeDomain == "" {
 		return fmt.Errorf("生成飞牛安全域名失败")
 	}
-	feiniuDeploymentMu.Lock()
-	defer feiniuDeploymentMu.Unlock()
+	if err := shared.ValidateCertificateFiles(sourceDir, canonicalDomain); err != nil {
+		return fmt.Errorf("校验飞牛证书文件失败: %w", err)
+	}
+	release, err := acquireDeploymentLock(ctx)
+	if err != nil {
+		return err
+	}
+	defer release()
 
-	// 飞牛目标目录：/usr/trim/var/trim_connect/ssls/{域名}/{当前时间秒单位}
 	timestamp := time.Now().Unix()
 	domainDir, err := shared.SafeJoinUnderBase(feiNiuPath, safeDomain)
 	if err != nil {
 		return err
 	}
 	targetDir := filepath.Join(domainDir, fmt.Sprintf("%d", timestamp))
-
-	// 检查域名目录是否存在，如果存在则删除
-	if _, err := os.Stat(domainDir); err == nil {
-		logger.Info("检测到旧证书目录，准备删除", "path", domainDir)
-		if err := os.RemoveAll(domainDir); err != nil {
-			if isPermissionError(err) {
-				logger.Warn("普通权限删除失败，尝试使用 sudo", "error", err)
-				output, err := runFeiniuCommandContext(ctx, feiniuCommandTimeout, "sudo", "rm", "-rf", domainDir)
-				if err != nil {
-					return fmt.Errorf("删除旧证书目录失败: %w, output: %s", err, string(output))
-				}
-			} else {
-				return fmt.Errorf("删除旧证书目录失败: %w", err)
-			}
-		}
-		logger.Info("已删除旧证书目录", "path", domainDir)
-	}
-
-	// 创建目标目录
-	if err := os.MkdirAll(targetDir, 0755); err != nil {
-		// 检查是否为权限错误
+	previousTargetDir := latestFeiniuTargetDir(domainDir)
+	stagingDomainDir, err := os.MkdirTemp(feiNiuPath, "."+safeDomain+".anssl-stage-*")
+	if err != nil {
 		if isPermissionError(err) {
-			return fmt.Errorf("创建飞牛证书目录失败: 权限不足\n\n请在飞牛系统上执行以下命令修复权限:\n  sudo chown -R $USER %s\n\n原始错误: %w", feiNiuPath, err)
+			return fmt.Errorf("创建飞牛证书临时目录失败: 权限不足\n\n请在飞牛系统上执行以下命令修复权限:\n  sudo chown -R $USER %s\n\n原始错误: %w", feiNiuPath, err)
 		}
-		return fmt.Errorf("创建飞牛证书目录失败: %w", err)
+		return fmt.Errorf("创建飞牛证书临时目录失败: %w", err)
+	}
+	defer os.RemoveAll(stagingDomainDir)
+	stagingTargetDir := filepath.Join(stagingDomainDir, strconv.FormatInt(timestamp, 10))
+	if err := os.MkdirAll(stagingTargetDir, 0755); err != nil {
+		return fmt.Errorf("创建飞牛证书暂存目录失败: %w", err)
+	}
+	if err := shared.CopyFileWithModeContext(ctx, filepath.Join(sourceDir, "cert.pem"), filepath.Join(stagingTargetDir, safeDomain+".crt"), 0644); err != nil {
+		return fmt.Errorf("复制飞牛证书文件失败: %w", err)
+	}
+	if err := shared.CopyFileWithModeContext(ctx, filepath.Join(sourceDir, "privateKey.key"), filepath.Join(stagingTargetDir, safeDomain+".key"), 0600); err != nil {
+		return fmt.Errorf("复制飞牛私钥文件失败: %w", err)
 	}
 
-	// 部署飞牛OS所需的证书文件（仅部署 .crt 和 .key）
-	certFiles := []struct {
-		src  string
-		dst  string
-		desc string
-	}{
-		{filepath.Join(sourceDir, "cert.pem"), filepath.Join(targetDir, safeDomain+".crt"), "证书文件"},
-		{filepath.Join(sourceDir, "privateKey.key"), filepath.Join(targetDir, safeDomain+".key"), "私钥文件"},
-	}
-
-	for _, file := range certFiles {
-		// 检查源文件是否存在
-		if _, err := os.Stat(file.src); os.IsNotExist(err) {
-			logger.Warn("源文件不存在，跳过", "file", file.src, "desc", file.desc)
-			continue
-		}
-
-		// 复制文件
-		mode := os.FileMode(0644)
-		if strings.HasSuffix(file.dst, ".key") {
-			mode = 0600
-		}
-		if err := shared.CopyFileWithMode(file.src, file.dst, mode); err != nil {
-			if isPermissionError(err) {
-				return fmt.Errorf("复制%s失败: 权限不足\n\n请在飞牛系统上执行以下命令修复权限:\n  sudo chown -R $USER %s\n\n原始错误: %w", file.desc, feiNiuPath, err)
-			}
-			return fmt.Errorf("复制%s失败: %w", file.desc, err)
-		}
-		logger.Info("已复制文件", "dst", file.dst, "desc", file.desc)
-	}
-
-	// 修改目录和文件的组为 root（飞牛系统要求）
-	if err := changeGroupToRootContext(ctx, targetDir); err != nil {
-		logger.Warn("修改组为root失败（可能影响飞牛系统读取证书）", "error", err, "path", targetDir)
-	}
-
-	// 获取证书时间戳（用于数据库）
-	certTimestamp := timestamp * 1000 // 转为毫秒
-	// 证书有效期：90天后（毫秒）
+	certTimestamp := timestamp * 1000
 	renewTimestamp := (timestamp + 90*24*60*60) * 1000
-
-	// 更新飞牛OS数据库
-	if err := updateFeiniuDatabaseContext(ctx, domain, targetDir, certTimestamp, renewTimestamp); err != nil {
-		logger.Warn("更新飞牛数据库失败（可能需要手动更新）", "error", err, "domain", domain)
-	}
-
-	// 更新飞牛OS Nginx配置
-	if err := updateFeiniuNginxConfigContext(ctx, domain, targetDir); err != nil {
-		logger.Warn("更新Nginx配置失败（可能需要手动更新）", "error", err, "domain", domain)
-	}
-
-	// 重启飞牛OS服务
-	if err := reloadFeiniuServicesContext(ctx); err != nil {
-		logger.Warn("重启飞牛服务失败（可能需要手动重启）", "error", err)
+	if err := shared.PublishDirectoryWithValidationContext(ctx, stagingDomainDir, domainDir, func() error {
+		if err := changeGroupToRootContext(ctx, targetDir); err != nil {
+			return err
+		}
+		if err := updateFeiniuDatabaseContext(ctx, domain, targetDir, certTimestamp, renewTimestamp); err != nil {
+			restoreLocalFeiniuReferences(previousTargetDir, domain, certTimestamp, renewTimestamp)
+			return err
+		}
+		if err := updateFeiniuNginxConfigContext(ctx, domain, targetDir); err != nil {
+			restoreLocalFeiniuReferences(previousTargetDir, domain, certTimestamp, renewTimestamp)
+			return err
+		}
+		if err := reloadFeiniuServicesContext(ctx); err != nil {
+			restoreLocalFeiniuReferences(previousTargetDir, domain, certTimestamp, renewTimestamp)
+			return err
+		}
+		return nil
+	}); err != nil {
+		restoreLocalFeiniuReferences(previousTargetDir, domain, certTimestamp, renewTimestamp)
+		return fmt.Errorf("发布飞牛证书失败: %w", err)
 	}
 
 	logger.Info("证书已部署到飞牛目录", "path", targetDir, "cert", safeDomain+".crt", "key", safeDomain+".key")
 	return nil
+}
+
+// latestFeiniuTargetDir 返回旧域名目录中最新的证书版本目录。
+func latestFeiniuTargetDir(domainDir string) string {
+	entries, err := os.ReadDir(domainDir)
+	if err != nil {
+		return ""
+	}
+	latest := ""
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		if latest == "" || entry.Name() > filepath.Base(latest) {
+			latest = filepath.Join(domainDir, entry.Name())
+		}
+	}
+	return latest
+}
+
+// restoreLocalFeiniuReferences 在发布失败后尽量把数据库和网关引用恢复到旧目录。
+func restoreLocalFeiniuReferences(previousTargetDir, domain string, validFrom, validTo int64) {
+	if previousTargetDir == "" {
+		return
+	}
+	cleanupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := updateFeiniuDatabaseContext(cleanupCtx, domain, previousTargetDir, validFrom, validTo); err != nil {
+		logger.Warn("恢复飞牛数据库证书引用失败", "error", err, "domain", domain)
+	}
+	if err := updateFeiniuNginxConfigContext(cleanupCtx, domain, previousTargetDir); err != nil {
+		logger.Warn("恢复飞牛网关证书引用失败", "error", err, "domain", domain)
+	}
 }

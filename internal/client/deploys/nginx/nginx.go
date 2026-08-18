@@ -14,6 +14,21 @@ import (
 
 // Deploy 部署证书到 Nginx 目录并生成配置文件。
 func Deploy(sourceDir, nginxPath, folderName, safeDomain string) error {
+	return DeployWithContext(context.Background(), sourceDir, nginxPath, folderName, safeDomain)
+}
+
+// DeployWithContext 部署证书并将调用方 context 传递给原子发布事务。
+func DeployWithContext(ctx context.Context, sourceDir, nginxPath, folderName, safeDomain string) error {
+	return deployWithContext(ctx, sourceDir, nginxPath, folderName, safeDomain, false)
+}
+
+// DeployAndReloadWithContext 将配置生成、校验和 reload 纳入同一发布事务。
+func DeployAndReloadWithContext(ctx context.Context, sourceDir, nginxPath, folderName, safeDomain string) error {
+	return deployWithContext(ctx, sourceDir, nginxPath, folderName, safeDomain, true)
+}
+
+// deployWithContext 执行 Nginx 目录发布，并可选执行发布后校验与 reload。
+func deployWithContext(ctx context.Context, sourceDir, nginxPath, folderName, safeDomain string, reload bool) error {
 	if err := shared.ValidateCertificateFiles(sourceDir, safeDomain); err != nil {
 		return err
 	}
@@ -28,11 +43,19 @@ func Deploy(sourceDir, nginxPath, folderName, safeDomain string) error {
 	if err != nil {
 		return err
 	}
-	return shared.PublishDirectoryWithValidation(sourceDir, targetDir, func() error {
+	return shared.PublishDirectoryWithValidationContext(ctx, sourceDir, targetDir, func() error {
 		if err := GenerateNginxSSLConfig(nginxPath, folderName, safeDomain); err != nil {
 			return fmt.Errorf("生成Nginx SSL配置失败: %w", err)
 		}
 		logger.Info("证书文件夹已更新", "path", targetDir)
+		if reload && IsNginxAvailable() {
+			if err := TestNginxConfigWithContext(ctx); err != nil {
+				return fmt.Errorf("nginx配置测试失败: %w", err)
+			}
+			if err := ReloadNginxWithContext(ctx); err != nil {
+				return fmt.Errorf("nginx重新加载失败: %w", err)
+			}
+		}
 		return nil
 	})
 }

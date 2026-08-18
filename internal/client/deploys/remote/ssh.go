@@ -2,6 +2,7 @@ package remote
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -45,6 +46,14 @@ type sshCommandResult struct {
 
 // NewExecutor 建立支持密码或私钥认证并带 TOFU 主机密钥校验的 SSH 连接。
 func NewExecutor(sshConfig *config.SSHConfig, purpose, tempPrefix string, knownHostsFiles ...string) (*Executor, error) {
+	return NewExecutorContext(context.Background(), sshConfig, purpose, tempPrefix, knownHostsFiles...)
+}
+
+// NewExecutorContext 建立可由调用方取消的 SSH 连接。
+func NewExecutorContext(ctx context.Context, sshConfig *config.SSHConfig, purpose, tempPrefix string, knownHostsFiles ...string) (*Executor, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if sshConfig == nil {
 		return nil, fmt.Errorf("%s SSH 配置不能为空", purpose)
 	}
@@ -73,17 +82,36 @@ func NewExecutor(sshConfig *config.SSHConfig, purpose, tempPrefix string, knownH
 		Timeout:         sshConnectTimeout,
 	}
 	address := net.JoinHostPort(sshConfig.Host, strconv.Itoa(sshConfig.Port))
-	client, err := ssh.Dial("tcp", address, clientConfig)
+	dialCtx, cancel := context.WithTimeout(ctx, sshConnectTimeout)
+	defer cancel()
+	networkConnection, err := (&net.Dialer{}).DialContext(dialCtx, "tcp", address)
 	if err != nil {
 		return nil, fmt.Errorf("连接%s SSH %s 失败: %w", purpose, address, err)
 	}
+	_ = networkConnection.SetDeadline(time.Now().Add(sshConnectTimeout))
+	handshakeDone := make(chan struct{})
+	go func() {
+		select {
+		case <-dialCtx.Done():
+			_ = networkConnection.Close()
+		case <-handshakeDone:
+		}
+	}()
+	sshConnection, channels, requests, err := ssh.NewClientConn(networkConnection, address, clientConfig)
+	close(handshakeDone)
+	if err != nil {
+		_ = networkConnection.Close()
+		return nil, fmt.Errorf("连接%s SSH %s 失败: %w", purpose, address, err)
+	}
+	_ = networkConnection.SetDeadline(time.Time{})
+	client := ssh.NewClient(sshConnection, channels, requests)
 	executor := &Executor{
 		client:       client,
 		sudoPassword: sshConfig.Password,
 		purpose:      purpose,
 		tempPrefix:   tempPrefix,
 	}
-	output, err := executor.Run("id -u", nil, false)
+	output, err := executor.RunContext(ctx, "id -u", nil, false)
 	if err != nil {
 		executor.Close()
 		return nil, fmt.Errorf("读取%s SSH 用户身份失败: %w", purpose, err)
@@ -191,15 +219,26 @@ func (executor *Executor) Close() {
 
 // Run 执行单条 SSH 命令；非 root 会话的特权命令自动通过 sudo 提权。
 func (executor *Executor) Run(command string, input []byte, privileged bool) ([]byte, error) {
+	return executor.RunContext(context.Background(), command, input, privileged)
+}
+
+// RunContext 执行 SSH 命令，并在取消或硬超时后关闭会话并等待其退出。
+func (executor *Executor) RunContext(ctx context.Context, command string, input []byte, privileged bool) ([]byte, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if privileged && !executor.isRoot {
 		command = "sudo -S -p '' sh -c " + QuotePOSIXShellArg(command)
 		input = append([]byte(executor.sudoPassword+"\n"), input...)
 	}
-	return runSSHCommand(executor.client, command, input, sshCommandTimeout)
+	return runSSHCommandContext(ctx, executor.client, command, input, sshCommandTimeout)
 }
 
-// runSSHCommand 在超时后主动关闭会话，避免远端命令无限阻塞部署 ACK。
-func runSSHCommand(client *ssh.Client, command string, input []byte, timeout time.Duration) ([]byte, error) {
+// runSSHCommandContext 在调用方取消或硬超时后主动关闭会话，并等待执行 goroutine 收敛。
+func runSSHCommandContext(ctx context.Context, client *ssh.Client, command string, input []byte, timeout time.Duration) ([]byte, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	session, err := client.NewSession()
 	if err != nil {
 		return nil, err
@@ -217,6 +256,8 @@ func runSSHCommand(client *ssh.Client, command string, input []byte, timeout tim
 		resultChannel <- sshCommandResult{output: stdout.Bytes(), stderr: stderr.Bytes(), err: commandErr}
 	}()
 
+	commandCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 	select {
 	case result := <-resultChannel:
 		_ = session.Close()
@@ -224,9 +265,13 @@ func runSSHCommand(client *ssh.Client, command string, input []byte, timeout tim
 			return result.output, fmt.Errorf("远端命令执行失败: %w, stderr: %s", result.err, strings.TrimSpace(string(result.stderr)))
 		}
 		return result.output, nil
-	case <-time.After(timeout):
+	case <-commandCtx.Done():
 		_ = session.Close()
-		return nil, fmt.Errorf("远端命令执行超时: %s", commandName(command))
+		result := <-resultChannel
+		if errors.Is(commandCtx.Err(), context.DeadlineExceeded) {
+			return result.output, fmt.Errorf("远端命令执行超时: %s: %w", commandName(command), context.DeadlineExceeded)
+		}
+		return result.output, commandCtx.Err()
 	}
 }
 
@@ -241,8 +286,13 @@ func commandName(command string) string {
 
 // CreateTempDir 在远端创建仅 SSH 用户可读写的业务专用临时目录。
 func (executor *Executor) CreateTempDir() (string, error) {
+	return executor.CreateTempDirContext(context.Background())
+}
+
+// CreateTempDirContext 在远端创建临时目录并响应调用方取消。
+func (executor *Executor) CreateTempDirContext(ctx context.Context) (string, error) {
 	pattern := "/tmp/" + executor.tempPrefix + ".XXXXXX"
-	output, err := executor.Run("umask 077 && mktemp -d "+QuotePOSIXShellArg(pattern), nil, false)
+	output, err := executor.RunContext(ctx, "umask 077 && mktemp -d "+QuotePOSIXShellArg(pattern), nil, false)
 	if err != nil {
 		return "", fmt.Errorf("创建%s SSH 临时目录失败: %w", executor.purpose, err)
 	}
@@ -276,19 +326,29 @@ func (executor *Executor) isSafeTempDir(tempDir string) bool {
 
 // RemoveTempDir 清理经过固定前缀校验的 SSH 临时目录。
 func (executor *Executor) RemoveTempDir(tempDir string) error {
+	return executor.RemoveTempDirContext(context.Background(), tempDir)
+}
+
+// RemoveTempDirContext 清理经过固定前缀校验的远端临时目录。
+func (executor *Executor) RemoveTempDirContext(ctx context.Context, tempDir string) error {
 	if !executor.isSafeTempDir(tempDir) {
 		return fmt.Errorf("拒绝清理非法 SSH 临时目录: %q", tempDir)
 	}
-	_, err := executor.Run("rm -rf -- "+QuotePOSIXShellArg(tempDir), nil, false)
+	_, err := executor.RunContext(ctx, "rm -rf -- "+QuotePOSIXShellArg(tempDir), nil, false)
 	return err
 }
 
 // Upload 通过 SSH 标准输入将敏感文件写入远端受限临时目录。
 func (executor *Executor) Upload(remoteFile string, content []byte) error {
+	return executor.UploadContext(context.Background(), remoteFile, content)
+}
+
+// UploadContext 通过 SSH 标准输入写入文件并响应调用方取消。
+func (executor *Executor) UploadContext(ctx context.Context, remoteFile string, content []byte) error {
 	if !executor.isSafeTempDir(path.Dir(remoteFile)) {
 		return fmt.Errorf("拒绝写入非法 SSH 临时路径: %q", remoteFile)
 	}
-	_, err := executor.Run("umask 077 && cat > "+QuotePOSIXShellArg(remoteFile), content, false)
+	_, err := executor.RunContext(ctx, "umask 077 && cat > "+QuotePOSIXShellArg(remoteFile), content, false)
 	return err
 }
 

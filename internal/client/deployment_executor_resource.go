@@ -91,14 +91,22 @@ func (be *DeploymentExecutor) Execute(ctx context.Context, request DeploymentExe
 
 // classifyDeploymentContextError 将部署超时和取消转换为统一的可重试错误分类。
 func classifyDeploymentContextError(err error, ctx context.Context) error {
+	if errors.Is(err, context.DeadlineExceeded) || (ctx != nil && errors.Is(ctx.Err(), context.DeadlineExceeded)) {
+		cause := err
+		if cause == nil {
+			cause = context.DeadlineExceeded
+		}
+		return providers.NewDeploymentError("部署操作超时", true, "", cause)
+	}
+	if errors.Is(err, context.Canceled) || (ctx != nil && errors.Is(ctx.Err(), context.Canceled)) {
+		cause := err
+		if cause == nil {
+			cause = context.Canceled
+		}
+		return providers.NewDeploymentError("部署操作已取消", true, "", cause)
+	}
 	if err == nil {
 		return nil
-	}
-	if errors.Is(err, context.DeadlineExceeded) || (ctx != nil && errors.Is(ctx.Err(), context.DeadlineExceeded)) {
-		return providers.NewDeploymentError("部署操作超时", true, "", err)
-	}
-	if errors.Is(err, context.Canceled) {
-		return providers.NewDeploymentError("部署操作已取消", true, "", err)
 	}
 	return err
 }

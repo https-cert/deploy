@@ -56,18 +56,39 @@ type responseCarrier interface{}
 func responseRequestID(response responseCarrier) string {
 	switch typed := response.(type) {
 	case *cdnapi.GetDomainListResponse:
+		if typed == nil {
+			return ""
+		}
 		return strings.TrimSpace(typed.RequestID)
 	case *cdnapi.GetDomainDetailResponse:
+		if typed == nil {
+			return ""
+		}
 		return strings.TrimSpace(typed.RequestID)
 	case *cdnapi.SetHttpTypeResponse:
+		if typed == nil {
+			return ""
+		}
 		return strings.TrimSpace(typed.RequestID)
 	case *cdnapi.QueryDomainConfigStatusResponse:
+		if typed == nil {
+			return ""
+		}
 		return strings.TrimSpace(typed.RequestID)
 	case *sslapi.UploadCertResponse:
+		if typed == nil {
+			return ""
+		}
 		return strings.TrimSpace(typed.RequestID)
 	case *sslapi.DescribeCertResponse:
+		if typed == nil {
+			return ""
+		}
 		return strings.TrimSpace(typed.RequestID)
 	case *sslapi.DescribeCertsResponse:
+		if typed == nil {
+			return ""
+		}
 		return strings.TrimSpace(typed.RequestID)
 	default:
 		return ""
@@ -78,22 +99,48 @@ func responseRequestID(response responseCarrier) string {
 func responseError(response responseCarrier) core.ErrorResponse {
 	switch typed := response.(type) {
 	case *cdnapi.GetDomainListResponse:
+		if typed == nil {
+			return invalidResponseError()
+		}
 		return typed.Error
 	case *cdnapi.GetDomainDetailResponse:
+		if typed == nil {
+			return invalidResponseError()
+		}
 		return typed.Error
 	case *cdnapi.SetHttpTypeResponse:
+		if typed == nil {
+			return invalidResponseError()
+		}
 		return typed.Error
 	case *cdnapi.QueryDomainConfigStatusResponse:
+		if typed == nil {
+			return invalidResponseError()
+		}
 		return typed.Error
 	case *sslapi.UploadCertResponse:
+		if typed == nil {
+			return invalidResponseError()
+		}
 		return typed.Error
 	case *sslapi.DescribeCertResponse:
+		if typed == nil {
+			return invalidResponseError()
+		}
 		return typed.Error
 	case *sslapi.DescribeCertsResponse:
+		if typed == nil {
+			return invalidResponseError()
+		}
 		return typed.Error
 	default:
-		return core.ErrorResponse{Code: 500, Status: "InvalidResponse"}
+		return invalidResponseError()
 	}
+}
+
+// invalidResponseError 返回 SDK 空响应使用的结构化业务错误。
+func invalidResponseError() core.ErrorResponse {
+	return core.ErrorResponse{Code: 500, Status: "InvalidResponse"}
 }
 
 // validateCredentials 拒绝空凭据和控制字符。

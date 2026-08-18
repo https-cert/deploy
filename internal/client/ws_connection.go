@@ -184,14 +184,29 @@ func (c *WSClient) markReconnectPending() {
 
 // Close 关闭 WebSocket 连接
 func (c *WSClient) Close() error {
-	c.connMu.Lock()
-	defer c.connMu.Unlock()
-
-	if c.conn != nil {
-		c.conn.Close(websocket.StatusNormalClosure, "客户端关闭")
-		c.conn = nil
+	if c == nil {
+		return nil
 	}
-	return nil
+	var closeErr error
+	c.closeOnce.Do(func() {
+		if c.cancel != nil {
+			c.cancel()
+		}
+		c.connMu.Lock()
+		if c.conn != nil {
+			// 连接可能已由读循环关闭；取消生命周期后底层 close 超时不应阻止客户端退出。
+			_ = c.conn.Close(websocket.StatusNormalClosure, "客户端关闭")
+			c.conn = nil
+		}
+		c.connMu.Unlock()
+	})
+	if c.started.Load() {
+		if err := c.Wait(context.Background()); err != nil && closeErr == nil {
+			closeErr = err
+		}
+	}
+	c.operationWG.Wait()
+	return closeErr
 }
 
 // NewWSClient 使用显式运行时快照创建 WebSocket 客户端。
@@ -207,14 +222,16 @@ func newWSClientWithDependencies(ctx context.Context, runtime *config.Runtime, d
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	clientCtx, cancel := context.WithCancel(ctx)
 	cfg := runtime.Config
 
 	uniqueClientID := dependencies.uniqueClientID
 	if uniqueClientID == nil {
 		uniqueClientID = system.GetUniqueClientId
 	}
-	clientId, err := uniqueClientID(ctx)
+	clientId, err := uniqueClientID(clientCtx)
 	if err != nil {
+		cancel()
 		return nil, err
 	}
 
@@ -245,7 +262,8 @@ func newWSClientWithDependencies(ctx context.Context, runtime *config.Runtime, d
 		clientId:       clientId,
 		serverURL:      runtime.ServerURL,
 		httpClient:     httpClient,
-		ctx:            ctx,
+		ctx:            clientCtx,
+		cancel:         cancel,
 		accessKey:      cfg.Server.AccessKey,
 		loadSystemInfo: dependencies.loadSystemInfo,
 		reconnectDelay: minReconnectDelay,
@@ -269,6 +287,7 @@ func newWSClientWithDependencies(ctx context.Context, runtime *config.Runtime, d
 	}
 	client.deploymentHandlers, err = newHandlerRegistry(client)
 	if err != nil {
+		cancel()
 		return nil, fmt.Errorf("初始化 deployment v2 handler registry 失败: %w", err)
 	}
 

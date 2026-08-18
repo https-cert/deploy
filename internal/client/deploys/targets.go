@@ -94,16 +94,10 @@ func (cd *CertDeployer) DeployCertificateToNginx(ctx context.Context, domain, do
 		return err
 	}
 	defer cleanup()
-	if err := nginx.Deploy(extractDir, sslConfig.NginxPath, safeDomain, safeDomain); err != nil {
+	if err := nginx.DeployAndReloadWithContext(ctx, extractDir, sslConfig.NginxPath, safeDomain, safeDomain); err != nil {
 		return fmt.Errorf("部署到Nginx失败: %w", err)
 	}
-	if nginx.IsNginxAvailable() {
-		if err := nginx.TestNginxConfigWithContext(ctx); err != nil {
-			logger.Warn("nginx配置测试失败", "error", err)
-		} else if err := nginx.ReloadNginxWithContext(ctx); err != nil {
-			logger.Warn("nginx重新加载失败，请手动重启nginx", "error", err)
-		}
-	} else {
+	if !nginx.IsNginxAvailable() {
 		logger.Info("nginx未安装或不在PATH中，跳过nginx相关操作")
 	}
 	logger.Info("Nginx证书部署完成", "domain", canonicalDomain)
@@ -153,16 +147,10 @@ func (cd *CertDeployer) DeployCertificateToApache(ctx context.Context, domain, d
 		return err
 	}
 	defer cleanup()
-	if err := apache.Deploy(extractDir, sslConfig.ApachePath, safeDomain, safeDomain); err != nil {
+	if err := apache.DeployAndReloadWithContext(ctx, extractDir, sslConfig.ApachePath, safeDomain, safeDomain); err != nil {
 		return fmt.Errorf("部署到Apache失败: %w", err)
 	}
-	if apache.IsApacheAvailable() {
-		if err := apache.TestApacheConfigWithContext(ctx); err != nil {
-			logger.Warn("apache配置测试失败", "error", err)
-		} else if err := apache.ReloadApacheWithContext(ctx); err != nil {
-			logger.Warn("apache重新加载失败，请手动重启apache", "error", err)
-		}
-	} else {
+	if !apache.IsApacheAvailable() {
 		logger.Info("apache未安装或不在PATH中，跳过apache相关操作")
 	}
 	logger.Info("Apache证书部署完成", "domain", canonicalDomain)
@@ -350,7 +338,7 @@ func (cd *CertDeployer) DeployCertificateToFeiNiu(ctx context.Context, domain, d
 	}
 	defer cleanup()
 	if sslConfig.FeiNiu != nil {
-		if err := feiniu.DeployRemote(extractDir, canonicalDomain, sslConfig.FeiNiu, cd.knownHosts); err != nil {
+		if err := feiniu.DeployRemoteWithContext(ctx, extractDir, canonicalDomain, sslConfig.FeiNiu, cd.knownHosts); err != nil {
 			return fmt.Errorf("通过 SSH 部署到飞牛失败: %w", err)
 		}
 		logger.InfoLocal("飞牛远程证书部署完成", "domain", canonicalDomain, "host", sslConfig.FeiNiu.Host)
@@ -399,7 +387,7 @@ func (cd *CertDeployer) DeployCertificateToRustFS(ctx context.Context, domain, d
 	if config.IsSSHConfigured(&rustFSConfig.SSHConfig) {
 		err = rustfs.DeployRemote(ctx, extractDir, safeDomain, rustFSConfig, cd.knownHosts)
 	} else {
-		err = rustfs.DeployLocal(extractDir, rustFSConfig.Path, safeDomain)
+		err = rustfs.DeployLocalWithContext(ctx, extractDir, rustFSConfig.Path, safeDomain)
 	}
 	if err != nil {
 		return fmt.Errorf("部署到RustFS失败: %w", err)
@@ -472,7 +460,7 @@ func (cd *CertDeployer) DeployCertificateToUploadOnly(ctx context.Context, domai
 		return err
 	}
 	defer cleanup()
-	if err := uploadonly.Deploy(extractDir, canonicalDomain); err != nil {
+	if err := uploadonly.DeployWithContext(ctx, extractDir, canonicalDomain); err != nil {
 		return err
 	}
 	logger.Info("UploadOnly 证书保存完成", "domain", canonicalDomain, "path", uploadonly.UploadOnlyTargetDir(canonicalDomain))

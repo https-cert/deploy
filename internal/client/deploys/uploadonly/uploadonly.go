@@ -1,6 +1,7 @@
 package uploadonly
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 
@@ -30,6 +31,11 @@ func UploadOnlyTargetDir(domain string) string {
 
 // Deploy 仅将证书保留到客户端本地目录，不执行额外部署动作。
 func Deploy(sourceDir, domain string) error {
+	return DeployWithContext(context.Background(), sourceDir, domain)
+}
+
+// DeployWithContext 保存证书，并在目录发布阶段响应调用方取消。
+func DeployWithContext(ctx context.Context, sourceDir, domain string) error {
 	canonicalDomain, _, err := shared.NormalizeDeploymentDomain(domain)
 	if err != nil {
 		return err
@@ -43,7 +49,7 @@ func Deploy(sourceDir, domain string) error {
 		return fmt.Errorf("生成 UploadOnly 目标目录失败")
 	}
 
-	if err := shared.PublishDirectoryWithRollback(sourceDir, targetDir); err != nil {
+	if err := shared.PublishDirectoryWithRollbackContext(ctx, sourceDir, targetDir); err != nil {
 		return fmt.Errorf("保存证书到本地目录失败: %w", err)
 	}
 
