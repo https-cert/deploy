@@ -123,21 +123,20 @@ func NewWithOptions(accessKey, accessSecret string, options *Options) *Provider 
 }
 
 // TestConnection 验证多吉云密钥可以读取 CDN 域名目录。
-func (p *Provider) TestConnection() (bool, error) {
+func (p *Provider) TestConnection(ctx context.Context) (bool, error) {
 	if err := p.validateCredentials(); err != nil {
 		return false, err
 	}
-	_, _, err := p.listDomains(context.Background())
+	_, _, err := p.listDomains(ctx)
 	return err == nil, toDeploymentError("测试连接", err)
 }
 
 // UploadCertificate 将证书上传到多吉云证书中心，并按叶证书指纹复用已有证书。
-func (p *Provider) UploadCertificate(name, domain, cert, key string) error {
-	certificate := providers.CertificateMaterial{Name: name, Domain: domain, CertificatePEM: cert, PrivateKeyPEM: key}
-	if err := providers.ValidateCertificateMaterial(certificate, domain, time.Now()); err != nil {
+func (p *Provider) UploadCertificate(ctx context.Context, certificate providers.CertificateMaterial) error {
+	if err := providers.ValidateCertificateMaterial(certificate, certificate.Domain, time.Now()); err != nil {
 		return providers.NewDeploymentError("多吉云上传证书校验失败", false, "", err)
 	}
-	_, _, err := p.ensureCertificate(context.Background(), certificate)
+	_, _, err := p.ensureCertificate(ctx, certificate)
 	return toDeploymentError("上传证书", err)
 }
 

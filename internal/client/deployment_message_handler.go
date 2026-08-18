@@ -69,7 +69,7 @@ func (c *WSClient) handleDeploymentUpdateRequest(request *deployPB.DeploymentUpd
 		return
 	}
 	logger.Info("收到 deployment v2 更新请求", "version", request.GetVersion())
-	updateHandler := NewUpdateHandler(c.ctx)
+	updateHandler := NewUpdateHandler(c.ctx, c.runtime)
 	updateHandler.HandleUpdate()
 }
 
@@ -83,7 +83,9 @@ func (c *WSClient) handleDeploymentDiscoverRequest(requestID string, request *de
 	}
 	capability := handler.Capability()
 	if request.GetIncludeResources() {
-		catalog := handler.DiscoverResources(deploymentContext(c.ctx))
+		operationCtx, cancel := newDeploymentOperationContext(c.ctx)
+		defer cancel()
+		catalog := handler.DiscoverResources(operationCtx)
 		if catalog.Error != nil {
 			logger.ErrorLocal("deployment v2 资源发现失败", "error", catalog.Error, "provider", selector.GetProvider().String(), "deploymentType", selector.GetDeploymentType().String(), "requestId", requestID)
 		}
@@ -101,7 +103,9 @@ func (c *WSClient) handleDeploymentTestRequest(requestID string, request *deploy
 		c.sendDeploymentTestResponse(requestID, selector, unsupportedDeploymentResult("客户端不支持该部署能力"))
 		return
 	}
-	if err := handler.Test(deploymentContext(c.ctx), selector.GetTargetRef()); err != nil {
+	operationCtx, cancel := newDeploymentOperationContext(c.ctx)
+	defer cancel()
+	if err := handler.Test(operationCtx, selector.GetTargetRef()); err != nil {
 		message, retryable := providers.DeploymentErrorInfo(err)
 		logger.ErrorLocal("deployment v2 目标测试失败", "error", err, "provider", selector.GetProvider().String(), "deploymentType", selector.GetDeploymentType().String(), "requestId", requestID)
 		result := failedDeploymentResult(message, retryable)
@@ -122,7 +126,9 @@ func (c *WSClient) handleDeploymentExecuteRequest(requestID string, request *dep
 	}
 	c.busyOperations.Add(1)
 	defer c.busyOperations.Add(-1)
-	result, err := handler.Deploy(deploymentContext(c.ctx), DeploymentHandlerRequest{
+	operationCtx, cancel := newDeploymentOperationContext(c.ctx)
+	defer cancel()
+	result, err := handler.Deploy(operationCtx, DeploymentHandlerRequest{
 		RequestID:      requestID,
 		TargetRef:      selector.GetTargetRef(),
 		Domain:         request.GetDomain(),
@@ -131,6 +137,9 @@ func (c *WSClient) handleDeploymentExecuteRequest(requestID string, request *dep
 		PrivateKeyPEM:  request.GetKey(),
 	})
 	if err != nil {
+		if errors.Is(err, context.Canceled) && c.ctx != nil && c.ctx.Err() != nil {
+			return
+		}
 		message, retryable := providers.DeploymentErrorInfo(err)
 		executionResult := failedDeploymentResult(message, retryable)
 		executionResult.ProviderRequestId = providerRequestID(err)
@@ -206,6 +215,14 @@ func deploymentContext(ctx context.Context) context.Context {
 		return context.Background()
 	}
 	return ctx
+}
+
+// newDeploymentOperationContext 为每次 v2 业务创建受客户端生命周期约束的 55 秒操作上下文。
+func newDeploymentOperationContext(parent context.Context) (context.Context, context.CancelFunc) {
+	if parent == nil {
+		parent = context.Background()
+	}
+	return context.WithTimeout(parent, deploymentOperationTimeout)
 }
 
 // deploymentRequestID 优先使用 payload 内 request ID，并兼容信封关联 ID。

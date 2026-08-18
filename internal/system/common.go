@@ -6,6 +6,8 @@ import (
 )
 
 // readFileContent 读取文件内容
+//
+//lint:ignore U1000 该函数由 Linux build-tag 文件使用。
 func readFileContent(path string) string {
 	data, err := os.ReadFile(path)
 	if err != nil {

@@ -2,27 +2,27 @@ package client
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/https-cert/deploy/internal/client/deploys"
 	"github.com/https-cert/deploy/internal/client/providers"
-	"github.com/https-cert/deploy/internal/config"
 	"github.com/https-cert/deploy/pb/deployPB"
 )
 
-const (
-	// deploymentResourceExecutionTimeout 为后端等待窗口预留结构化 ACK 发送时间。
-	deploymentResourceExecutionTimeout = 55 * time.Second
-	// localDeploymentFailureMessage 避免把本机路径、SSH 主机和远端诊断回传到后端。
-	localDeploymentFailureMessage = "部署失败，请查看 deploy 客户端日志"
-)
+const localDeploymentFailureMessage = "部署失败，请查看 deploy 客户端日志"
+
+// deploymentOperationTimeout 为后端等待窗口预留结构化 ACK 发送时间，测试可临时缩短。
+var deploymentOperationTimeout = 55 * time.Second
 
 // deploymentResourceProviderFactory 根据 v2 provider/type 创建云厂商资源适配器。
 type deploymentResourceProviderFactory func(provider deployPB.Provider, deploymentType deployPB.DeploymentType) (providers.DeploymentResourceProvider, error)
 
 // DeploymentExecutionRequest 描述一次由 v2 WebSocket 下发的部署请求。
 type DeploymentExecutionRequest struct {
+	// ExecutionKind 明确指定本次执行是本地部署、云上传或云动态资源部署。
+	ExecutionKind  deploymentExecutionKind
 	Provider       deployPB.Provider       // Provider 是 v2 部署平台。
 	DeploymentType deployPB.DeploymentType // DeploymentType 是 v2 部署类型。
 	TargetRef      string                  // TargetRef 是客户端生成的不透明稳定资源引用。
@@ -33,10 +33,45 @@ type DeploymentExecutionRequest struct {
 	PrivateKeyPEM  string                  // PrivateKeyPEM 是资源部署使用的私钥。
 }
 
+// deploymentExecutionKind 表示 v2 handler 的确定执行分支。
+type deploymentExecutionKind uint8
+
+const (
+	// deploymentExecutionLocalNone 表示本地无动态资源部署。
+	deploymentExecutionLocalNone deploymentExecutionKind = iota + 1
+	// deploymentExecutionLocalResource 表示本地面板网站动态资源部署。
+	deploymentExecutionLocalResource
+	// deploymentExecutionCloudUpload 表示云证书中心上传。
+	deploymentExecutionCloudUpload
+	// deploymentExecutionCloudResource 表示云动态资源部署。
+	deploymentExecutionCloudResource
+)
+
 // Execute 执行一条支持 context 和结构化结果的 v2 部署请求。
 func (be *DeploymentExecutor) Execute(ctx context.Context, request DeploymentExecutionRequest) (providers.DeploymentResult, error) {
-	if !config.IsDeploymentResourceType(request.DeploymentType) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	operationCtx, cancel := context.WithTimeout(ctx, deploymentOperationTimeout)
+	defer cancel()
+	var dynamic bool
+	switch request.ExecutionKind {
+	case deploymentExecutionLocalNone:
+		if request.Provider != deployPB.Provider_PROVIDER_ANSSL_CLI {
+			return providers.DeploymentResult{}, providers.NewDeploymentError("本地部署执行类型与 provider 不匹配", false, "", nil)
+		}
+	case deploymentExecutionCloudUpload:
+		if request.Provider == deployPB.Provider_PROVIDER_ANSSL_CLI {
+			return providers.DeploymentResult{}, providers.NewDeploymentError("云证书上传执行类型与 provider 不匹配", false, "", nil)
+		}
+	case deploymentExecutionLocalResource, deploymentExecutionCloudResource:
+		dynamic = true
+	default:
+		return providers.DeploymentResult{}, providers.NewDeploymentError("部署请求缺少明确执行类型", false, "", nil)
+	}
+	if !dynamic {
 		if err := be.executeNonResourceDeployment(
+			operationCtx,
 			request.Provider,
 			request.DeploymentType,
 			request.Domain,
@@ -45,12 +80,27 @@ func (be *DeploymentExecutor) Execute(ctx context.Context, request DeploymentExe
 			request.CertificatePEM,
 			request.PrivateKeyPEM,
 		); err != nil {
-			return providers.DeploymentResult{}, err
+			return providers.DeploymentResult{}, classifyDeploymentContextError(err, operationCtx)
 		}
 		return providers.DeploymentResult{Message: "证书部署成功"}, nil
 	}
 
-	return be.executeDeploymentResource(ctx, request)
+	result, err := be.executeDeploymentResource(operationCtx, request)
+	return result, classifyDeploymentContextError(err, operationCtx)
+}
+
+// classifyDeploymentContextError 将部署超时和取消转换为统一的可重试错误分类。
+func classifyDeploymentContextError(err error, ctx context.Context) error {
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, context.DeadlineExceeded) || (ctx != nil && errors.Is(ctx.Err(), context.DeadlineExceeded)) {
+		return providers.NewDeploymentError("部署操作超时", true, "", err)
+	}
+	if errors.Is(err, context.Canceled) {
+		return providers.NewDeploymentError("部署操作已取消", true, "", err)
+	}
+	return err
 }
 
 // executeDeploymentResource 按 provider、明确业务和 targetRef 精确解析配置并执行部署。
@@ -64,8 +114,8 @@ func (be *DeploymentExecutor) executeDeploymentResource(ctx context.Context, req
 	if request.TargetRef == "" {
 		return providers.DeploymentResult{}, providers.NewDeploymentError("部署资源缺少 targetRef", false, "", nil)
 	}
-	if !config.IsDeploymentResourceType(request.DeploymentType) {
-		return providers.DeploymentResult{}, providers.NewDeploymentError("请求不是动态资源部署类型", false, "", nil)
+	if request.ExecutionKind != deploymentExecutionLocalResource && request.ExecutionKind != deploymentExecutionCloudResource {
+		return providers.DeploymentResult{}, providers.NewDeploymentError("请求执行类型与动态资源不匹配", false, "", nil)
 	}
 	if request.DeploymentType == deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_1PANEL_WEBSITE_CERT {
 		return be.executeOnePanelWebsiteResource(ctx, request)
@@ -75,10 +125,13 @@ func (be *DeploymentExecutor) executeDeploymentResource(ctx context.Context, req
 	}
 
 	factory := be.deploymentResourceProviderFactory
-	if factory == nil {
-		factory = newDeploymentResourceProvider
+	var resourceProvider providers.DeploymentResourceProvider
+	var err error
+	if factory != nil {
+		resourceProvider, err = factory(request.Provider, request.DeploymentType)
+	} else {
+		resourceProvider, err = newDeploymentResourceProvider(request.Provider, request.DeploymentType, be.runtime)
 	}
-	resourceProvider, err := factory(request.Provider, request.DeploymentType)
 	if err != nil {
 		return providers.DeploymentResult{}, err
 	}
@@ -117,7 +170,7 @@ func (be *DeploymentExecutor) executeBTPanelWebsiteResource(ctx context.Context,
 	if request.Provider != deployPB.Provider_PROVIDER_ANSSL_CLI {
 		return providers.DeploymentResult{}, providers.NewDeploymentError(localDeploymentFailureMessage, false, "", fmt.Errorf("宝塔网站部署平台不匹配"))
 	}
-	if err := deploys.DeployCertificateToBTPanelWebsite(ctx, request.TargetRef, request.CertificatePEM, request.PrivateKeyPEM); err != nil {
+	if err := deploys.DeployCertificateToBTPanelWebsite(deploys.WithRuntime(ctx, be.runtime), request.TargetRef, request.CertificatePEM, request.PrivateKeyPEM); err != nil {
 		return providers.DeploymentResult{}, providers.NewDeploymentError(
 			localDeploymentFailureMessage,
 			deploys.IsBTPanelErrorRetryable(err),
@@ -133,7 +186,7 @@ func (be *DeploymentExecutor) executeOnePanelWebsiteResource(ctx context.Context
 	if request.Provider != deployPB.Provider_PROVIDER_ANSSL_CLI {
 		return providers.DeploymentResult{}, providers.NewDeploymentError(localDeploymentFailureMessage, false, "", fmt.Errorf("1Panel 网站部署平台不匹配"))
 	}
-	if err := deploys.DeployCertificateTo1PanelWebsite(ctx, request.TargetRef, request.CertificatePEM, request.PrivateKeyPEM); err != nil {
+	if err := deploys.DeployCertificateTo1PanelWebsite(deploys.WithRuntime(ctx, be.runtime), request.TargetRef, request.CertificatePEM, request.PrivateKeyPEM); err != nil {
 		return providers.DeploymentResult{}, providers.NewDeploymentError(
 			localDeploymentFailureMessage,
 			deploys.IsOnePanelErrorRetryable(err),

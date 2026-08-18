@@ -51,9 +51,12 @@ func newRotatingLogWriter(path string, options logRotationOptions) (*rotatingLog
 	return writer, nil
 }
 
-// logRotationOptionsFromConfig 从当前配置读取日志轮转参数。
-func logRotationOptionsFromConfig() logRotationOptions {
-	cfg := config.GetConfig()
+// logRotationOptionsFromRuntime 从运行时快照读取日志轮转参数。
+func logRotationOptionsFromRuntime(runtime *config.Runtime) logRotationOptions {
+	var cfg *config.Configuration
+	if runtime != nil {
+		cfg = runtime.Config
+	}
 	if cfg == nil || cfg.Log == nil {
 		return logRotationOptions{
 			maxSizeBytes: 20 * 1024 * 1024,

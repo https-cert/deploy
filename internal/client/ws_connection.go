@@ -26,6 +26,7 @@ func isTemporaryError(err error) bool {
 	// 检查是否为网络超时、连接拒绝等临时错误
 	var netErr net.Error
 	if errors.As(err, &netErr) {
+		//lint:ignore SA1019 保留历史网络错误的重连分类语义。
 		return netErr.Timeout() || netErr.Temporary()
 	}
 
@@ -193,11 +194,26 @@ func (c *WSClient) Close() error {
 	return nil
 }
 
-// NewWSClient 创建新的 WebSocket 客户端
-func NewWSClient(ctx context.Context) (*WSClient, error) {
-	cfg := config.GetConfig()
+// NewWSClient 使用显式运行时快照创建 WebSocket 客户端。
+func NewWSClient(ctx context.Context, runtime *config.Runtime) (*WSClient, error) {
+	return newWSClientWithDependencies(ctx, runtime, wsClientDependencies{})
+}
 
-	clientId, err := system.GetUniqueClientId(ctx)
+// newWSClientWithDependencies 使用可替换依赖创建 WebSocket 客户端，供离线测试覆盖生命周期。
+func newWSClientWithDependencies(ctx context.Context, runtime *config.Runtime, dependencies wsClientDependencies) (*WSClient, error) {
+	if runtime == nil || runtime.Config == nil || runtime.Config.Server == nil {
+		return nil, fmt.Errorf("运行时配置未初始化")
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	cfg := runtime.Config
+
+	uniqueClientID := dependencies.uniqueClientID
+	if uniqueClientID == nil {
+		uniqueClientID = system.GetUniqueClientId
+	}
+	clientId, err := uniqueClientID(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -216,17 +232,22 @@ func NewWSClient(ctx context.Context) (*WSClient, error) {
 		}).DialContext,
 	}
 
-	httpClient := &http.Client{
-		Timeout:   0,
-		Transport: transport,
+	httpClient := dependencies.httpClient
+	if httpClient == nil {
+		httpClient = &http.Client{
+			Timeout:   0,
+			Transport: transport,
+		}
 	}
 
 	client := &WSClient{
+		runtime:        runtime,
 		clientId:       clientId,
-		serverURL:      config.URL,
+		serverURL:      runtime.ServerURL,
 		httpClient:     httpClient,
 		ctx:            ctx,
 		accessKey:      cfg.Server.AccessKey,
+		loadSystemInfo: dependencies.loadSystemInfo,
 		reconnectDelay: minReconnectDelay,
 		done:           make(chan struct{}),
 		operationSem:   make(chan struct{}, maxConcurrentOps),
@@ -241,8 +262,12 @@ func NewWSClient(ctx context.Context) (*WSClient, error) {
 	}
 
 	// 初始化业务执行器（需要先创建 client，然后才能传递 downloadFile 方法）
-	client.deploymentExecutor = NewDeploymentExecutor(client.downloadFile)
-	client.deploymentHandlers, err = NewDeploymentHandlerRegistry(client)
+	client.deploymentExecutor = NewDeploymentExecutor(client.downloadFile, runtime)
+	newHandlerRegistry := dependencies.newHandlerRegistry
+	if newHandlerRegistry == nil {
+		newHandlerRegistry = NewDeploymentHandlerRegistry
+	}
+	client.deploymentHandlers, err = newHandlerRegistry(client)
 	if err != nil {
 		return nil, fmt.Errorf("初始化 deployment v2 handler registry 失败: %w", err)
 	}

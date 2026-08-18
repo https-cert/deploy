@@ -11,16 +11,6 @@ import (
 	"strings"
 )
 
-// getCaseInsensitiveValue 获取忽略大小写的 map 值
-func getCaseInsensitiveValue(data map[string]any, expectedKey string) (any, bool) {
-	for key, value := range data {
-		if strings.EqualFold(key, expectedKey) {
-			return value, true
-		}
-	}
-	return nil, false
-}
-
 // normalizeToMap 将任意值规范化为 map[string]any
 func normalizeToMap(value any) (map[string]any, bool) {
 	normalized := normalizeValue(value)
@@ -135,16 +125,6 @@ func normalizeComparableToken(raw string) string {
 		return "0"
 	}
 	return normalized
-}
-
-// getCaseInsensitiveValueFromCandidates 从多个候选键中获取首个匹配值
-func getCaseInsensitiveValueFromCandidates(data map[string]any, expectedKeys []string) (any, bool) {
-	for _, expectedKey := range expectedKeys {
-		if value, ok := getCaseInsensitiveValue(data, expectedKey); ok {
-			return value, true
-		}
-	}
-	return nil, false
 }
 
 // anyToString 将任意类型转换为字符串

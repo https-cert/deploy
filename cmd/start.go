@@ -24,10 +24,11 @@ func CreateStartCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			logger.Init()
 
-			if err := config.Init(ConfigFile); err != nil {
+			runtime, err := config.Load(ConfigFile)
+			if err != nil {
 				return fmt.Errorf("初始化配置失败: %w", err)
 			}
-			if err := config.PrepareRuntimeDirs(); err != nil {
+			if err := config.PrepareRuntimeDirsForRuntime(runtime); err != nil {
 				return fmt.Errorf("准备运行目录失败: %w", err)
 			}
 
@@ -48,7 +49,12 @@ func CreateStartCmd() *cobra.Command {
 			// 在 goroutine 中启动调度器
 			done := make(chan error, 1)
 			go func() {
-				done <- scheduler.Start(ctx)
+				instance, err := scheduler.NewScheduler(runtime, ctx)
+				if err != nil {
+					done <- err
+					return
+				}
+				done <- instance.Run(ctx)
 			}()
 
 			sigChan := make(chan os.Signal, 1)

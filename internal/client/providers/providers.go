@@ -25,12 +25,14 @@ type ResourceDiscoverer interface {
 
 // ConnectionTester 测试云厂商凭据是否可以访问对应控制面。
 type ConnectionTester interface {
-	TestConnection() (bool, error)
+	// TestConnection 使用调用方上下文测试云厂商控制面连接。
+	TestConnection(ctx context.Context) (bool, error)
 }
 
 // CertificateUploader 将证书上传到云厂商证书中心。
 type CertificateUploader interface {
-	UploadCertificate(name, domain, cert, key string) error
+	// UploadCertificate 使用调用方上下文上传证书材料。
+	UploadCertificate(ctx context.Context, certificate CertificateMaterial) error
 }
 
 // ProviderHandler 组合证书中心上传业务所需的连接测试和证书上传能力。

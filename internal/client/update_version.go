@@ -8,25 +8,27 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/https-cert/deploy/internal/config"
 	"github.com/https-cert/deploy/internal/updater"
 	"github.com/https-cert/deploy/pkg/logger"
 )
 
 // UpdateHandler 版本更新处理器
 type UpdateHandler struct {
-	ctx context.Context
+	ctx     context.Context  // ctx 控制更新操作和客户端生命周期。
+	service *updater.Service // service 共享 CLI 使用的显式更新实现。
 }
 
 // NewUpdateHandler 创建版本更新处理器
-func NewUpdateHandler(ctx context.Context) *UpdateHandler {
-	return &UpdateHandler{ctx: ctx}
+func NewUpdateHandler(ctx context.Context, runtime *config.Runtime) *UpdateHandler {
+	return &UpdateHandler{ctx: ctx, service: updater.NewService(runtime, nil)}
 }
 
 // HandleUpdate 处理版本更新
 func (uh *UpdateHandler) HandleUpdate() {
 	logger.Info("收到版本更新通知")
 
-	updateInfo, err := updater.CheckUpdate(uh.ctx)
+	updateInfo, err := uh.service.CheckUpdate(uh.ctx)
 	if err != nil {
 		logger.Error("检查更新失败", "error", err)
 		return
@@ -38,7 +40,7 @@ func (uh *UpdateHandler) HandleUpdate() {
 
 	logger.Info("发现新版本", "current", updateInfo.CurrentVersion, "latest", updateInfo.LatestVersion)
 
-	if err := updater.PerformUpdate(uh.ctx, updateInfo); err != nil {
+	if err := uh.service.PerformUpdate(uh.ctx, updateInfo); err != nil {
 		logger.Error("更新失败", "error", err)
 		return
 	}

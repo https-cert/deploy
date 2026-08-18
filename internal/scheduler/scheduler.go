@@ -16,6 +16,7 @@ import (
 
 // Scheduler 定时任务调度器
 type Scheduler struct {
+	runtime           *config.Runtime    // runtime 是本次进程使用的只读配置快照。
 	client            *client.WSClient   // client 是 v2 WebSocket 客户端。
 	httpServer        *server.HTTPServer // httpServer 提供 HTTP-01 challenge 服务。
 	clientStarted     bool               // clientStarted 标记 WebSocket 是否已启动，用于失败清理。
@@ -23,8 +24,15 @@ type Scheduler struct {
 }
 
 // NewScheduler 创建调度器
-func NewScheduler(ctx context.Context) (*Scheduler, error) {
-	client, err := client.NewWSClient(ctx)
+func NewScheduler(runtime *config.Runtime, contexts ...context.Context) (*Scheduler, error) {
+	if runtime == nil || runtime.Config == nil {
+		return nil, errors.New("运行时配置不能为空")
+	}
+	clientContext := context.Background()
+	if len(contexts) > 0 && contexts[0] != nil {
+		clientContext = contexts[0]
+	}
+	client, err := client.NewWSClient(clientContext, runtime)
 	if err != nil {
 		return nil, err
 	}
@@ -38,15 +46,16 @@ func NewScheduler(ctx context.Context) (*Scheduler, error) {
 		ClientID:  client.GetClientID(),
 		AccessKey: client.GetAccessKey(),
 	})
-	logger.SetSensitiveValues(configuredSensitiveValues(config.GetConfig())...)
+	logger.SetSensitiveValues(configuredSensitiveValues(runtime.Config)...)
 
 	// 创建 HTTP-01 验证服务器
-	httpServer := server.NewHTTPServer()
+	httpServer := server.NewHTTPServer(runtime.Config.Server.Port)
 
 	// 将 HTTP 服务器设置到 client 中
 	client.SetHTTPServer(httpServer)
 
 	return &Scheduler{
+		runtime:    runtime,
 		client:     client,
 		httpServer: httpServer,
 	}, nil
@@ -111,17 +120,22 @@ func sensitiveHTTPConfigValues(rawURL string) []string {
 }
 
 // Start 启动调度器；基础 HTTP-01 服务不可用时返回错误，不再连接 WebSocket。
-func Start(ctx context.Context) error {
-	scheduler, err := NewScheduler(ctx)
-	if err != nil {
-		return fmt.Errorf("创建调度器失败: %w", err)
+func (s *Scheduler) Run(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	scheduler := s
+	if scheduler == nil {
+		return errors.New("调度器不能为空")
+	}
+	if scheduler.client == nil {
+		return errors.New("调度器客户端未初始化")
 	}
 
 	// 启动 HTTP-01 验证服务器，并通过错误通道阻止端口冲突的第二个进程继续连接。
 	httpErr := make(chan error, 1)
 	go func() {
-		cfg := config.GetConfig()
-		logger.Info("HTTP-01 验证服务启动", "port", cfg.Server.Port)
+		logger.Info("HTTP-01 验证服务启动", "port", scheduler.runtime.Config.Server.Port)
 		httpErr <- scheduler.httpServer.Start()
 	}()
 

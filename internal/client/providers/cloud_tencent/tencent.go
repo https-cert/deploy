@@ -132,7 +132,10 @@ func (p *Provider) getClient() (sslClient, error) {
 }
 
 // TestConnection 测试腾讯云 SSL API 连接。
-func (p *Provider) TestConnection() (bool, error) {
+func (p *Provider) TestConnection(ctx context.Context) (bool, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	client, err := p.getClient()
 	if err != nil {
 		return false, err
@@ -142,7 +145,7 @@ func (p *Provider) TestConnection() (bool, error) {
 	request.Offset = tencentcommon.Uint64Ptr(0)
 	request.Limit = tencentcommon.Uint64Ptr(1)
 
-	_, err = client.DescribeCertificatesWithContext(context.Background(), request)
+	_, err = client.DescribeCertificatesWithContext(ctx, request)
 	if err != nil {
 		return false, wrapTencentSDKError("DescribeCertificates", err)
 	}
@@ -150,8 +153,11 @@ func (p *Provider) TestConnection() (bool, error) {
 }
 
 // UploadCertificate 上传证书到腾讯云 SSL 证书服务。
-func (p *Provider) UploadCertificate(name, domain, cert, key string) error {
-	_, err := p.uploadCertificateWithContext(context.Background(), name, domain, cert, key)
+func (p *Provider) UploadCertificate(ctx context.Context, certificate providers.CertificateMaterial) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	_, err := p.uploadCertificateWithContext(ctx, certificate.Name, certificate.Domain, certificate.CertificatePEM, certificate.PrivateKeyPEM)
 	if err != nil {
 		var sdkError *tencenterrors.TencentCloudSDKError
 		if errors.As(err, &sdkError) {

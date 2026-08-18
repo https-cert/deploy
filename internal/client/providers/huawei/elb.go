@@ -447,10 +447,7 @@ func nextELBMarker(pageInfo *elbmodel.PageInfo, current string) (string, bool, e
 
 // elbCertificateDomains 归一化证书主域名和 SAN 列表。
 func elbCertificateDomains(certificate elbmodel.CertificateInfo) []string {
-	rawDomains := make([]string, 0)
-	for _, domain := range strings.Split(certificate.Domain, ",") {
-		rawDomains = append(rawDomains, domain)
-	}
+	rawDomains := append([]string(nil), strings.Split(certificate.Domain, ",")...)
 	if certificate.CommonName != nil {
 		rawDomains = append(rawDomains, *certificate.CommonName)
 	}

@@ -133,7 +133,10 @@ func validateRemovedDeploymentResourceFields(rawProviders any) error {
 		if !ok {
 			continue
 		}
-		name := strings.TrimSpace(fmt.Sprint(provider["name"]))
+		name := ""
+		if rawName, exists := provider["name"]; exists && rawName != nil {
+			name = strings.TrimSpace(fmt.Sprint(rawName))
+		}
 		if name == "" {
 			name = fmt.Sprintf("#%d", index+1)
 		}
@@ -147,7 +150,7 @@ func validateRemovedDeploymentResourceFields(rawProviders any) error {
 }
 
 // validateProviderCredentials 校验动态资源发现所需的云厂商凭据。
-func validateProviderCredentials(provider *Provider) error {
+func validateProviderCredentials(provider *Provider, environment string) error {
 	if provider.Name != ProviderAliyun && provider.Name != ProviderTencentCloud && provider.Name != ProviderQiniu &&
 		provider.Name != ProviderHuaweiCloud && provider.Name != ProviderVolcengine && provider.Name != ProviderJDCloud &&
 		provider.Name != ProviderBaiduCloud && provider.Name != ProviderDogeCloud && provider.Name != ProviderLeCDN {
@@ -214,8 +217,7 @@ func validateProviderCredentials(provider *Provider) error {
 		if parsedURL.User != nil || parsedURL.RawQuery != "" || parsedURL.Fragment != "" {
 			return fmt.Errorf("provider[%s].auth.apiBaseUrl 不能包含用户凭据、查询参数或片段", provider.Name)
 		}
-		allowLocalHTTP := parsedURL.Scheme == "http" && Config != nil && Config.Server != nil &&
-			Config.Server.Env == envLocal && isLoopbackHostname(parsedURL.Hostname())
+		allowLocalHTTP := parsedURL.Scheme == "http" && environment == envLocal && isLoopbackHostname(parsedURL.Hostname())
 		if parsedURL.Scheme != "https" && !allowLocalHTTP {
 			return fmt.Errorf("provider[%s].auth.apiBaseUrl 只允许 HTTPS，本地环境可使用回环 HTTP", provider.Name)
 		}

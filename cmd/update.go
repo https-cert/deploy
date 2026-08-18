@@ -22,12 +22,14 @@ func CreateCheckUpdateCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := context.Background()
 
-			if err := config.Init(ConfigFile); err != nil {
+			runtime, err := config.Load(ConfigFile)
+			if err != nil {
 				return fmt.Errorf("初始化配置失败: %w", err)
 			}
+			service := updater.NewService(runtime, nil)
 
 			fmt.Println("正在检查更新...")
-			info, err := updater.CheckUpdate(ctx)
+			info, err := service.CheckUpdate(ctx)
 			if err != nil {
 				return fmt.Errorf("检查更新失败: %w", err)
 			}
@@ -55,9 +57,11 @@ func CreateUpdateCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := context.Background()
 
-			if err := config.Init(ConfigFile); err != nil {
+			runtime, err := config.Load(ConfigFile)
+			if err != nil {
 				return fmt.Errorf("初始化配置失败: %w", err)
 			}
+			service := updater.NewService(runtime, nil)
 
 			// 获取当前可执行文件的真实路径
 			execPath, err := os.Executable()
@@ -71,7 +75,7 @@ func CreateUpdateCmd() *cobra.Command {
 			}
 
 			fmt.Println("正在检查更新...")
-			info, err := updater.CheckUpdate(ctx)
+			info, err := service.CheckUpdate(ctx)
 			if err != nil {
 				return fmt.Errorf("检查更新失败: %w", err)
 			}
@@ -92,7 +96,7 @@ func CreateUpdateCmd() *cobra.Command {
 				time.Sleep(2 * time.Second)
 			}
 
-			if err := updater.PerformUpdate(ctx, info); err != nil {
+			if err := service.PerformUpdate(ctx, info); err != nil {
 				return fmt.Errorf("更新失败: %w", err)
 			}
 

@@ -13,7 +13,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/https-cert/deploy/internal/config"
 	"github.com/https-cert/deploy/pkg/logger"
 )
 
@@ -80,8 +79,8 @@ type debugChallengesResponse struct {
 	Challenges []debugChallengeInfo `json:"challenges"`
 }
 
-// NewHTTPServer 创建新的 HTTP 服务器
-func NewHTTPServer() *HTTPServer {
+// NewHTTPServer 使用显式端口创建 HTTP-01 服务器，端口 0 仅供测试自动分配。
+func NewHTTPServer(port int) *HTTPServer {
 	mux := http.NewServeMux()
 	s := &HTTPServer{
 		cache: newChallengeCache(),
@@ -93,8 +92,7 @@ func NewHTTPServer() *HTTPServer {
 	mux.HandleFunc("/debug/challenges", s.handleDebugChallenges)
 	mux.HandleFunc("/acme-challenge/", s.handleACMEChallenge)
 
-	cfg := config.GetConfig()
-	addr := fmt.Sprintf("127.0.0.1:%d", cfg.Server.Port)
+	addr := fmt.Sprintf("127.0.0.1:%d", port)
 
 	s.server = &http.Server{
 		Addr:         addr,

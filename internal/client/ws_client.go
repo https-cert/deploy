@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+	"github.com/https-cert/deploy/internal/config"
 	"github.com/https-cert/deploy/internal/server"
 	"github.com/https-cert/deploy/internal/system"
 	"github.com/https-cert/deploy/pkg/logger"
@@ -23,41 +24,51 @@ type httpChallengeServer interface {
 }
 
 type WSClient struct {
-	clientId             string                            // clientId 是本机客户端唯一标识。
-	serverURL            string                            // serverURL 是 deploy 服务基础地址。
-	httpClient           *http.Client                      // httpClient 复用证书下载连接。
-	ctx                  context.Context                   // ctx 控制客户端完整生命周期。
-	accessKey            string                            // accessKey 是服务端鉴权令牌。
-	connectionLogged     atomic.Bool                       // connectionLogged 保证连接建立日志只记录一次。
-	registrationLogged   atomic.Bool                       // registrationLogged 保证 v2 注册成功日志只记录一次。
-	reconnectPending     atomic.Bool                       // reconnectPending 标记是否发生过异常断线。
-	connected            atomic.Bool                       // connected 表示当前消息循环是否已收到有效 v2 消息。
-	systemInfo           *system.SystemInfo                // systemInfo 缓存本机系统信息。
-	systemInfoOnce       sync.Once                         // systemInfoOnce 保证系统信息只采集一次。
-	httpServer           httpChallengeServer               // httpServer 提供 HTTP-01 challenge 能力。
-	busyOperations       atomic.Int32                      // busyOperations 记录正在执行的业务数量。
-	conn                 *websocket.Conn                   // conn 是当前 WebSocket 连接。
-	connMu               sync.Mutex                        // connMu 保护连接替换和关闭。
-	writeMu              sync.Mutex                        // writeMu 保证 WebSocket 只有一个并发写入者。
-	reconnectDelay       time.Duration                     // reconnectDelay 是当前重连退避时间。
-	deploymentExecutor   *DeploymentExecutor               // deploymentExecutor 执行部署和 provider 业务。
-	deploymentHandlers   *DeploymentHandlerRegistry        // deploymentHandlers 按 provider/type 路由 v2 业务。
-	protojsonMarshaler   protojson.MarshalOptions          // protojsonMarshaler 序列化 WebSocket 消息。
-	protojsonUnmarshaler protojson.UnmarshalOptions        // protojsonUnmarshaler 反序列化 WebSocket 消息。
-	startOnce            sync.Once                         // startOnce 保证连接循环只启动一次。
-	started              atomic.Bool                       // started 标记连接循环是否已经启动。
-	done                 chan struct{}                     // done 在连接循环完全退出时关闭。
-	operationSem         chan struct{}                     // operationSem 限制并发业务数量。
-	operationOnce        sync.Once                         // operationOnce 惰性初始化并发限制器。
-	operationLocksMu     sync.Mutex                        // operationLocksMu 保护资源操作锁表。
-	operationLocks       map[string]*resourceOperationLock // operationLocks 保存正在使用的资源串行锁。
-	systemInfoErr        error                             // systemInfoErr 缓存系统信息采集错误。
+	runtime              *config.Runtime                    // runtime 是客户端使用的只读配置快照。
+	clientId             string                             // clientId 是本机客户端唯一标识。
+	serverURL            string                             // serverURL 是 deploy 服务基础地址。
+	httpClient           *http.Client                       // httpClient 复用证书下载连接。
+	ctx                  context.Context                    // ctx 控制客户端完整生命周期。
+	accessKey            string                             // accessKey 是服务端鉴权令牌。
+	connectionLogged     atomic.Bool                        // connectionLogged 保证连接建立日志只记录一次。
+	registrationLogged   atomic.Bool                        // registrationLogged 保证 v2 注册成功日志只记录一次。
+	reconnectPending     atomic.Bool                        // reconnectPending 标记是否发生过异常断线。
+	connected            atomic.Bool                        // connected 表示当前消息循环是否已收到有效 v2 消息。
+	systemInfo           *system.SystemInfo                 // systemInfo 缓存本机系统信息。
+	loadSystemInfo       func() (*system.SystemInfo, error) // loadSystemInfo 允许测试替换本机信息采集。
+	systemInfoOnce       sync.Once                          // systemInfoOnce 保证系统信息只采集一次。
+	httpServer           httpChallengeServer                // httpServer 提供 HTTP-01 challenge 能力。
+	busyOperations       atomic.Int32                       // busyOperations 记录正在执行的业务数量。
+	conn                 *websocket.Conn                    // conn 是当前 WebSocket 连接。
+	connMu               sync.Mutex                         // connMu 保护连接替换和关闭。
+	writeMu              sync.Mutex                         // writeMu 保证 WebSocket 只有一个并发写入者。
+	reconnectDelay       time.Duration                      // reconnectDelay 是当前重连退避时间。
+	deploymentExecutor   *DeploymentExecutor                // deploymentExecutor 执行部署和 provider 业务。
+	deploymentHandlers   *DeploymentHandlerRegistry         // deploymentHandlers 按 provider/type 路由 v2 业务。
+	protojsonMarshaler   protojson.MarshalOptions           // protojsonMarshaler 序列化 WebSocket 消息。
+	protojsonUnmarshaler protojson.UnmarshalOptions         // protojsonUnmarshaler 反序列化 WebSocket 消息。
+	startOnce            sync.Once                          // startOnce 保证连接循环只启动一次。
+	started              atomic.Bool                        // started 标记连接循环是否已经启动。
+	done                 chan struct{}                      // done 在连接循环完全退出时关闭。
+	operationSem         chan struct{}                      // operationSem 限制并发业务数量。
+	operationOnce        sync.Once                          // operationOnce 惰性初始化并发限制器。
+	operationLocksMu     sync.Mutex                         // operationLocksMu 保护资源操作锁表。
+	operationLocks       map[string]*resourceOperationLock  // operationLocks 保存正在使用的资源串行锁。
+	systemInfoErr        error                              // systemInfoErr 缓存系统信息采集错误。
 }
 
 // resourceOperationLock 串行化同一个本地部署域名或精确部署资源的操作。
 type resourceOperationLock struct {
 	mu   sync.Mutex // mu 串行化同一个资源键的操作。
 	refs int        // refs 记录使用者数量，以便清理空闲锁。
+}
+
+// wsClientDependencies 保存 WebSocket 客户端可替换的进程外依赖。
+type wsClientDependencies struct {
+	httpClient         *http.Client                                        // httpClient 执行证书归档下载。
+	uniqueClientID     func(context.Context) (string, error)               // uniqueClientID 读取本机稳定标识。
+	loadSystemInfo     func() (*system.SystemInfo, error)                  // loadSystemInfo 采集注册和心跳系统信息。
+	newHandlerRegistry func(*WSClient) (*DeploymentHandlerRegistry, error) // newHandlerRegistry 构造 v2 handler 注册表。
 }
 
 // Start starts the WebSocket lifecycle loop once.
@@ -82,7 +93,11 @@ func (c *WSClient) Start() {
 // getSystemInfo returns cached system information and preserves the first collection error.
 func (c *WSClient) getSystemInfo() (*system.SystemInfo, error) {
 	c.systemInfoOnce.Do(func() {
-		c.systemInfo, c.systemInfoErr = system.GetSystemInfo()
+		loader := c.loadSystemInfo
+		if loader == nil {
+			loader = system.GetSystemInfo
+		}
+		c.systemInfo, c.systemInfoErr = loader()
 	})
 	return c.systemInfo, c.systemInfoErr
 }
@@ -107,10 +122,11 @@ func (c *WSClient) runOperation(name string, onBusy func(), operation func()) {
 			c.operationSem = make(chan struct{}, maxConcurrentOps)
 		}
 	})
+	operationSem := c.operationSem
 	select {
-	case c.operationSem <- struct{}{}:
+	case operationSem <- struct{}{}:
 		go func() {
-			defer func() { <-c.operationSem }()
+			defer func() { <-operationSem }()
 			operation()
 		}()
 	default:
@@ -167,7 +183,10 @@ func (c *WSClient) GetAccessKey() string {
 	return c.accessKey
 }
 
-// downloadFile downloads a certificate archive using the client lifecycle context.
-func (c *WSClient) downloadFile(downloadURL, filePath string) error {
-	return DownloadFile(c.ctx, c.httpClient, c.accessKey, downloadURL, filePath)
+// downloadFile downloads a certificate archive using the current operation context.
+func (c *WSClient) downloadFile(ctx context.Context, downloadURL, filePath string) error {
+	if ctx == nil {
+		ctx = c.ctx
+	}
+	return DownloadFileWithRuntime(ctx, c.runtime, c.httpClient, c.accessKey, downloadURL, filePath)
 }

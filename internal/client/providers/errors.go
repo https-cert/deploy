@@ -1,6 +1,7 @@
 package providers
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strings"
@@ -48,14 +49,47 @@ func NewDeploymentError(message string, retryable bool, requestID string, cause 
 	}
 }
 
+// RequestID 从结构化部署错误或厂商错误中提取脱敏请求编号。
+func RequestID(err error) string {
+	if err == nil {
+		return ""
+	}
+	var deploymentError *DeploymentError
+	if errors.As(err, &deploymentError) {
+		return strings.TrimSpace(deploymentError.RequestID)
+	}
+	var requestIDError interface{ RequestID() string }
+	if errors.As(err, &requestIDError) {
+		return strings.TrimSpace(requestIDError.RequestID())
+	}
+	return ""
+}
+
+// IsContextFailure 判断错误是否由调用方取消或超时引起。
+func IsContextFailure(err error) bool {
+	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
+}
+
 // DeploymentErrorInfo 只提取可返回后端的固定文案和重试分类。
 func DeploymentErrorInfo(err error) (message string, retryable bool) {
 	if err == nil {
 		return "", false
 	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return "部署操作超时", true
+	}
+	if errors.Is(err, context.Canceled) {
+		return "部署操作已取消", true
+	}
 
 	var deploymentError *DeploymentError
 	if errors.As(err, &deploymentError) {
+		if errors.Is(deploymentError.Cause, context.DeadlineExceeded) {
+			return "部署操作超时", true
+		}
+		if errors.Is(deploymentError.Cause, context.Canceled) {
+			return "部署操作已取消", true
+		}
 		return deploymentFailureMessage, deploymentError.Retryable
 	}
 	return deploymentFailureMessage, false

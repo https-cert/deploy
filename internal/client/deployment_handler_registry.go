@@ -9,7 +9,6 @@ import (
 
 	"github.com/https-cert/deploy/internal/client/deploys"
 	"github.com/https-cert/deploy/internal/client/providers"
-	"github.com/https-cert/deploy/internal/config"
 	"github.com/https-cert/deploy/pb/deployPB"
 	"github.com/https-cert/deploy/pkg/logger"
 )
@@ -52,9 +51,10 @@ type DeploymentHandlerRegistry struct {
 
 // deploymentHandlerSpec 描述一个原生 v2 handler 的静态执行约束。
 type deploymentHandlerSpec struct {
-	key        DeploymentHandlerKey            // key 是 v2 provider/type 组合。
-	targetMode deployPB.DeploymentTargetMode   // targetMode 决定是否必须携带动态资源引用。
-	domainMode deployPB.DeploymentDomainPolicy // domainMode 声明后端可使用的资源域名校验策略。
+	key           DeploymentHandlerKey            // key 是 v2 provider/type 组合。
+	targetMode    deployPB.DeploymentTargetMode   // targetMode 决定是否必须携带动态资源引用。
+	domainMode    deployPB.DeploymentDomainPolicy // domainMode 声明后端可使用的资源域名校验策略。
+	executionKind deploymentExecutionKind         // executionKind 明确执行器使用的业务分支。
 }
 
 // NewDeploymentHandlerRegistry 注册所有原生 v2 handler。
@@ -144,17 +144,18 @@ func (h *nativeDeploymentHandler) Capability() *deployPB.DeploymentCapability {
 
 // DiscoverResources 直接读取当前 v2 handler 的实时资源目录。
 func (h *nativeDeploymentHandler) DiscoverResources(ctx context.Context) providers.ResourceCatalogResult {
+	ctx = deploys.WithRuntime(ctx, h.client.runtime)
 	if h.spec.targetMode == deployPB.DeploymentTargetMode_DEPLOYMENT_TARGET_MODE_NONE {
 		return providers.ResourceCatalogResult{Status: deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_READY}
 	}
 	if h.spec.key.Provider == deployPB.Provider_PROVIDER_ANSSL_CLI {
 		return discoverLocalDeploymentResources(ctx, h.spec.key.DeploymentType)
 	}
-	providerName, ok := config.DeploymentProviderName(h.spec.key.Provider)
-	if !ok || config.GetProvider(providerName) == nil {
+	definition, ok := findProviderDefinition(h.spec.key.Provider)
+	if !ok || configuredProvider(h.client.runtime, definition.ConfigName) == nil {
 		return providers.ResourceCatalogResult{Status: deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_NOT_CONFIGURED}
 	}
-	adapter, err := newDeploymentResourceProvider(h.spec.key.Provider, h.spec.key.DeploymentType)
+	adapter, err := newDeploymentResourceProvider(h.spec.key.Provider, h.spec.key.DeploymentType, h.client.runtime)
 	if err != nil {
 		return providers.ResourceCatalogResult{Status: deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_UNAVAILABLE, Error: err}
 	}
@@ -166,7 +167,7 @@ func (h *nativeDeploymentHandler) Test(ctx context.Context, targetRef string) er
 	if err := h.validateTargetRef(targetRef); err != nil {
 		return err
 	}
-	success, err := testDeploymentConnection(ctx, h.spec.key.Provider, h.spec.key.DeploymentType, targetRef)
+	success, err := testDeploymentConnection(ctx, h.spec.key.Provider, h.spec.key.DeploymentType, targetRef, h.client.runtime)
 	if err != nil {
 		return err
 	}
@@ -194,6 +195,7 @@ func (h *nativeDeploymentHandler) Deploy(ctx context.Context, request Deployment
 	release := h.client.lockOperation(lockKey)
 	defer release()
 	result, err := h.client.deploymentExecutor.Execute(ctx, DeploymentExecutionRequest{
+		ExecutionKind:  h.spec.executionKind,
 		Provider:       h.spec.key.Provider,
 		DeploymentType: h.spec.key.DeploymentType,
 		TargetRef:      request.TargetRef,
@@ -226,7 +228,7 @@ func (h *nativeDeploymentHandler) validateTargetRef(targetRef string) error {
 func discoverLocalDeploymentResources(ctx context.Context, deploymentType deployPB.DeploymentType) providers.ResourceCatalogResult {
 	switch deploymentType {
 	case deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_1PANEL_WEBSITE_CERT:
-		if !deploys.IsOnePanelConfigured() {
+		if !deploys.IsOnePanelConfiguredWithContext(ctx) {
 			return providers.ResourceCatalogResult{Status: deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_NOT_CONFIGURED}
 		}
 		resources, err := deploys.DiscoverOnePanelWebsiteResources(ctx)
@@ -244,7 +246,7 @@ func discoverLocalDeploymentResources(ctx context.Context, deploymentType deploy
 		return completedResourceCatalog(result)
 
 	case deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_BT_PANEL_WEBSITE_CERT:
-		if !deploys.IsBTPanelConfigured() {
+		if !deploys.IsBTPanelConfiguredWithContext(ctx) {
 			return providers.ResourceCatalogResult{Status: deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_NOT_CONFIGURED}
 		}
 		resources, err := deploys.DiscoverBTPanelWebsiteResources(ctx)
@@ -282,7 +284,7 @@ func deploymentHandlerSpecs() []deploymentHandlerSpec {
 	noDomain := deployPB.DeploymentDomainPolicy_DEPLOYMENT_DOMAIN_POLICY_NONE
 	allDomains := deployPB.DeploymentDomainPolicy_DEPLOYMENT_DOMAIN_POLICY_ALL
 	anyDomain := deployPB.DeploymentDomainPolicy_DEPLOYMENT_DOMAIN_POLICY_ANY
-	return []deploymentHandlerSpec{
+	specs := []deploymentHandlerSpec{
 		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_ANSSL_CLI, deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_NGINX_CERT, none, noDomain),
 		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_ANSSL_CLI, deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_APACHE_CERT, none, noDomain),
 		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_ANSSL_CLI, deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_RUSTFS_CERT, none, noDomain),
@@ -294,49 +296,29 @@ func deploymentHandlerSpecs() []deploymentHandlerSpec {
 		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_ANSSL_CLI, deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_1PANEL_WEBSITE_CERT, required, anyDomain),
 		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_ANSSL_CLI, deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_BT_PANEL_WEBSITE_CERT, required, anyDomain),
 		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_ANSSL_CLI, deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_BT_PANEL_CERT, none, noDomain),
-
-		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_ALIYUN, deployPB.DeploymentType_DEPLOYMENT_TYPE_UPLOAD_CERT, none, noDomain),
-		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_ALIYUN, deployPB.DeploymentType_DEPLOYMENT_TYPE_CDN, required, allDomains),
-		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_ALIYUN, deployPB.DeploymentType_DEPLOYMENT_TYPE_DCDN, required, allDomains),
-		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_ALIYUN, deployPB.DeploymentType_DEPLOYMENT_TYPE_ESA, required, allDomains),
-		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_ALIYUN, deployPB.DeploymentType_DEPLOYMENT_TYPE_OSS_CUSTOM_DOMAIN, required, allDomains),
-		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_ALIYUN, deployPB.DeploymentType_DEPLOYMENT_TYPE_CLB, required, allDomains),
-		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_ALIYUN, deployPB.DeploymentType_DEPLOYMENT_TYPE_ALB, required, allDomains),
-		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_ALIYUN, deployPB.DeploymentType_DEPLOYMENT_TYPE_NLB, required, allDomains),
-
-		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_TENCENT_CLOUD, deployPB.DeploymentType_DEPLOYMENT_TYPE_UPLOAD_CERT, none, noDomain),
-		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_TENCENT_CLOUD, deployPB.DeploymentType_DEPLOYMENT_TYPE_CDN, required, allDomains),
-		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_TENCENT_CLOUD, deployPB.DeploymentType_DEPLOYMENT_TYPE_EDGEONE, required, allDomains),
-		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_TENCENT_CLOUD, deployPB.DeploymentType_DEPLOYMENT_TYPE_COS, required, allDomains),
-		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_TENCENT_CLOUD, deployPB.DeploymentType_DEPLOYMENT_TYPE_CLB, required, allDomains),
-
-		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_QINIU, deployPB.DeploymentType_DEPLOYMENT_TYPE_UPLOAD_CERT, none, noDomain),
-		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_QINIU, deployPB.DeploymentType_DEPLOYMENT_TYPE_CDN, required, allDomains),
-		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_QINIU, deployPB.DeploymentType_DEPLOYMENT_TYPE_DCDN, required, allDomains),
-
-		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_DOGE_CLOUD, deployPB.DeploymentType_DEPLOYMENT_TYPE_UPLOAD_CERT, none, noDomain),
-		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_DOGE_CLOUD, deployPB.DeploymentType_DEPLOYMENT_TYPE_CDN, required, allDomains),
-		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_BAIDU_CLOUD, deployPB.DeploymentType_DEPLOYMENT_TYPE_UPLOAD_CERT, none, noDomain),
-		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_BAIDU_CLOUD, deployPB.DeploymentType_DEPLOYMENT_TYPE_CDN, required, allDomains),
-		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_JD_CLOUD, deployPB.DeploymentType_DEPLOYMENT_TYPE_UPLOAD_CERT, none, noDomain),
-		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_JD_CLOUD, deployPB.DeploymentType_DEPLOYMENT_TYPE_CDN, required, allDomains),
-		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_VOLCENGINE, deployPB.DeploymentType_DEPLOYMENT_TYPE_UPLOAD_CERT, none, noDomain),
-		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_VOLCENGINE, deployPB.DeploymentType_DEPLOYMENT_TYPE_CDN, required, allDomains),
-		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_VOLCENGINE, deployPB.DeploymentType_DEPLOYMENT_TYPE_DCDN, required, allDomains),
-		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_VOLCENGINE, deployPB.DeploymentType_DEPLOYMENT_TYPE_TOS_CUSTOM_DOMAIN, required, allDomains),
-		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_VOLCENGINE, deployPB.DeploymentType_DEPLOYMENT_TYPE_CLB, required, allDomains),
-		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_VOLCENGINE, deployPB.DeploymentType_DEPLOYMENT_TYPE_ALB, required, allDomains),
-		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_VOLCENGINE, deployPB.DeploymentType_DEPLOYMENT_TYPE_NLB, required, allDomains),
-		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_HUAWEI_CLOUD, deployPB.DeploymentType_DEPLOYMENT_TYPE_UPLOAD_CERT, none, noDomain),
-		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_HUAWEI_CLOUD, deployPB.DeploymentType_DEPLOYMENT_TYPE_CDN, required, allDomains),
-		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_HUAWEI_CLOUD, deployPB.DeploymentType_DEPLOYMENT_TYPE_DCDN, required, allDomains),
-		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_HUAWEI_CLOUD, deployPB.DeploymentType_DEPLOYMENT_TYPE_OBS_CUSTOM_DOMAIN, required, allDomains),
-		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_HUAWEI_CLOUD, deployPB.DeploymentType_DEPLOYMENT_TYPE_ELB, required, allDomains),
-		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_LECDN, deployPB.DeploymentType_DEPLOYMENT_TYPE_CDN, required, allDomains),
 	}
+	for _, definition := range providerDefinitions {
+		if definition.UploadOnly {
+			specs = append(specs, newDeploymentHandlerSpec(definition.Provider, deployPB.DeploymentType_DEPLOYMENT_TYPE_UPLOAD_CERT, none, noDomain))
+		}
+		for _, deploymentType := range definition.ResourceTypes {
+			specs = append(specs, newDeploymentHandlerSpec(definition.Provider, deploymentType, required, allDomains))
+		}
+	}
+	return specs
 }
 
 // newDeploymentHandlerSpec 创建一条原生 v2 handler 声明。
 func newDeploymentHandlerSpec(provider deployPB.Provider, deploymentType deployPB.DeploymentType, targetMode deployPB.DeploymentTargetMode, domainMode deployPB.DeploymentDomainPolicy) deploymentHandlerSpec {
-	return deploymentHandlerSpec{key: DeploymentHandlerKey{Provider: provider, DeploymentType: deploymentType}, targetMode: targetMode, domainMode: domainMode}
+	kind := deploymentExecutionLocalNone
+	if provider != deployPB.Provider_PROVIDER_ANSSL_CLI {
+		kind = deploymentExecutionCloudUpload
+	}
+	if targetMode == deployPB.DeploymentTargetMode_DEPLOYMENT_TARGET_MODE_REQUIRED {
+		kind = deploymentExecutionCloudResource
+		if provider == deployPB.Provider_PROVIDER_ANSSL_CLI {
+			kind = deploymentExecutionLocalResource
+		}
+	}
+	return deploymentHandlerSpec{key: DeploymentHandlerKey{Provider: provider, DeploymentType: deploymentType}, targetMode: targetMode, domainMode: domainMode, executionKind: kind}
 }

@@ -1,18 +1,11 @@
 package client
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/https-cert/deploy/internal/client/deploys"
 	"github.com/https-cert/deploy/internal/client/providers"
-	"github.com/https-cert/deploy/internal/client/providers/aliyun"
-	"github.com/https-cert/deploy/internal/client/providers/baidu"
-	cloud_tencent "github.com/https-cert/deploy/internal/client/providers/cloud_tencent"
-	"github.com/https-cert/deploy/internal/client/providers/dogecloud"
-	"github.com/https-cert/deploy/internal/client/providers/huawei"
-	"github.com/https-cert/deploy/internal/client/providers/jdcloud"
-	"github.com/https-cert/deploy/internal/client/providers/qiniu"
-	"github.com/https-cert/deploy/internal/client/providers/volcengine"
 	"github.com/https-cert/deploy/internal/config"
 	"github.com/https-cert/deploy/pb/deployPB"
 	"github.com/https-cert/deploy/pkg/logger"
@@ -20,49 +13,61 @@ import (
 
 // DeploymentExecutor 封装 v2 provider/type 对应的本地和云端部署逻辑。
 type DeploymentExecutor struct {
-	downloadFile                      func(downloadURL, filePath string) error // downloadFile 下载本地部署所需的证书压缩包。
-	deploymentResourceProviderFactory deploymentResourceProviderFactory        // deploymentResourceProviderFactory 允许测试替换云厂商适配器构造逻辑。
+	runtime                           *config.Runtime                             // runtime 是本次客户端使用的只读配置快照。
+	downloadFile                      func(context.Context, string, string) error // downloadFile 下载本地部署所需的证书压缩包。
+	deploymentResourceProviderFactory deploymentResourceProviderFactory           // deploymentResourceProviderFactory 允许测试替换云厂商适配器构造逻辑。
 }
 
-// NewDeploymentExecutor 创建 v2 部署执行器。
-func NewDeploymentExecutor(downloadFile func(downloadURL, filePath string) error) *DeploymentExecutor {
+// NewDeploymentExecutor 使用显式运行时快照创建 v2 部署执行器。
+func NewDeploymentExecutor(downloadFile func(context.Context, string, string) error, runtime *config.Runtime) *DeploymentExecutor {
 	return &DeploymentExecutor{
+		runtime:      runtime,
 		downloadFile: downloadFile,
 	}
 }
 
+// newCertDeployer 创建携带运行时 SSL 配置的本地部署器。
+func (be *DeploymentExecutor) newCertDeployer() *deploys.CertDeployer {
+	options := deploys.Options{DownloadFunc: be.downloadFile}
+	if be.runtime != nil && be.runtime.Config != nil {
+		options.SSL = be.runtime.Config.SSL
+		options.KnownHostsFile = be.runtime.KnownHostsFile
+	}
+	return deploys.NewCertDeployer(options)
+}
+
 // executeNonResourceDeployment 执行不需要动态 targetRef 的 v2 部署类型。
-func (be *DeploymentExecutor) executeNonResourceDeployment(provider deployPB.Provider, deploymentType deployPB.DeploymentType, domain, downloadURL, remark, cert, key string) error {
+func (be *DeploymentExecutor) executeNonResourceDeployment(ctx context.Context, provider deployPB.Provider, deploymentType deployPB.DeploymentType, domain, downloadURL, remark, cert, key string) error {
 	switch provider {
 	case deployPB.Provider_PROVIDER_ANSSL_CLI:
 		switch deploymentType {
 		case deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_NGINX_CERT:
 			// 部署证书到本地 nginx
-			return be.handleNginxCertificateDeploy(domain, downloadURL)
+			return be.handleNginxCertificateDeploy(ctx, domain, downloadURL)
 		case deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_APACHE_CERT:
 			// 部署证书到本地 apache
-			return be.handleApacheCertificateDeploy(domain, downloadURL)
+			return be.handleApacheCertificateDeploy(ctx, domain, downloadURL)
 		case deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_OPENVPN_AS_CERT:
 			// 部署证书到 OpenVPN-AS
-			return be.handleOpenVPNASCertificateDeploy(domain, downloadURL)
+			return be.handleOpenVPNASCertificateDeploy(ctx, domain, downloadURL)
 		case deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_UPLOAD_ONLY_CERT:
 			// 仅将证书保存到本地目录
-			return be.handleUploadOnlyCertificateDeploy(domain, downloadURL)
+			return be.handleUploadOnlyCertificateDeploy(ctx, domain, downloadURL)
 		case deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_RUSTFS_CERT:
 			// 部署证书到本地 RustFS
-			return be.handleRustFSCertificateDeploy(domain, downloadURL)
+			return be.handleRustFSCertificateDeploy(ctx, domain, downloadURL)
 		case deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_FEINIU_CERT:
 			// 部署证书到本地 Feiniu
-			return be.handleFeiniuCertificateDeploy(domain, downloadURL)
+			return be.handleFeiniuCertificateDeploy(ctx, domain, downloadURL)
 		case deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_1PANEL_CERT:
 			// 部署证书到 1Panel
-			return be.handle1PanelCertificateDeploy(domain, downloadURL)
+			return be.handle1PanelCertificateDeploy(ctx, domain, downloadURL)
 		case deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_BT_PANEL_CERT:
 			// 仅上传证书到宝塔证书库
-			return be.handleBTPanelCertificateStoreDeploy(domain, downloadURL)
+			return be.handleBTPanelCertificateStoreDeploy(ctx, domain, downloadURL)
 		case deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_SAFELINE_CERT:
 			// 部署证书到雷池 WAF
-			return be.handleSafeLineCertificateDeploy(domain, downloadURL)
+			return be.handleSafeLineCertificateDeploy(ctx, domain, downloadURL)
 		default:
 			logger.Warn("不支持的部署类型", "deploymentType", deploymentType)
 			return fmt.Errorf("不支持的部署类型: %s", deploymentType.String())
@@ -79,7 +84,7 @@ func (be *DeploymentExecutor) executeNonResourceDeployment(provider deployPB.Pro
 		if deploymentType != deployPB.DeploymentType_DEPLOYMENT_TYPE_UPLOAD_CERT {
 			return fmt.Errorf("provider %s 不支持部署类型 %s", provider.String(), deploymentType.String())
 		}
-		return be.handleCertificateProvider(provider, domain, remark, cert, key)
+		return be.handleCertificateProvider(ctx, provider, domain, remark, cert, key)
 
 	default:
 		logger.Warn("不支持的部署平台", "provider", provider.String())
@@ -88,13 +93,13 @@ func (be *DeploymentExecutor) executeNonResourceDeployment(provider deployPB.Pro
 }
 
 // handleNginxCertificateDeploy 处理证书部署到本地 nginx
-func (be *DeploymentExecutor) handleNginxCertificateDeploy(domain, downloadURL string) error {
+func (be *DeploymentExecutor) handleNginxCertificateDeploy(ctx context.Context, domain, downloadURL string) error {
 	if domain == "" {
 		return fmt.Errorf("域名不能为空")
 	}
 
-	deployer := deploys.NewCertDeployer(be.downloadFile)
-	if err := deployer.DeployCertificateToNginx(domain, downloadURL); err != nil {
+	deployer := be.newCertDeployer()
+	if err := deployer.DeployCertificateToNginx(ctx, domain, downloadURL); err != nil {
 		logger.Error("Nginx证书部署失败", "error", err, "domain", domain)
 		return err
 	}
@@ -104,13 +109,13 @@ func (be *DeploymentExecutor) handleNginxCertificateDeploy(domain, downloadURL s
 }
 
 // handleApacheCertificateDeploy 处理证书部署到本地 apache
-func (be *DeploymentExecutor) handleApacheCertificateDeploy(domain, downloadURL string) error {
+func (be *DeploymentExecutor) handleApacheCertificateDeploy(ctx context.Context, domain, downloadURL string) error {
 	if domain == "" {
 		return fmt.Errorf("域名不能为空")
 	}
 
-	deployer := deploys.NewCertDeployer(be.downloadFile)
-	if err := deployer.DeployCertificateToApache(domain, downloadURL); err != nil {
+	deployer := be.newCertDeployer()
+	if err := deployer.DeployCertificateToApache(ctx, domain, downloadURL); err != nil {
 		logger.Error("Apache证书部署失败", "error", err, "domain", domain)
 		return err
 	}
@@ -120,13 +125,13 @@ func (be *DeploymentExecutor) handleApacheCertificateDeploy(domain, downloadURL 
 }
 
 // handleOpenVPNASCertificateDeploy 处理证书部署到 OpenVPN-AS
-func (be *DeploymentExecutor) handleOpenVPNASCertificateDeploy(domain, downloadURL string) error {
+func (be *DeploymentExecutor) handleOpenVPNASCertificateDeploy(ctx context.Context, domain, downloadURL string) error {
 	if domain == "" {
 		return fmt.Errorf("域名不能为空")
 	}
 
-	deployer := deploys.NewCertDeployer(be.downloadFile)
-	if err := deployer.DeployCertificateToOpenVPNAS(domain, downloadURL); err != nil {
+	deployer := be.newCertDeployer()
+	if err := deployer.DeployCertificateToOpenVPNAS(ctx, domain, downloadURL); err != nil {
 		logger.Error("OpenVPN-AS证书部署失败", "error", err, "domain", domain)
 		return err
 	}
@@ -136,13 +141,13 @@ func (be *DeploymentExecutor) handleOpenVPNASCertificateDeploy(domain, downloadU
 }
 
 // handleUploadOnlyCertificateDeploy 仅将证书保存到本地目录
-func (be *DeploymentExecutor) handleUploadOnlyCertificateDeploy(domain, downloadURL string) error {
+func (be *DeploymentExecutor) handleUploadOnlyCertificateDeploy(ctx context.Context, domain, downloadURL string) error {
 	if domain == "" {
 		return fmt.Errorf("域名不能为空")
 	}
 
-	deployer := deploys.NewCertDeployer(be.downloadFile)
-	if err := deployer.DeployCertificateToUploadOnly(domain, downloadURL); err != nil {
+	deployer := be.newCertDeployer()
+	if err := deployer.DeployCertificateToUploadOnly(ctx, domain, downloadURL); err != nil {
 		logger.Error("UploadOnly证书保存失败", "error", err, "domain", domain)
 		return err
 	}
@@ -152,13 +157,13 @@ func (be *DeploymentExecutor) handleUploadOnlyCertificateDeploy(domain, download
 }
 
 // handleRustFSCertificateDeploy 处理证书部署到本地 RustFS
-func (be *DeploymentExecutor) handleRustFSCertificateDeploy(domain, downloadURL string) error {
+func (be *DeploymentExecutor) handleRustFSCertificateDeploy(ctx context.Context, domain, downloadURL string) error {
 	if domain == "" {
 		return fmt.Errorf("域名不能为空")
 	}
 
-	deployer := deploys.NewCertDeployer(be.downloadFile)
-	if err := deployer.DeployCertificateToRustFS(domain, downloadURL); err != nil {
+	deployer := be.newCertDeployer()
+	if err := deployer.DeployCertificateToRustFS(ctx, domain, downloadURL); err != nil {
 		logger.ErrorLocal("RustFS证书部署失败", "error", err, "domain", domain)
 		return err
 	}
@@ -168,13 +173,13 @@ func (be *DeploymentExecutor) handleRustFSCertificateDeploy(domain, downloadURL 
 }
 
 // handleFeiniuCertificateDeploy 处理证书部署到本地飞牛
-func (be *DeploymentExecutor) handleFeiniuCertificateDeploy(domain, downloadURL string) error {
+func (be *DeploymentExecutor) handleFeiniuCertificateDeploy(ctx context.Context, domain, downloadURL string) error {
 	if domain == "" {
 		return fmt.Errorf("域名不能为空")
 	}
 
-	deployer := deploys.NewCertDeployer(be.downloadFile)
-	if err := deployer.DeployCertificateToFeiNiu(domain, downloadURL); err != nil {
+	deployer := be.newCertDeployer()
+	if err := deployer.DeployCertificateToFeiNiu(ctx, domain, downloadURL); err != nil {
 		logger.ErrorLocal("飞牛证书部署失败", "error", err, "domain", domain)
 		return err
 	}
@@ -184,13 +189,13 @@ func (be *DeploymentExecutor) handleFeiniuCertificateDeploy(domain, downloadURL 
 }
 
 // handle1PanelCertificateDeploy 处理证书部署到 1Panel
-func (be *DeploymentExecutor) handle1PanelCertificateDeploy(domain, downloadURL string) error {
+func (be *DeploymentExecutor) handle1PanelCertificateDeploy(ctx context.Context, domain, downloadURL string) error {
 	if domain == "" {
 		return fmt.Errorf("域名不能为空")
 	}
 
-	deployer := deploys.NewCertDeployer(be.downloadFile)
-	if err := deployer.DeployCertificateTo1Panel(domain, downloadURL); err != nil {
+	deployer := be.newCertDeployer()
+	if err := deployer.DeployCertificateTo1Panel(ctx, domain, downloadURL); err != nil {
 		logger.ErrorLocal("1Panel证书部署失败", "error", err, "domain", domain)
 		return err
 	}
@@ -200,12 +205,12 @@ func (be *DeploymentExecutor) handle1PanelCertificateDeploy(domain, downloadURL 
 }
 
 // handleBTPanelCertificateStoreDeploy 处理证书上传到宝塔证书库。
-func (be *DeploymentExecutor) handleBTPanelCertificateStoreDeploy(domain, downloadURL string) error {
+func (be *DeploymentExecutor) handleBTPanelCertificateStoreDeploy(ctx context.Context, domain, downloadURL string) error {
 	if domain == "" {
 		return fmt.Errorf("域名不能为空")
 	}
-	deployer := deploys.NewCertDeployer(be.downloadFile)
-	if err := deployer.DeployCertificateToBTPanelCertificateStoreFromURL(domain, downloadURL); err != nil {
+	deployer := be.newCertDeployer()
+	if err := deployer.DeployCertificateToBTPanelCertificateStoreFromURL(ctx, domain, downloadURL); err != nil {
 		logger.ErrorLocal("宝塔证书库上传失败", "error", err, "domain", domain)
 		return err
 	}
@@ -214,13 +219,13 @@ func (be *DeploymentExecutor) handleBTPanelCertificateStoreDeploy(domain, downlo
 }
 
 // handleSafeLineCertificateDeploy 处理证书部署到雷池 WAF。
-func (be *DeploymentExecutor) handleSafeLineCertificateDeploy(domain, downloadURL string) error {
+func (be *DeploymentExecutor) handleSafeLineCertificateDeploy(ctx context.Context, domain, downloadURL string) error {
 	if domain == "" {
 		return fmt.Errorf("域名不能为空")
 	}
 
-	deployer := deploys.NewCertDeployer(be.downloadFile)
-	if err := deployer.DeployCertificateToSafeLine(domain, downloadURL); err != nil {
+	deployer := be.newCertDeployer()
+	if err := deployer.DeployCertificateToSafeLine(ctx, domain, downloadURL); err != nil {
 		logger.ErrorLocal("雷池证书部署失败", "error", err, "domain", domain)
 		return err
 	}
@@ -230,7 +235,7 @@ func (be *DeploymentExecutor) handleSafeLineCertificateDeploy(domain, downloadUR
 }
 
 // handleCertificateProvider 处理证书提供商的上传操作。
-func (be *DeploymentExecutor) handleCertificateProvider(provider deployPB.Provider, domain, remark, cert, key string) error {
+func (be *DeploymentExecutor) handleCertificateProvider(ctx context.Context, provider deployPB.Provider, domain, remark, cert, key string) error {
 	providerName, ok := config.DeploymentProviderName(provider)
 	if !ok {
 		return fmt.Errorf("不支持的部署平台: %s", provider.String())
@@ -242,7 +247,7 @@ func (be *DeploymentExecutor) handleCertificateProvider(provider deployPB.Provid
 	}
 
 	// 上传证书
-	if err := providerHandler.UploadCertificate(remark, domain, cert, key); err != nil {
+	if err := providerHandler.UploadCertificate(ctx, providers.CertificateMaterial{Name: remark, Domain: domain, CertificatePEM: cert, PrivateKeyPEM: key}); err != nil {
 		logger.ErrorLocal("上传证书失败", "provider", providerName, "error", err)
 		return err
 	}
@@ -251,87 +256,15 @@ func (be *DeploymentExecutor) handleCertificateProvider(provider deployPB.Provid
 	return nil
 }
 
-// getCloudTencentProvider 获取腾讯云 provider
-func (be *DeploymentExecutor) getCloudTencentProvider() (*cloud_tencent.Provider, error) {
-	providerConfig := config.GetProvider("cloudTencent")
-	if providerConfig == nil {
-		return nil, fmt.Errorf("未配置【腾讯云】提供商配置")
-	}
-
-	secretID := providerConfig.GetSecretId()
-	secretKey := providerConfig.GetSecretKey()
-	if secretID == "" || secretKey == "" {
-		return nil, fmt.Errorf("腾讯云配置不完整: secretId 或 secretKey 为空")
-	}
-
-	return cloud_tencent.New(secretID, secretKey), nil
-}
-
 // getProviderHandler 根据 v2 provider 获取对应的证书上传 handler。
 func (be *DeploymentExecutor) getProviderHandler(provider deployPB.Provider) (providers.ProviderHandler, error) {
-	providerName, ok := config.DeploymentProviderName(provider)
+	handler, err := newConfiguredProvider(be.runtime, provider)
+	if err != nil {
+		return nil, err
+	}
+	uploader, ok := handler.(providers.ProviderHandler)
 	if !ok {
-		return nil, fmt.Errorf("不支持的部署平台: %s", provider.String())
+		return nil, fmt.Errorf("provider %s 不支持证书上传", provider.String())
 	}
-	providerConfig := config.GetProvider(providerName)
-	if providerConfig == nil {
-		return nil, fmt.Errorf("提供商配置不存在: %s", providerName)
-	}
-
-	switch provider {
-	case deployPB.Provider_PROVIDER_ALIYUN:
-		accessKeyID := providerConfig.GetAccessKeyId()
-		accessKeySecret := providerConfig.GetAccessKeySecret()
-		if accessKeyID == "" || accessKeySecret == "" {
-			return nil, fmt.Errorf("阿里云配置不完整: accessKeyId 或 accessKeySecret 为空")
-		}
-		return aliyun.New(accessKeyID, accessKeySecret)
-	case deployPB.Provider_PROVIDER_QINIU:
-		accessKey := providerConfig.GetAccessKey()
-		accessSecret := providerConfig.GetAccessSecret()
-		if accessKey == "" || accessSecret == "" {
-			return nil, fmt.Errorf("七牛云配置不完整: accessKey 或 accessSecret 为空")
-		}
-		return qiniu.New(accessKey, accessSecret), nil
-	case deployPB.Provider_PROVIDER_TENCENT_CLOUD:
-		return be.getCloudTencentProvider()
-	case deployPB.Provider_PROVIDER_DOGE_CLOUD:
-		accessKey := providerConfig.GetAccessKey()
-		accessSecret := providerConfig.GetAccessSecret()
-		if accessKey == "" || accessSecret == "" {
-			return nil, fmt.Errorf("多吉云配置不完整: accessKey 或 accessSecret 为空")
-		}
-		return dogecloud.New(accessKey, accessSecret), nil
-	case deployPB.Provider_PROVIDER_BAIDU_CLOUD:
-		accessKeyID := providerConfig.GetAccessKeyId()
-		accessKeySecret := providerConfig.GetAccessKeySecret()
-		if accessKeyID == "" || accessKeySecret == "" {
-			return nil, fmt.Errorf("百度云配置不完整: accessKeyId 或 accessKeySecret 为空")
-		}
-		return baidu.New(accessKeyID, accessKeySecret)
-	case deployPB.Provider_PROVIDER_JD_CLOUD:
-		accessKeyID := providerConfig.GetAccessKeyId()
-		accessKeySecret := providerConfig.GetAccessKeySecret()
-		if accessKeyID == "" || accessKeySecret == "" {
-			return nil, fmt.Errorf("京东云配置不完整: accessKeyId 或 accessKeySecret 为空")
-		}
-		return jdcloud.New(accessKeyID, accessKeySecret), nil
-	case deployPB.Provider_PROVIDER_VOLCENGINE:
-		accessKeyID := providerConfig.GetAccessKeyId()
-		accessKeySecret := providerConfig.GetAccessKeySecret()
-		if accessKeyID == "" || accessKeySecret == "" {
-			return nil, fmt.Errorf("火山引擎配置不完整: accessKeyId 或 accessKeySecret 为空")
-		}
-		return volcengine.NewConfigured(accessKeyID, accessKeySecret, providerConfig.Region, providerConfig.CertificateRegion, providerConfig.Regions)
-	case deployPB.Provider_PROVIDER_HUAWEI_CLOUD:
-		accessKeyID := providerConfig.GetAccessKeyId()
-		accessKeySecret := providerConfig.GetAccessKeySecret()
-		if accessKeyID == "" || accessKeySecret == "" {
-			return nil, fmt.Errorf("华为云配置不完整: accessKeyId 或 accessKeySecret 为空")
-		}
-		return huawei.New(accessKeyID, accessKeySecret, providerConfig.Region, providerConfig.CertificateRegion, providerConfig.Regions)
-
-	default:
-		return nil, fmt.Errorf("不支持的部署平台: %s", provider.String())
-	}
+	return uploader, nil
 }

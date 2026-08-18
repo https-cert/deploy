@@ -16,11 +16,8 @@ import (
 )
 
 var (
-	Config           *Configuration
-	URL              = URLProd
-	URLProd          = "https://anssl.cn/deploy"
-	URLLocal         = "http://localhost:9000/deploy"
-	loadedConfigFile string
+	URLProd  = "https://anssl.cn/deploy"
+	URLLocal = "http://localhost:9000/deploy"
 )
 
 const (
@@ -38,6 +35,18 @@ type Configuration struct {
 	Update   *UpdateConfig `yaml:"update"`   // Update 自更新配置
 	Log      *LogConfig    `yaml:"log"`      // Log 日志轮转配置
 	Provider []*Provider   `yaml:"provider"` // Provider 云服务提供商配置
+}
+
+// Runtime 是一次不可变配置加载的运行时快照。
+type Runtime struct {
+	// Config 是经过默认值归一化和校验的配置快照。
+	Config *Configuration
+	// ServerURL 是当前环境对应的 deploy WebSocket 服务地址。
+	ServerURL string
+	// ConfigFile 是配置文件的绝对路径。
+	ConfigFile string
+	// KnownHostsFile 是与配置文件同目录的 SSH known_hosts 路径。
+	KnownHostsFile string
 }
 
 type (
@@ -143,115 +152,118 @@ type (
 	}
 )
 
-// Init 初始化配置
-func Init(configFile string) error {
-	viper.Reset()
-	URL = URLProd
-	loadedConfigFile = configFile
-	if absoluteConfigFile, err := filepath.Abs(configFile); err == nil {
-		loadedConfigFile = absoluteConfigFile
+// Load 使用独立的 viper 实例读取并校验配置，返回可传递的运行时快照。
+func Load(configFile string) (*Runtime, error) {
+	absoluteConfigFile, err := filepath.Abs(configFile)
+	if err != nil {
+		return nil, fmt.Errorf("解析配置文件路径失败: %w", err)
+	}
+	reader := viper.New()
+	reader.SetConfigFile(configFile)
+	reader.SetConfigType("yaml")
+	if err := reader.ReadInConfig(); err != nil {
+		return nil, err
+	}
+	if err := validateRemovedDeploymentResourceFields(reader.AllSettings()["provider"]); err != nil {
+		return nil, err
+	}
+	configuration := &Configuration{}
+	if err := reader.Unmarshal(configuration); err != nil {
+		return nil, err
 	}
 
-	viper.SetConfigFile(configFile)
-	viper.SetConfigType("yaml")
-
-	if err := viper.ReadInConfig(); err != nil {
-		return err
+	if err := validateConfig(configuration); err != nil {
+		return nil, err
 	}
-	if err := validateRemovedDeploymentResourceFields(viper.AllSettings()["provider"]); err != nil {
-		return err
+	resolvedURL := URLProd
+	if configuration.Server.Env == envLocal {
+		resolvedURL = URLLocal
 	}
-
-	// 将配置绑定到结构体
-	Config = &Configuration{}
-	if err := viper.Unmarshal(Config); err != nil {
-		return err
-	}
-
-	if err := validateConfig(); err != nil {
-		return err
-	}
-
-	return nil
+	return &Runtime{
+		Config:         configuration,
+		ServerURL:      resolvedURL,
+		ConfigFile:     absoluteConfigFile,
+		KnownHostsFile: filepath.Join(filepath.Dir(absoluteConfigFile), "known_hosts"),
+	}, nil
 }
 
 // validateConfig 验证配置
-func validateConfig() error {
+func validateConfig(configuration *Configuration) error {
+	if configuration == nil {
+		return errors.New("配置不能为空")
+	}
 	// 检查 Server 配置是否存在
-	if Config.Server == nil {
+	if configuration.Server == nil {
 		return errors.New("server 配置不能为空")
 	}
 
-	if Config.Server.AccessKey == "" {
+	if configuration.Server.AccessKey == "" {
 		return errors.New("accessKey不能为空")
 	}
 
 	// 设置 HTTP-01 challenge 服务端口默认值
-	if Config.Server.Port == 0 {
-		Config.Server.Port = defaultHTTPChallengePort
+	if configuration.Server.Port == 0 {
+		configuration.Server.Port = defaultHTTPChallengePort
 	}
-	if Config.Server.Port < minPort || Config.Server.Port > maxPort {
+	if configuration.Server.Port < minPort || configuration.Server.Port > maxPort {
 		return fmt.Errorf("server.port 必须在 %d-%d 之间", minPort, maxPort)
 	}
 
 	// 处理 SSL 配置
-	if Config.SSL == nil {
-		Config.SSL = &DeployConfig{}
+	if configuration.SSL == nil {
+		configuration.SSL = &DeployConfig{}
 	}
-	if err := validateRustFSConfig(); err != nil {
+	if err := validateRustFSConfig(configuration.SSL); err != nil {
 		return err
 	}
-	if err := validateFeiNiuConfig(); err != nil {
+	if err := validateFeiNiuConfig(configuration.SSL); err != nil {
 		return err
 	}
-	if err := validateBTPanelConfig(); err != nil {
+	if err := validateBTPanelConfig(configuration.SSL); err != nil {
 		return err
 	}
-	if err := validateSafeLineConfig(); err != nil {
+	if err := validateSafeLineConfig(configuration.SSL); err != nil {
 		return err
 	}
 
-	if Config.Server.Env != "" && Config.Server.Env != envLocal {
-		return fmt.Errorf("不支持的服务环境: %s (支持: 空值, local)", Config.Server.Env)
-	}
-	if Config.Server.Env == envLocal {
-		URL = URLLocal
+	if configuration.Server.Env != "" && configuration.Server.Env != envLocal {
+		return fmt.Errorf("不支持的服务环境: %s (支持: 空值, local)", configuration.Server.Env)
 	}
 
 	// 验证更新配置
-	if Config.Update == nil {
-		Config.Update = &UpdateConfig{}
+	if configuration.Update == nil {
+		configuration.Update = &UpdateConfig{}
 	}
-	if Config.Update.Mirror != "" {
+	if configuration.Update.Mirror != "" {
 		validMirrors := []string{"github", "ghproxy", "custom"}
-		isValid := slices.Contains(validMirrors, Config.Update.Mirror)
+		isValid := slices.Contains(validMirrors, configuration.Update.Mirror)
 		if !isValid {
-			return fmt.Errorf("不支持的镜像源类型: %s (支持: github, ghproxy, custom)", Config.Update.Mirror)
+			return fmt.Errorf("不支持的镜像源类型: %s (支持: github, ghproxy, custom)", configuration.Update.Mirror)
 		}
 
 		// 如果使用自定义镜像，检查 customUrl 是否设置
-		if Config.Update.Mirror == "custom" && Config.Update.CustomURL == "" {
+		if configuration.Update.Mirror == "custom" && configuration.Update.CustomURL == "" {
 			return errors.New("使用 custom 镜像源时，customUrl 不能为空")
 		}
-		if Config.Update.Mirror == "custom" {
-			if err := validateUpdateURL("update.customUrl", Config.Update.CustomURL, false); err != nil {
+		if configuration.Update.Mirror == "custom" {
+			if err := validateUpdateURL("update.customUrl", configuration.Update.CustomURL, false, configuration.Server.Env); err != nil {
 				return err
 			}
 		}
 	} else {
-		Config.Update.Mirror = defaultUpdateMirror
+		configuration.Update.Mirror = defaultUpdateMirror
 	}
-	if Config.Update.Proxy != "" {
-		if err := validateProxyURL(Config.Update.Proxy); err != nil {
+	if configuration.Update.Proxy != "" {
+		if err := validateProxyURL(configuration.Update.Proxy); err != nil {
 			return err
 		}
 	}
 
-	if err := validateProviders(); err != nil {
+	if err := validateProviders(configuration); err != nil {
 		return err
 	}
-	applyLogDefaults()
-	if err := validateLogConfig(); err != nil {
+	applyLogDefaults(configuration)
+	if err := validateLogConfig(configuration); err != nil {
 		return err
 	}
 
@@ -259,20 +271,20 @@ func validateConfig() error {
 }
 
 // validateFeiNiuConfig 验证可选的飞牛 OS SSH 远程部署配置。
-func validateFeiNiuConfig() error {
-	if Config.SSL.FeiNiu == nil {
+func validateFeiNiuConfig(sslConfig *DeployConfig) error {
+	if sslConfig.FeiNiu == nil {
 		return nil
 	}
-	return validateSSHConfig("ssl.feiNiu", Config.SSL.FeiNiu)
+	return validateSSHConfig("ssl.feiNiu", sslConfig.FeiNiu)
 }
 
 // validateBTPanelConfig 验证可选的宝塔面板地址和 API 密钥，并规范化管理端地址。
-func validateBTPanelConfig() error {
-	if Config.SSL.BTPanel == nil {
+func validateBTPanelConfig(sslConfig *DeployConfig) error {
+	if sslConfig.BTPanel == nil {
 		return nil
 	}
 
-	btPanel := Config.SSL.BTPanel
+	btPanel := sslConfig.BTPanel
 	btPanel.URL = strings.TrimRight(strings.TrimSpace(btPanel.URL), "/")
 	btPanel.APIKey = strings.TrimSpace(btPanel.APIKey)
 	if btPanel.URL == "" && btPanel.APIKey == "" {
@@ -305,12 +317,12 @@ func validateBTPanelConfig() error {
 }
 
 // validateSafeLineConfig 验证可选的雷池地址和 API Token，并规范化管理端地址。
-func validateSafeLineConfig() error {
-	if Config.SSL.SafeLine == nil {
+func validateSafeLineConfig(sslConfig *DeployConfig) error {
+	if sslConfig.SafeLine == nil {
 		return nil
 	}
 
-	safeLine := Config.SSL.SafeLine
+	safeLine := sslConfig.SafeLine
 	safeLine.URL = strings.TrimRight(strings.TrimSpace(safeLine.URL), "/")
 	safeLine.APIToken = strings.TrimSpace(safeLine.APIToken)
 	if safeLine.URL == "" && safeLine.APIToken == "" {
@@ -343,18 +355,18 @@ func validateSafeLineConfig() error {
 }
 
 // validateRustFSConfig 归一化 RustFS 新旧配置并验证本机或 SSH 远程模式。
-func validateRustFSConfig() error {
-	legacyPath := strings.TrimSpace(Config.SSL.RustFSPath)
-	if Config.SSL.RustFS == nil {
+func validateRustFSConfig(sslConfig *DeployConfig) error {
+	legacyPath := strings.TrimSpace(sslConfig.RustFSPath)
+	if sslConfig.RustFS == nil {
 		if legacyPath == "" {
 			return nil
 		}
-		Config.SSL.RustFS = &RustFSConfig{Path: legacyPath}
-		Config.SSL.RustFSPath = ""
-		return validateRustFSPath(Config.SSL.RustFS.Path)
+		sslConfig.RustFS = &RustFSConfig{Path: legacyPath}
+		sslConfig.RustFSPath = ""
+		return validateRustFSPath(sslConfig.RustFS.Path)
 	}
 
-	rustFS := Config.SSL.RustFS
+	rustFS := sslConfig.RustFS
 	rustFS.Path = strings.TrimSpace(rustFS.Path)
 	if legacyPath != "" && rustFS.Path != "" && legacyPath != rustFS.Path {
 		return errors.New("ssl.rustFS.path 与旧版 ssl.rustFSPath 不能同时配置为不同目录")
@@ -362,7 +374,7 @@ func validateRustFSConfig() error {
 	if rustFS.Path == "" {
 		rustFS.Path = legacyPath
 	}
-	Config.SSL.RustFSPath = ""
+	sslConfig.RustFSPath = ""
 	if rustFS.Path == "" {
 		return errors.New("ssl.rustFS.path 不能为空")
 	}
@@ -455,7 +467,7 @@ func containsSpaceOrControl(value string) bool {
 }
 
 // validateUpdateURL validates an update mirror URL and permits local HTTP only in local mode.
-func validateUpdateURL(name, rawURL string, allowPath bool) error {
+func validateUpdateURL(name, rawURL string, allowPath bool, environment string) error {
 	parsed, err := url.Parse(strings.TrimSpace(rawURL))
 	if err != nil || parsed.Hostname() == "" || parsed.User != nil {
 		return fmt.Errorf("%s 必须是包含主机名且不含用户凭据的合法 URL", name)
@@ -466,7 +478,7 @@ func validateUpdateURL(name, rawURL string, allowPath bool) error {
 	if parsed.Scheme == "https" {
 		return nil
 	}
-	if parsed.Scheme == "http" && Config.Server.Env == envLocal && isLoopbackHostname(parsed.Hostname()) {
+	if parsed.Scheme == "http" && environment == envLocal && isLoopbackHostname(parsed.Hostname()) {
 		return nil
 	}
 	return fmt.Errorf("%s 只允许 HTTPS，本地环境可使用回环 HTTP", name)
@@ -496,52 +508,52 @@ func isLoopbackHostname(host string) bool {
 }
 
 // applyLogDefaults 设置日志轮转默认值。
-func applyLogDefaults() {
-	if Config.Log == nil {
-		Config.Log = &LogConfig{}
+func applyLogDefaults(configuration *Configuration) {
+	if configuration.Log == nil {
+		configuration.Log = &LogConfig{}
 	}
-	if Config.Log.MaxSizeMB == 0 {
-		Config.Log.MaxSizeMB = 20
+	if configuration.Log.MaxSizeMB == 0 {
+		configuration.Log.MaxSizeMB = 20
 	}
-	if Config.Log.MaxBackups == 0 {
-		Config.Log.MaxBackups = 5
+	if configuration.Log.MaxBackups == 0 {
+		configuration.Log.MaxBackups = 5
 	}
-	if Config.Log.MaxAgeDays == 0 {
-		Config.Log.MaxAgeDays = 30
+	if configuration.Log.MaxAgeDays == 0 {
+		configuration.Log.MaxAgeDays = 30
 	}
 }
 
 // validateLogConfig 验证日志轮转配置。
-func validateLogConfig() error {
-	if Config.Log.MaxSizeMB < 0 {
+func validateLogConfig(configuration *Configuration) error {
+	if configuration.Log.MaxSizeMB < 0 {
 		return errors.New("log.maxSizeMB 不能小于 0")
 	}
-	if Config.Log.MaxBackups < 0 {
+	if configuration.Log.MaxBackups < 0 {
 		return errors.New("log.maxBackups 不能小于 0")
 	}
-	if Config.Log.MaxAgeDays < 0 {
+	if configuration.Log.MaxAgeDays < 0 {
 		return errors.New("log.maxAgeDays 不能小于 0")
 	}
 	return nil
 }
 
-// PrepareRuntimeDirs 创建启动和部署需要的本地目录
-func PrepareRuntimeDirs() error {
-	if Config == nil {
+// PrepareRuntimeDirsForRuntime 创建指定运行时需要的本地目录。
+func PrepareRuntimeDirsForRuntime(runtime *Runtime) error {
+	if runtime == nil || runtime.Config == nil {
 		return errors.New("配置未初始化")
 	}
-	if Config.SSL == nil {
+	if runtime.Config.SSL == nil {
 		return nil
 	}
 
-	if err := prepareDir("Nginx", Config.SSL.NginxPath); err != nil {
+	if err := prepareDir("Nginx", runtime.Config.SSL.NginxPath); err != nil {
 		return err
 	}
-	if err := prepareDir("Apache", Config.SSL.ApachePath); err != nil {
+	if err := prepareDir("Apache", runtime.Config.SSL.ApachePath); err != nil {
 		return err
 	}
-	if Config.SSL.RustFS != nil && !IsSSHConfigured(&Config.SSL.RustFS.SSHConfig) {
-		if err := prepareDir("RustFS", Config.SSL.RustFS.Path); err != nil {
+	if runtime.Config.SSL.RustFS != nil && !IsSSHConfigured(&runtime.Config.SSL.RustFS.SSHConfig) {
+		if err := prepareDir("RustFS", runtime.Config.SSL.RustFS.Path); err != nil {
 			return err
 		}
 	}
@@ -561,9 +573,9 @@ func prepareDir(name, path string) error {
 }
 
 // validateProviders 验证 provider 列表中不包含空名称或重复名称
-func validateProviders() error {
-	providerNames := make(map[string]struct{}, len(Config.Provider))
-	for _, provider := range Config.Provider {
+func validateProviders(configuration *Configuration) error {
+	providerNames := make(map[string]struct{}, len(configuration.Provider))
+	for _, provider := range configuration.Provider {
 		if provider == nil {
 			return errors.New("provider 配置不能为空")
 		}
@@ -579,31 +591,8 @@ func validateProviders() error {
 		providerNames[name] = struct{}{}
 
 		provider.Name = name
-		if err := validateProviderCredentials(provider); err != nil {
+		if err := validateProviderCredentials(provider, configuration.Server.Env); err != nil {
 			return err
-		}
-	}
-	return nil
-}
-
-// GetConfig 获取配置
-func GetConfig() *Configuration {
-	return Config
-}
-
-// GetSSHKnownHostsFile 返回与当前配置文件同目录的 SSH 主机密钥记录文件。
-func GetSSHKnownHostsFile() string {
-	if loadedConfigFile == "" {
-		return "known_hosts"
-	}
-	return filepath.Join(filepath.Dir(loadedConfigFile), "known_hosts")
-}
-
-// GetProvider 获取提供商配置
-func GetProvider(name string) *Provider {
-	for _, p := range Config.Provider {
-		if p.Name == name {
-			return p
 		}
 	}
 	return nil

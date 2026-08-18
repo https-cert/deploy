@@ -43,11 +43,24 @@ func waitForContext(ctx context.Context, delay time.Duration) bool {
 
 // DownloadFile 公共的文件下载函数，可被所有客户端复用
 func DownloadFile(ctx context.Context, httpClient *http.Client, accessKey, downloadURL, filePath string) error {
+	return downloadFileWithRuntime(ctx, nil, httpClient, accessKey, downloadURL, filePath)
+}
+
+// DownloadFileWithRuntime 下载证书归档并按运行时环境校验 URL。
+func DownloadFileWithRuntime(ctx context.Context, runtime *config.Runtime, httpClient *http.Client, accessKey, downloadURL, filePath string) error {
+	return downloadFileWithRuntime(ctx, runtime, httpClient, accessKey, downloadURL, filePath)
+}
+
+// downloadFileWithRuntime 是下载实现，避免 operation 使用包级配置。
+func downloadFileWithRuntime(ctx context.Context, runtime *config.Runtime, httpClient *http.Client, accessKey, downloadURL, filePath string) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	u, err := url.Parse(downloadURL)
 	if err != nil {
 		return fmt.Errorf("解析下载 URL 失败: %w", err)
 	}
-	if err := validateDownloadURL(u); err != nil {
+	if err := validateDownloadURLForRuntime(u, runtime); err != nil {
 		return err
 	}
 
@@ -74,6 +87,10 @@ func DownloadFile(ctx context.Context, httpClient *http.Client, accessKey, downl
 		if !sameDownloadOrigin(req.URL, nextReq.URL) {
 			return fmt.Errorf("拒绝跨主机下载重定向")
 		}
+		// 服务端可能返回不带查询参数的 Location；同源跳转仍需保留下载鉴权。
+		nextQuery := nextReq.URL.Query()
+		nextQuery.Set("accessKey", accessKey)
+		nextReq.URL.RawQuery = nextQuery.Encode()
 		if originalRedirect != nil {
 			return originalRedirect(nextReq, via)
 		}
@@ -149,6 +166,11 @@ func DownloadFile(ctx context.Context, httpClient *http.Client, accessKey, downl
 
 // validateDownloadURL enforces the supported download schemes and local HTTP policy.
 func validateDownloadURL(u *url.URL) error {
+	return validateDownloadURLForRuntime(u, nil)
+}
+
+// validateDownloadURLForRuntime 按显式运行时判断是否允许本地 HTTP 下载。
+func validateDownloadURLForRuntime(u *url.URL, runtime *config.Runtime) error {
 	if u == nil || u.Hostname() == "" || u.User != nil {
 		return fmt.Errorf("下载 URL 必须包含合法主机且不能包含用户凭据")
 	}
@@ -156,7 +178,10 @@ func validateDownloadURL(u *url.URL) error {
 	case "https":
 		return nil
 	case "http":
-		cfg := config.GetConfig()
+		var cfg *config.Configuration
+		if runtime != nil {
+			cfg = runtime.Config
+		}
 		if cfg != nil && cfg.Server != nil && cfg.Server.Env == "local" && isLoopbackHost(u.Hostname()) {
 			return nil
 		}

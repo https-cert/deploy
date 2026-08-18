@@ -6,6 +6,7 @@
 package aliyun
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -116,7 +117,10 @@ func (p *Provider) callRPCWithMethod(client *openapi.Client, action, version, me
 }
 
 // TestConnection 测试连接
-func (p *Provider) TestConnection() (bool, error) {
+func (p *Provider) TestConnection(ctx context.Context) (bool, error) {
+	if err := contextError(ctx); err != nil {
+		return false, err
+	}
 	_, err := p.callRPC(p.casClient, "ListCsr", "2020-04-07", nil)
 	if err != nil {
 		return false, err
@@ -125,19 +129,42 @@ func (p *Provider) TestConnection() (bool, error) {
 }
 
 // UploadCertificate 上传证书
-func (p *Provider) UploadCertificate(name, domain, cert, key string) error {
-	_ = domain
-	return p.uploadCASCertificate(name, cert, key)
+func (p *Provider) UploadCertificate(ctx context.Context, certificate providers.CertificateMaterial) error {
+	if err := contextError(ctx); err != nil {
+		return err
+	}
+	return p.uploadCASCertificate(ctx, certificate.Name, certificate.CertificatePEM, certificate.PrivateKeyPEM)
 }
 
 // uploadCASCertificate 通过 CAS 接口上传证书
-func (p *Provider) uploadCASCertificate(name, cert, key string) error {
+
+// contextError 将 nil 或已取消的调用方上下文转换为可识别的错误。
+func contextError(ctx context.Context) error {
+	if ctx == nil {
+		return nil
+	}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+		return nil
+	}
+}
+
+// uploadCASCertificate 通过 CAS 接口上传证书。
+func (p *Provider) uploadCASCertificate(ctx context.Context, name, cert, key string) error {
+	if err := contextError(ctx); err != nil {
+		return err
+	}
 	_, err := p.callRPC(p.casClient, "UploadUserCertificate", "2020-04-07", map[string]*string{
 		"Name": new(name),
 		"Cert": new(cert),
 		"Key":  new(key),
 	})
 	if err != nil {
+		return err
+	}
+	if err := contextError(ctx); err != nil {
 		return err
 	}
 	return nil

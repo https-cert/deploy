@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -69,17 +70,18 @@ func CreateDoctorCmd() *cobra.Command {
 func runDoctor(options *doctorOptions) error {
 	results := make([]doctorResult, 0, 16)
 
-	if err := config.Init(ConfigFile); err != nil {
+	runtime, err := config.Load(ConfigFile)
+	if err != nil {
 		results = append(results, failDoctor("配置文件", fmt.Sprintf("初始化配置失败: %v", err)))
 		writeDoctorResults(doctorFailureWriter(options), options, results)
 		return err
 	}
 
-	cfg := config.GetConfig()
+	cfg := runtime.Config
 	results = append(results, okDoctor("配置文件", fmt.Sprintf("已加载 %s", ConfigFile)))
 	results = append(results, checkAccessKey(cfg.Server.AccessKey))
 	results = append(results, checkHTTPPort(cfg.Server.Port))
-	results = append(results, checkDeployServerURL(config.URL))
+	results = append(results, checkDeployServerURL(runtime.ServerURL))
 	results = append(results, checkDeployDir("Nginx 证书目录", cfg.SSL.NginxPath))
 	results = append(results, checkDeployDir("Apache 证书目录", cfg.SSL.ApachePath))
 	results = append(results, checkRustFSTarget(cfg.SSL.RustFS))
@@ -88,7 +90,7 @@ func runDoctor(options *doctorOptions) error {
 	results = append(results, checkProviderConfigs(cfg)...)
 
 	if options.provider != "" {
-		results = append(results, checkProviderConnection(options.provider))
+		results = append(results, checkProviderConnection(context.Background(), runtime, options.provider))
 	}
 
 	if hasDoctorFailure(results) {
@@ -312,8 +314,8 @@ func checkProviderFields(name string, fields map[string]string) doctorResult {
 }
 
 // checkProviderConnection 执行指定 provider 的真实连接测试。
-func checkProviderConnection(provider string) doctorResult {
-	success, err := client.TestProviderConnection(provider)
+func checkProviderConnection(ctx context.Context, runtime *config.Runtime, provider string) doctorResult {
+	success, err := client.TestProviderConnection(ctx, runtime, provider)
 	if err != nil {
 		return failDoctor("Provider 连接测试", err.Error())
 	}

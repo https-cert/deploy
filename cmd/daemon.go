@@ -23,6 +23,10 @@ func CreateDaemonCmd() *cobra.Command {
 		Short: "启动守护进程（后台运行）",
 		Long:  "在后台启动证书部署守护进程，进程崩溃或更新后将自动重启",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			runtime, err := config.Load(ConfigFile)
+			if err != nil {
+				return fmt.Errorf("初始化配置失败: %w", err)
+			}
 			releaseLock, err := acquireDaemonStartLock()
 			if err != nil {
 				return err
@@ -62,7 +66,8 @@ func CreateDaemonCmd() *cobra.Command {
 				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 				defer cancel()
 
-				info, err := updater.CheckUpdate(ctx)
+				service := updater.NewService(runtime, nil)
+				info, err := service.CheckUpdate(ctx)
 				if err == nil && info.HasUpdate {
 					fmt.Printf("\n发现新版本: %s -> %s\n", info.CurrentVersion, info.LatestVersion)
 					fmt.Println("执行 'anssl update' 进行更新")
@@ -89,7 +94,8 @@ func createSupervisorCmd() *cobra.Command {
 
 // runSupervisor 运行守护进程监控器
 func runSupervisor() {
-	if err := config.Init(ConfigFile); err != nil {
+	runtime, err := config.Load(ConfigFile)
+	if err != nil {
 		fmt.Printf("初始化配置失败: %v\n", err)
 		return
 	}
@@ -100,7 +106,7 @@ func runSupervisor() {
 		return
 	}
 
-	logWriter, err := newRotatingLogWriter(GetLogFile(), logRotationOptionsFromConfig())
+	logWriter, err := newRotatingLogWriter(GetLogFile(), logRotationOptionsFromRuntime(runtime))
 	if err != nil {
 		fmt.Printf("打开日志文件失败: %v\n", err)
 		return
