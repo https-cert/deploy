@@ -43,8 +43,9 @@ func TestWSClientConstructionAndLifecycle(t *testing.T) {
 	}
 
 	var systemInfoCalls atomic.Int32
-	//lint:ignore SA1012 此处刻意传入 nil 以覆盖构造器的兼容防御分支。
-	client, err := newWSClientWithDependencies(nil, runtime, wsClientDependencies{
+	// nilContext 刻意使用 context.Context 零值，以覆盖构造器的兼容防御分支。
+	var nilContext context.Context
+	client, err := newWSClientWithDependencies(nilContext, runtime, wsClientDependencies{
 		uniqueClientID: func(context.Context) (string, error) { return "client-id", nil },
 		loadSystemInfo: func() (*system.SystemInfo, error) {
 			systemInfoCalls.Add(1)

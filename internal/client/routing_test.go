@@ -458,8 +458,9 @@ func TestDeploymentMessageHelpersAndChallenge(t *testing.T) {
 	if providerRequestID(deploymentErr) != "request-provider" || providerRequestID(errors.New("other")) != "" {
 		t.Fatal("provider 请求 ID 提取不匹配")
 	}
-	//lint:ignore SA1012 此处刻意传入 nil 以覆盖兼容防御分支。
-	if deploymentContext(nil) == nil {
+	// nilContext 刻意使用 context.Context 零值，以覆盖兼容防御分支。
+	var nilContext context.Context
+	if deploymentContext(nilContext) == nil {
 		t.Fatal("nil context 应得到可用 context")
 	}
 

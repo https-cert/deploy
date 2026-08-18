@@ -17,6 +17,9 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
+// wsCloseWaitTimeout 限制 Close 等待连接循环退出的最长时间。
+const wsCloseWaitTimeout = 5 * time.Second
+
 // isTemporaryError 判断错误是否为临时网络错误
 func isTemporaryError(err error) bool {
 	if err == nil {
@@ -201,9 +204,11 @@ func (c *WSClient) Close() error {
 		c.connMu.Unlock()
 	})
 	if c.started.Load() {
-		if err := c.Wait(context.Background()); err != nil && closeErr == nil {
+		waitCtx, waitCancel := context.WithTimeout(context.Background(), wsCloseWaitTimeout)
+		if err := c.Wait(waitCtx); err != nil {
 			closeErr = err
 		}
+		waitCancel()
 	}
 	c.operationWG.Wait()
 	return closeErr
