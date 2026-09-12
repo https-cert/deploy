@@ -88,8 +88,8 @@ func TestWSClientConstructionAndLifecycle(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("异步业务未执行")
 	}
-	client.operationSem = make(chan struct{}, 1)
-	client.operationSem <- struct{}{}
+	client.ops.sem = make(chan struct{}, 1)
+	client.ops.sem <- struct{}{}
 	busy := make(chan struct{})
 	client.runOperation("busy", func() { close(busy) }, func() { t.Error("并发满载时不应执行业务") })
 	select {
@@ -97,7 +97,7 @@ func TestWSClientConstructionAndLifecycle(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("并发满载回调未执行")
 	}
-	<-client.operationSem
+	<-client.ops.sem
 
 	downloadClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		if request.URL.Query().Get("accessKey") != "access-key" {
@@ -259,8 +259,7 @@ func TestDeploymentMessageRouting(t *testing.T) {
 		clientId:           "client-id",
 		conn:               clientConnection,
 		deploymentHandlers: registry,
-		operationSem:       make(chan struct{}, maxConcurrentOps),
-		operationLocks:     make(map[string]*resourceOperationLock),
+		ops:                newOperationRunner(maxConcurrentOps),
 		protojsonMarshaler: protojson.MarshalOptions{},
 	}
 	selector := &deployPB.DeploymentSelector{Provider: key.Provider, DeploymentType: key.DeploymentType, TargetRef: "target"}
@@ -322,13 +321,13 @@ func TestDeploymentMessageRouting(t *testing.T) {
 		t.Fatal("nil client 不应找到 handler")
 	}
 
-	client.operationSem = make(chan struct{}, 1)
-	client.operationSem <- struct{}{}
+	client.ops.sem = make(chan struct{}, 1)
+	client.ops.sem <- struct{}{}
 	client.handleDeploymentResponse(&deployPB.DeploymentResponse{Data: &deployPB.DeploymentResponse_TestRequest{TestRequest: &deployPB.DeploymentTestRequest{RequestId: "busy", Selector: selector}}})
 	if response := readDeploymentRequest(t, serverConnection); !response.GetTestResponse().GetResult().GetRetryable() {
 		t.Fatalf("并发满载结果应可重试: %+v", response)
 	}
-	<-client.operationSem
+	<-client.ops.sem
 }
 
 // TestHandleWSMessages 验证无效消息、空信封、有效注册和正常关闭的读取循环。
@@ -345,8 +344,7 @@ func TestHandleWSMessages(t *testing.T) {
 		registrationLogged:   atomic.Bool{},
 		connected:            atomic.Bool{},
 		protojsonMarshaler:   protojson.MarshalOptions{},
-		operationSem:         make(chan struct{}, maxConcurrentOps),
-		operationLocks:       make(map[string]*resourceOperationLock),
+		ops:                  newOperationRunner(maxConcurrentOps),
 	}
 	client.reconnectPending.Store(true)
 	result := make(chan error, 1)

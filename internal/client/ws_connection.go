@@ -162,7 +162,7 @@ func (c *WSClient) startWebSocketLoop() {
 		}
 
 		if err := c.handleWSMessages(); err != nil {
-			busyOps := c.busyOperations.Load()
+			busyOps := c.operations().Busy()
 			if busyOps > 0 {
 				logger.Warn("WebSocket连接意外断开(有业务正在执行)", "error", err, "busyOps", busyOps)
 			} else {
@@ -210,7 +210,7 @@ func (c *WSClient) Close() error {
 		}
 		waitCancel()
 	}
-	c.operationWG.Wait()
+	c.operations().Wait()
 	return closeErr
 }
 
@@ -273,8 +273,7 @@ func newWSClientWithDependencies(ctx context.Context, runtime *config.Runtime, d
 		loadSystemInfo: dependencies.loadSystemInfo,
 		reconnectDelay: minReconnectDelay,
 		done:           make(chan struct{}),
-		operationSem:   make(chan struct{}, maxConcurrentOps),
-		operationLocks: make(map[string]*resourceOperationLock),
+		ops:            newOperationRunner(maxConcurrentOps),
 		protojsonMarshaler: protojson.MarshalOptions{
 			UseProtoNames:   false, // 使用 camelCase 而非 snake_case
 			EmitUnpopulated: false, // 不输出零值字段
@@ -295,6 +294,7 @@ func newWSClientWithDependencies(ctx context.Context, runtime *config.Runtime, d
 		cancel()
 		return nil, fmt.Errorf("初始化 deployment v2 handler registry 失败: %w", err)
 	}
+	client.deployService = newDeploymentService(client)
 
 	return client, nil
 }

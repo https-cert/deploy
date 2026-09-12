@@ -11,7 +11,6 @@ import (
 	"github.com/https-cert/deploy/internal/config"
 	"github.com/https-cert/deploy/internal/server"
 	"github.com/https-cert/deploy/internal/system"
-	"github.com/https-cert/deploy/pkg/logger"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
@@ -23,6 +22,7 @@ type httpChallengeServer interface {
 	RemoveChallenge(token string) error
 }
 
+// WSClient 组装连接、业务并发与 v2 部署服务，对外保持稳定生命周期 API。
 type WSClient struct {
 	runtime              *config.Runtime                    // runtime 是客户端使用的只读配置快照。
 	clientId             string                             // clientId 是本机客户端唯一标识。
@@ -39,24 +39,22 @@ type WSClient struct {
 	loadSystemInfo       func() (*system.SystemInfo, error) // loadSystemInfo 允许测试替换本机信息采集。
 	systemInfoOnce       sync.Once                          // systemInfoOnce 保证系统信息只采集一次。
 	httpServer           httpChallengeServer                // httpServer 提供 HTTP-01 challenge 能力。
-	busyOperations       atomic.Int32                       // busyOperations 记录正在执行的业务数量。
 	conn                 *websocket.Conn                    // conn 是当前 WebSocket 连接。
 	connMu               sync.Mutex                         // connMu 保护连接替换和关闭。
 	writeMu              sync.Mutex                         // writeMu 保证 WebSocket 只有一个并发写入者。
 	reconnectDelay       time.Duration                      // reconnectDelay 是当前重连退避时间。
 	deploymentExecutor   *DeploymentExecutor                // deploymentExecutor 执行部署和 provider 业务。
 	deploymentHandlers   *DeploymentHandlerRegistry         // deploymentHandlers 按 provider/type 路由 v2 业务。
+	ops                  *operationRunner                   // ops 管理并发槽、资源锁和 busy 计数。
+	opsMu                sync.Mutex                         // opsMu 保护 ops 惰性初始化。
+	deployService        *deploymentService                 // deployService 处理 v2 业务消息与回包。
+	serviceMu            sync.Mutex                         // serviceMu 保护 deployService 惰性初始化。
 	protojsonMarshaler   protojson.MarshalOptions           // protojsonMarshaler 序列化 WebSocket 消息。
 	protojsonUnmarshaler protojson.UnmarshalOptions         // protojsonUnmarshaler 反序列化 WebSocket 消息。
 	startOnce            sync.Once                          // startOnce 保证连接循环只启动一次。
 	closeOnce            sync.Once                          // closeOnce 保证 Close 幂等。
 	started              atomic.Bool                        // started 标记连接循环是否已经启动。
 	done                 chan struct{}                      // done 在连接循环完全退出时关闭。
-	operationSem         chan struct{}                      // operationSem 限制并发业务数量。
-	operationWG          sync.WaitGroup                     // operationWG 等待已经启动的业务在关闭前收敛。
-	operationOnce        sync.Once                          // operationOnce 惰性初始化并发限制器。
-	operationLocksMu     sync.Mutex                         // operationLocksMu 保护资源操作锁表。
-	operationLocks       map[string]*resourceOperationLock  // operationLocks 保存正在使用的资源串行锁。
 	systemInfoErr        error                              // systemInfoErr 缓存系统信息采集错误。
 }
 
@@ -74,16 +72,22 @@ type wsClientDependencies struct {
 	newHandlerRegistry func(*WSClient) (*DeploymentHandlerRegistry, error) // newHandlerRegistry 构造 v2 handler 注册表。
 }
 
+// operations 返回并发执行器，必要时惰性初始化。
+func (c *WSClient) operations() *operationRunner {
+	c.opsMu.Lock()
+	defer c.opsMu.Unlock()
+	if c.ops == nil {
+		c.ops = newOperationRunner(maxConcurrentOps)
+	}
+	return c.ops
+}
+
 // Start 启动 WebSocket 生命周期循环，重复调用不会创建额外连接。
 func (c *WSClient) Start() {
 	if c.done == nil {
 		c.done = make(chan struct{})
 	}
-	c.operationOnce.Do(func() {
-		if c.operationSem == nil {
-			c.operationSem = make(chan struct{}, maxConcurrentOps)
-		}
-	})
+	c.operations()
 	c.startOnce.Do(func() {
 		c.started.Store(true)
 		go func() {
@@ -121,67 +125,14 @@ func (c *WSClient) Wait(ctx context.Context) error {
 	}
 }
 
-// runOperation 启动有并发上限的异步业务，并在容量耗尽时调用 onBusy。
+// runOperation 委托给 operationRunner 启动有并发上限的异步业务。
 func (c *WSClient) runOperation(name string, onBusy func(), operation func()) {
-	c.operationOnce.Do(func() {
-		if c.operationSem == nil {
-			c.operationSem = make(chan struct{}, maxConcurrentOps)
-		}
-	})
-	operationSem := c.operationSem
-	select {
-	case operationSem <- struct{}{}:
-		c.operationWG.Add(1)
-		go func() {
-			defer c.operationWG.Done()
-			defer func() { <-operationSem }()
-			operation()
-		}()
-	default:
-		logger.Warn("客户端业务并发已达上限", "operation", name, "limit", maxConcurrentOps)
-		if onBusy != nil {
-			onBusy()
-		}
-	}
+	c.operations().Run(name, onBusy, operation)
 }
 
-// lockOperationWithContext 获取可取消的资源串行锁，取消时不会占用业务槽位。
+// lockOperationWithContext 委托给 operationRunner 获取可取消资源串行锁。
 func (c *WSClient) lockOperationWithContext(ctx context.Context, resourceKey string) (func(), error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	c.operationLocksMu.Lock()
-	if c.operationLocks == nil {
-		c.operationLocks = make(map[string]*resourceOperationLock)
-	}
-	entry := c.operationLocks[resourceKey]
-	if entry == nil {
-		entry = &resourceOperationLock{mu: make(chan struct{}, 1)}
-		c.operationLocks[resourceKey] = entry
-	}
-	entry.refs++
-	c.operationLocksMu.Unlock()
-
-	select {
-	case entry.mu <- struct{}{}:
-		return func() {
-			<-entry.mu
-			c.operationLocksMu.Lock()
-			entry.refs--
-			if entry.refs == 0 {
-				delete(c.operationLocks, resourceKey)
-			}
-			c.operationLocksMu.Unlock()
-		}, nil
-	case <-ctx.Done():
-		c.operationLocksMu.Lock()
-		entry.refs--
-		if entry.refs == 0 {
-			delete(c.operationLocks, resourceKey)
-		}
-		c.operationLocksMu.Unlock()
-		return nil, ctx.Err()
-	}
+	return c.operations().LockResource(ctx, resourceKey)
 }
 
 // SetHTTPServer configures the local HTTP-01 server dependency.

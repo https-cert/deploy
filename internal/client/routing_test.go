@@ -229,7 +229,7 @@ func TestDeploymentHandlerRegistryValidation(t *testing.T) {
 	if _, err := NewDeploymentHandlerRegistry(&WSClient{}); err == nil {
 		t.Fatal("缺少 executor 应返回错误")
 	}
-	client := &WSClient{deploymentExecutor: &DeploymentExecutor{}, operationLocks: make(map[string]*resourceOperationLock)}
+	client := &WSClient{deploymentExecutor: &DeploymentExecutor{}, ops: newOperationRunner(maxConcurrentOps)}
 	if registry, err := NewDeploymentHandlerRegistry(client); err != nil || len(registry.keys) != len(deploymentHandlerSpecs()) {
 		t.Fatalf("原生 handler 注册失败: keys=%d err=%v", len(registry.keys), err)
 	}
@@ -250,7 +250,7 @@ func TestNativeDeploymentHandlerBehavior(t *testing.T) {
 	executor.deploymentResourceProviderFactory = func(deployPB.Provider, deployPB.DeploymentType) (providers.DeploymentResourceProvider, error) {
 		return fakeProvider, nil
 	}
-	client := &WSClient{runtime: runtime, deploymentExecutor: executor, operationLocks: make(map[string]*resourceOperationLock)}
+	client := &WSClient{runtime: runtime, deploymentExecutor: executor, ops: newOperationRunner(maxConcurrentOps)}
 	spec := newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_ALIYUN, deployPB.DeploymentType_DEPLOYMENT_TYPE_CDN, deployPB.DeploymentTargetMode_DEPLOYMENT_TARGET_MODE_REQUIRED, deployPB.DeploymentDomainPolicy_DEPLOYMENT_DOMAIN_POLICY_ALL)
 	handler := &nativeDeploymentHandler{client: client, spec: spec}
 	if handler.Key() != spec.key || handler.Capability().GetTargetMode() != deployPB.DeploymentTargetMode_DEPLOYMENT_TARGET_MODE_REQUIRED {
@@ -497,10 +497,10 @@ func TestDeploymentMessageHelpersAndChallenge(t *testing.T) {
 	if result := client.executeDeploymentChallenge(request); result.GetStatus() != deployPB.DeploymentExecutionResult_STATUS_FAILED {
 		t.Fatal("删除错误应失败")
 	}
-	if catalog := completedResourceCatalog(nil); catalog.Status != deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_EMPTY {
+	if catalog := providers.CatalogFromResources(nil); catalog.Status != deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_EMPTY {
 		t.Fatal("空目录状态应为 EMPTY")
 	}
-	if catalog := completedResourceCatalog([]providers.DeploymentResource{{TargetRef: "x"}}); catalog.Status != deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_READY {
+	if catalog := providers.CatalogFromResources([]providers.DeploymentResource{{TargetRef: "x"}}); catalog.Status != deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_READY {
 		t.Fatal("非空目录状态应为 READY")
 	}
 }

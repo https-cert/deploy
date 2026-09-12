@@ -52,7 +52,7 @@ func TestClassifyDeploymentContextErrorAfterSuccessfulReturn(t *testing.T) {
 
 // TestOperationLockCancellation 验证等待同目标锁时可以由 context 取消并清理引用。
 func TestOperationLockCancellation(t *testing.T) {
-	client := &WSClient{operationLocks: make(map[string]*resourceOperationLock)}
+	client := &WSClient{ops: newOperationRunner(maxConcurrentOps)}
 	release, err := client.lockOperationWithContext(context.Background(), "target")
 	if err != nil {
 		t.Fatalf("first lock error = %v", err)
@@ -63,10 +63,10 @@ func TestOperationLockCancellation(t *testing.T) {
 		t.Fatalf("waiting lock error = %v, want deadline exceeded", err)
 	}
 	release()
-	client.operationLocksMu.Lock()
-	defer client.operationLocksMu.Unlock()
-	if len(client.operationLocks) != 0 {
-		t.Fatalf("operation lock table was not cleaned: %#v", client.operationLocks)
+	client.ops.locksMu.Lock()
+	defer client.ops.locksMu.Unlock()
+	if len(client.ops.locks) != 0 {
+		t.Fatalf("operation lock table was not cleaned: %#v", client.ops.locks)
 	}
 }
 

@@ -81,6 +81,38 @@ func configuredProvider(runtime *config.Runtime, name string) *config.Provider {
 	return nil
 }
 
+// providerClient 是一次配置解析得到的类型化能力集合；不支持的能力为 nil。
+type providerClient struct {
+	// raw 是底层厂商客户端；外部禁止再断言。
+	raw any
+	// Uploader 证书中心上传；nil 表示不支持。
+	Uploader providers.ProviderHandler
+	// Connection 凭据连通测试；可能与 Uploader 为同一实例，也可能独立存在（如 LeCDN）。
+	Connection providers.ConnectionTester
+	// Resources 动态资源发现/测试/部署；nil 表示不支持。
+	Resources providers.DeploymentResourceProvider
+}
+
+// newProviderClient 根据注册表和运行时配置构造类型化 provider 客户端。
+func newProviderClient(runtime *config.Runtime, provider deployPB.Provider) (*providerClient, error) {
+	handler, err := newConfiguredProvider(runtime, provider)
+	if err != nil {
+		return nil, err
+	}
+	client := &providerClient{raw: handler}
+	// ConnectionTester 必须单独探测：LeCDN 等厂商只实现连接测试与动态资源，没有证书中心上传。
+	if tester, ok := handler.(providers.ConnectionTester); ok {
+		client.Connection = tester
+	}
+	if uploader, ok := handler.(providers.ProviderHandler); ok {
+		client.Uploader = uploader
+	}
+	if resourceProvider, ok := handler.(providers.DeploymentResourceProvider); ok {
+		client.Resources = resourceProvider
+	}
+	return client, nil
+}
+
 // newConfiguredProvider 根据注册表和运行时配置构造 provider。
 func newConfiguredProvider(runtime *config.Runtime, provider deployPB.Provider) (any, error) {
 	definition, ok := findProviderDefinition(provider)
@@ -102,15 +134,14 @@ func newDeploymentResourceProvider(provider deployPB.Provider, deploymentType de
 	if runtime == nil || runtime.Config == nil {
 		return nil, providers.NewDeploymentError("运行时配置未初始化", false, "", nil)
 	}
-	handler, err := newConfiguredProvider(runtime, provider)
+	client, err := newProviderClient(runtime, provider)
 	if err != nil {
 		return nil, providers.NewDeploymentError("初始化部署资源 provider 失败", false, "", err)
 	}
-	resourceProvider, ok := handler.(providers.DeploymentResourceProvider)
-	if !ok {
+	if client.Resources == nil {
 		return nil, providers.NewDeploymentError("provider 不支持动态资源部署", false, "", nil)
 	}
-	return resourceProvider, nil
+	return client.Resources, nil
 }
 
 // providerAuthRequired 校验通用的访问密钥认证字段。

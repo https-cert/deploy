@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -163,6 +164,10 @@ func reportLog(level LogLevel, message string, timestamp int64) {
 
 	// 异步上报，不阻塞
 	go func() {
+		// 后端日志存储按毫秒时间戳过滤；微秒会被当成未来时间而丢弃。
+		if timestamp > 1e15 {
+			timestamp = timestamp / 1000
+		}
 		payload := map[string]any{
 			"type":      "deploy", // 日志类型
 			"clientId":  reporter.ClientID,
@@ -188,9 +193,19 @@ func reportLog(level LogLevel, message string, timestamp int64) {
 		client := &http.Client{Timeout: 3 * time.Second}
 		resp, err := client.Do(req)
 		if err != nil {
+			// 上报失败只写本机，避免递归上报。
+			if Logger != nil {
+				Logger.Printf("[WARN] 在线日志上报失败 error=%v url=%s", err, url)
+			}
 			return
 		}
-		resp.Body.Close()
+		defer resp.Body.Close()
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			if Logger != nil {
+				body, _ := io.ReadAll(io.LimitReader(resp.Body, 256))
+				Logger.Printf("[WARN] 在线日志上报被拒绝 status=%d body=%s", resp.StatusCode, strings.TrimSpace(string(body)))
+			}
+		}
 	}()
 }
 
@@ -199,7 +214,7 @@ func Debug(msg string, args ...interface{}) {
 	if Logger == nil {
 		return
 	}
-	ts := time.Now().UnixMicro() // 微秒时间戳，确保顺序
+	ts := time.Now().UnixMilli() // 毫秒时间戳，与后端日志查询窗口一致
 	content := fmt.Sprintf("%s%s", msg, formatKeyValues(args...))
 	Logger.Printf("[DEBUG] %s", content)
 	reportLog(LevelDebug, content, ts)
@@ -210,7 +225,7 @@ func Info(msg string, args ...interface{}) {
 	if Logger == nil {
 		return
 	}
-	ts := time.Now().UnixMicro() // 微秒时间戳，确保顺序
+	ts := time.Now().UnixMilli() // 毫秒时间戳，与后端日志查询窗口一致
 	content := fmt.Sprintf("%s%s", msg, formatKeyValues(args...))
 	Logger.Printf("[INFO] %s", content)
 	reportLog(LevelInfo, content, ts)
@@ -230,7 +245,7 @@ func Warn(msg string, args ...interface{}) {
 	if Logger == nil {
 		return
 	}
-	ts := time.Now().UnixMicro() // 微秒时间戳，确保顺序
+	ts := time.Now().UnixMilli() // 毫秒时间戳，与后端日志查询窗口一致
 	content := fmt.Sprintf("%s%s", msg, formatKeyValues(args...))
 	Logger.Printf("[WARN] %s", content)
 	reportLog(LevelWarn, content, ts)
@@ -250,7 +265,7 @@ func Error(msg string, args ...interface{}) {
 	if Logger == nil {
 		return
 	}
-	ts := time.Now().UnixMicro() // 微秒时间戳，确保顺序
+	ts := time.Now().UnixMilli() // 毫秒时间戳，与后端日志查询窗口一致
 	content := fmt.Sprintf("%s%s", msg, formatKeyValues(args...))
 	Logger.Printf("[ERROR] %s", content)
 	reportLog(LevelError, content, ts)
@@ -270,7 +285,7 @@ func Fatal(msg string, args ...interface{}) {
 	if Logger == nil {
 		os.Exit(1)
 	}
-	ts := time.Now().UnixMicro() // 微秒时间戳，确保顺序
+	ts := time.Now().UnixMilli() // 毫秒时间戳，与后端日志查询窗口一致
 	content := fmt.Sprintf("%s%s", msg, formatKeyValues(args...))
 	Logger.Printf("[FATAL] %s", content)
 	reportLog(LevelFatal, content, ts)

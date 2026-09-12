@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/https-cert/deploy/internal/client/deploys"
-	"github.com/https-cert/deploy/internal/client/providers"
 	"github.com/https-cert/deploy/internal/config"
 	"github.com/https-cert/deploy/pb/deployPB"
 )
@@ -48,60 +47,29 @@ func testDeploymentConnection(ctx context.Context, provider deployPB.Provider, d
 	if runtime != nil {
 		ctx = deploys.WithRuntime(ctx, runtime)
 	}
-	switch provider {
-	case deployPB.Provider_PROVIDER_ANSSL_CLI:
-		if deploymentType == deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_FEINIU_CERT {
-			if err := testFeiNiuConnection(ctx); err != nil {
-				return false, err
-			}
+	if provider == deployPB.Provider_PROVIDER_ANSSL_CLI {
+		target, ok := findLocalTarget(deploymentType)
+		if !ok {
+			return true, nil
 		}
-		if deploymentType == deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_RUSTFS_CERT {
-			if err := testRustFSConnection(ctx); err != nil {
-				return false, err
-			}
-		}
-		if deploymentType == deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_1PANEL_CERT {
-			if err := testOnePanelConnection(ctx); err != nil {
-				return false, err
-			}
-		}
-		if deploymentType == deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_1PANEL_WEBSITE_CERT {
-			if err := testOnePanelWebsiteConnection(ctx, targetRef); err != nil {
-				return false, err
-			}
-		}
-		if deploymentType == deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_BT_PANEL_WEBSITE_CERT {
-			if err := testBTPanelWebsiteConnection(ctx, targetRef); err != nil {
-				return false, err
-			}
-		}
-		if deploymentType == deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_BT_PANEL_CERT {
-			if err := testBTPanelCertificateConnection(ctx); err != nil {
-				return false, err
-			}
-		}
-		if deploymentType == deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_SAFELINE_CERT {
-			if err := testSafeLineConnection(ctx); err != nil {
-				return false, err
-			}
-		}
-		return true, nil
-
-	default:
-		if providerSupportsResource(provider, deploymentType) {
-			return testCloudDeploymentResource(ctx, provider, deploymentType, targetRef, runtime)
-		}
-		handler, err := newConfiguredProvider(runtime, provider)
-		if err != nil {
+		if err := target.Test(ctx, runtime, targetRef); err != nil {
 			return false, err
 		}
-		tester, ok := handler.(providers.ConnectionTester)
-		if !ok {
-			return false, fmt.Errorf("provider %s 不支持连接测试", provider.String())
-		}
-		success, err := tester.TestConnection(ctx)
-		return success, err
+		return true, nil
 	}
+
+	if providerSupportsResource(provider, deploymentType) {
+		return testCloudDeploymentResource(ctx, provider, deploymentType, targetRef, runtime)
+	}
+	client, err := newProviderClient(runtime, provider)
+	if err != nil {
+		return false, err
+	}
+	if client.Connection == nil {
+		return false, fmt.Errorf("provider %s 不支持连接测试", provider.String())
+	}
+	success, err := client.Connection.TestConnection(ctx)
+	return success, err
 }
 
 // testCloudDeploymentResource 只读测试当前 v2 selector 指向的动态云资源。

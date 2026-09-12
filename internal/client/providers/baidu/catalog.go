@@ -47,13 +47,10 @@ func (p *Provider) DiscoverResources(ctx context.Context, deploymentType deployP
 	}
 
 	sort.Slice(resources, func(left, right int) bool { return resources[left].Domain < resources[right].Domain })
-	status := deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_READY
 	if partial {
-		status = deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_PARTIAL
-	} else if len(resources) == 0 {
-		status = deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_EMPTY
+		return providers.PartialCatalog(resources)
 	}
-	return providers.ResourceCatalogResult{Resources: resources, Status: status}
+	return providers.CatalogFromResources(resources)
 }
 
 // ResolveResource 重新发现百度云 CDN 目录并按 targetRef 唯一解析资源。

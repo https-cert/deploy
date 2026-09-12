@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/https-cert/deploy/internal/client/deploys"
 	"github.com/https-cert/deploy/internal/client/providers"
 	"github.com/https-cert/deploy/pb/deployPB"
 )
@@ -125,11 +124,9 @@ func (be *DeploymentExecutor) executeDeploymentResource(ctx context.Context, req
 	if request.ExecutionKind != deploymentExecutionLocalResource && request.ExecutionKind != deploymentExecutionCloudResource {
 		return providers.DeploymentResult{}, providers.NewDeploymentError("请求执行类型与动态资源不匹配", false, "", nil)
 	}
-	if request.DeploymentType == deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_1PANEL_WEBSITE_CERT {
-		return be.executeOnePanelWebsiteResource(ctx, request)
-	}
-	if request.DeploymentType == deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_BT_PANEL_WEBSITE_CERT {
-		return be.executeBTPanelWebsiteResource(ctx, request)
+	if request.DeploymentType == deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_1PANEL_WEBSITE_CERT ||
+		request.DeploymentType == deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_BT_PANEL_WEBSITE_CERT {
+		return be.executeLocalWebsiteResource(ctx, request)
 	}
 
 	factory := be.deploymentResourceProviderFactory
@@ -173,34 +170,10 @@ func (be *DeploymentExecutor) executeDeploymentResource(ctx context.Context, req
 	return result, nil
 }
 
-// executeBTPanelWebsiteResource 在客户端本地重新解析宝塔网站引用并精确替换所选网站证书。
-func (be *DeploymentExecutor) executeBTPanelWebsiteResource(ctx context.Context, request DeploymentExecutionRequest) (providers.DeploymentResult, error) {
+// executeLocalWebsiteResource 通过本地目标注册表精确部署面板网站证书。
+func (be *DeploymentExecutor) executeLocalWebsiteResource(ctx context.Context, request DeploymentExecutionRequest) (providers.DeploymentResult, error) {
 	if request.Provider != deployPB.Provider_PROVIDER_ANSSL_CLI {
-		return providers.DeploymentResult{}, providers.NewDeploymentError(localDeploymentFailureMessage, false, "", fmt.Errorf("宝塔网站部署平台不匹配"))
+		return providers.DeploymentResult{}, providers.NewDeploymentError(localDeploymentFailureMessage, false, "", fmt.Errorf("本地网站部署平台不匹配"))
 	}
-	if err := deploys.DeployCertificateToBTPanelWebsite(deploys.WithRuntime(ctx, be.runtime), request.TargetRef, request.CertificatePEM, request.PrivateKeyPEM); err != nil {
-		return providers.DeploymentResult{}, providers.NewDeploymentError(
-			localDeploymentFailureMessage,
-			deploys.IsBTPanelErrorRetryable(err),
-			"",
-			err,
-		)
-	}
-	return providers.DeploymentResult{Message: "宝塔网站证书部署成功"}, nil
-}
-
-// executeOnePanelWebsiteResource 在客户端本地重新解析网站引用并精确替换所选网站证书。
-func (be *DeploymentExecutor) executeOnePanelWebsiteResource(ctx context.Context, request DeploymentExecutionRequest) (providers.DeploymentResult, error) {
-	if request.Provider != deployPB.Provider_PROVIDER_ANSSL_CLI {
-		return providers.DeploymentResult{}, providers.NewDeploymentError(localDeploymentFailureMessage, false, "", fmt.Errorf("1Panel 网站部署平台不匹配"))
-	}
-	if err := deploys.DeployCertificateTo1PanelWebsite(deploys.WithRuntime(ctx, be.runtime), request.TargetRef, request.CertificatePEM, request.PrivateKeyPEM); err != nil {
-		return providers.DeploymentResult{}, providers.NewDeploymentError(
-			localDeploymentFailureMessage,
-			deploys.IsOnePanelErrorRetryable(err),
-			"",
-			err,
-		)
-	}
-	return providers.DeploymentResult{Message: "1Panel 网站证书部署成功"}, nil
+	return runLocalTargetDeployMaterial(ctx, be.runtime, request.DeploymentType, request.TargetRef, request.CertificatePEM, request.PrivateKeyPEM)
 }

@@ -229,55 +229,14 @@ func (h *nativeDeploymentHandler) validateTargetRef(targetRef string) error {
 
 // discoverLocalDeploymentResources 读取本机面板服务的 v2 脱敏资源目录。
 func discoverLocalDeploymentResources(ctx context.Context, deploymentType deployPB.DeploymentType) providers.ResourceCatalogResult {
-	switch deploymentType {
-	case deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_1PANEL_WEBSITE_CERT:
-		if !deploys.IsOnePanelConfiguredWithContext(ctx) {
-			return providers.ResourceCatalogResult{Status: deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_NOT_CONFIGURED}
+	target, ok := findLocalTarget(deploymentType)
+	if !ok || target.Discover == nil {
+		return providers.ResourceCatalogResult{
+			Status: deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_UNAVAILABLE,
+			Error:  fmt.Errorf("本地部署类型不支持资源发现: %s", deploymentType.String()),
 		}
-		resources, err := deploys.DiscoverOnePanelWebsiteResources(ctx)
-		if err != nil {
-			return providers.ResourceCatalogResult{Status: deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_UNAVAILABLE, Error: err}
-		}
-		result := make([]providers.DeploymentResource, 0, len(resources))
-		for _, resource := range resources {
-			availability := deployPB.DeploymentResourceAvailability_DEPLOYMENT_RESOURCE_AVAILABILITY_READY
-			if resource.Status != "Running" {
-				availability = deployPB.DeploymentResourceAvailability_DEPLOYMENT_RESOURCE_AVAILABILITY_STOPPED
-			}
-			result = append(result, providers.DeploymentResource{TargetRef: resource.TargetRef, Label: resource.Label, Domain: resource.Domain, Domains: append([]string(nil), resource.Domains...), Protocol: resource.Protocol, Status: resource.Status, Availability: availability})
-		}
-		return completedResourceCatalog(result)
-
-	case deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_BT_PANEL_WEBSITE_CERT:
-		if !deploys.IsBTPanelConfiguredWithContext(ctx) {
-			return providers.ResourceCatalogResult{Status: deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_NOT_CONFIGURED}
-		}
-		resources, err := deploys.DiscoverBTPanelWebsiteResources(ctx)
-		if err != nil {
-			return providers.ResourceCatalogResult{Status: deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_UNAVAILABLE, Error: err}
-		}
-		result := make([]providers.DeploymentResource, 0, len(resources))
-		for _, resource := range resources {
-			availability := deployPB.DeploymentResourceAvailability_DEPLOYMENT_RESOURCE_AVAILABILITY_READY
-			if resource.Status != "Running" {
-				availability = deployPB.DeploymentResourceAvailability_DEPLOYMENT_RESOURCE_AVAILABILITY_STOPPED
-			}
-			result = append(result, providers.DeploymentResource{TargetRef: resource.TargetRef, Label: resource.Label, Domain: resource.Domain, Domains: append([]string(nil), resource.Domains...), Protocol: resource.Protocol, Status: resource.Status, Availability: availability})
-		}
-		return completedResourceCatalog(result)
-
-	default:
-		return providers.ResourceCatalogResult{Status: deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_UNAVAILABLE, Error: fmt.Errorf("本地部署类型不支持资源发现: %s", deploymentType.String())}
 	}
-}
-
-// completedResourceCatalog 根据资源数量返回完整或空目录状态。
-func completedResourceCatalog(resources []providers.DeploymentResource) providers.ResourceCatalogResult {
-	status := deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_READY
-	if len(resources) == 0 {
-		status = deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_EMPTY
-	}
-	return providers.ResourceCatalogResult{Resources: resources, Status: status}
+	return target.Discover(ctx)
 }
 
 // deploymentHandlerSpecs 返回 deploy 客户端支持的全部原生 v2 能力。
@@ -286,20 +245,7 @@ func deploymentHandlerSpecs() []deploymentHandlerSpec {
 	required := deployPB.DeploymentTargetMode_DEPLOYMENT_TARGET_MODE_REQUIRED
 	noDomain := deployPB.DeploymentDomainPolicy_DEPLOYMENT_DOMAIN_POLICY_NONE
 	allDomains := deployPB.DeploymentDomainPolicy_DEPLOYMENT_DOMAIN_POLICY_ALL
-	anyDomain := deployPB.DeploymentDomainPolicy_DEPLOYMENT_DOMAIN_POLICY_ANY
-	specs := []deploymentHandlerSpec{
-		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_ANSSL_CLI, deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_NGINX_CERT, none, noDomain),
-		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_ANSSL_CLI, deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_APACHE_CERT, none, noDomain),
-		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_ANSSL_CLI, deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_RUSTFS_CERT, none, noDomain),
-		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_ANSSL_CLI, deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_FEINIU_CERT, none, noDomain),
-		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_ANSSL_CLI, deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_1PANEL_CERT, none, noDomain),
-		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_ANSSL_CLI, deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_OPENVPN_AS_CERT, none, noDomain),
-		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_ANSSL_CLI, deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_UPLOAD_ONLY_CERT, none, noDomain),
-		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_ANSSL_CLI, deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_SAFELINE_CERT, none, noDomain),
-		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_ANSSL_CLI, deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_1PANEL_WEBSITE_CERT, required, anyDomain),
-		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_ANSSL_CLI, deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_BT_PANEL_WEBSITE_CERT, required, anyDomain),
-		newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_ANSSL_CLI, deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_BT_PANEL_CERT, none, noDomain),
-	}
+	specs := localTargetSpecs()
 	for _, definition := range providerDefinitions {
 		if definition.UploadOnly {
 			specs = append(specs, newDeploymentHandlerSpec(definition.Provider, deployPB.DeploymentType_DEPLOYMENT_TYPE_UPLOAD_CERT, none, noDomain))

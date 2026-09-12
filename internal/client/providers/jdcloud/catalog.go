@@ -28,11 +28,7 @@ func (p *Provider) DiscoverResources(ctx context.Context, deploymentType deployP
 		}
 		return providers.ResourceCatalogResult{Resources: resources, Status: status, Error: err}
 	}
-	status := deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_READY
-	if len(resources) == 0 {
-		status = deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_EMPTY
-	}
-	return providers.ResourceCatalogResult{Resources: resources, Status: status}
+	return providers.CatalogFromResources(resources)
 }
 
 // ResolveResource 重新读取 CDN 目录并按 targetRef 唯一解析京东云域名。
