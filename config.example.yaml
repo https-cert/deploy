@@ -15,6 +15,12 @@ ssl:
   # 可选。Apache 证书目录，配置后会自动部署证书并执行 Apache 配置测试 / graceful reload。
   # 留空则不部署到 Apache。
   apachePath: ""
+  # 可选。Caddy 配置；path 配置后会写入证书并生成可 import 的 *.caddy 片段。
+  # path 留空则不部署到 Caddy；config 配置且本机有 caddy 命令时会 validate + reload。
+  caddy:
+    path: ""
+    config: ""
+  # 站点 block 内需要 import 生成的片段，例如: import /etc/caddy/certs/_.example.com/_.example.com.caddy
 
   # 可选。RustFS TLS 证书配置；不配置整个 rustFS 节点则不部署到 RustFS。
   # 只填写 path 时部署到客户端本机；同时填写 host、port、username 和认证字段时通过 SSH 远程部署。

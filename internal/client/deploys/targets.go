@@ -9,6 +9,7 @@ import (
 
 	"github.com/https-cert/deploy/internal/client/deploys/apache"
 	"github.com/https-cert/deploy/internal/client/deploys/btpanel"
+	"github.com/https-cert/deploy/internal/client/deploys/caddy"
 	"github.com/https-cert/deploy/internal/client/deploys/feiniu"
 	"github.com/https-cert/deploy/internal/client/deploys/nginx"
 	"github.com/https-cert/deploy/internal/client/deploys/onepanel"
@@ -101,6 +102,38 @@ func (cd *CertDeployer) DeployCertificateToNginx(ctx context.Context, domain, do
 		logger.Info("nginx未安装或不在PATH中，跳过nginx相关操作")
 	}
 	logger.Info("Nginx证书部署完成", "domain", canonicalDomain)
+	return nil
+}
+
+// IsCaddyAvailable 返回本机是否可以找到 caddy 命令。
+func IsCaddyAvailable() bool { return caddy.IsCaddyAvailable() }
+
+// TestCaddyConnectionWithContext 检查 Caddy 目录并在可用时校验 Caddyfile。
+func TestCaddyConnectionWithContext(ctx context.Context, caddyPath, caddyConfig string) error {
+	return caddy.TestConnectionWithContext(ctx, caddyPath, caddyConfig)
+}
+
+// DeployCertificateToCaddy 下载证书并仅部署到 Caddy。
+func (cd *CertDeployer) DeployCertificateToCaddy(ctx context.Context, domain, downloadURL string) error {
+	sslConfig := cd.ssl()
+	if sslConfig == nil {
+		return fmt.Errorf("SSL 配置未初始化")
+	}
+	if sslConfig.Caddy == nil || sslConfig.Caddy.Path == "" {
+		return fmt.Errorf("未配置 Caddy 证书目录 (ssl.caddy.path)")
+	}
+	canonicalDomain, safeDomain, extractDir, cleanup, err := cd.prepareCertificateArchive(ctx, domain, downloadURL)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+	if err := caddy.DeployAndReloadWithContext(ctx, extractDir, sslConfig.Caddy.Path, safeDomain, safeDomain, sslConfig.Caddy.Config); err != nil {
+		return fmt.Errorf("部署到Caddy失败: %w", err)
+	}
+	if !caddy.IsCaddyAvailable() || sslConfig.Caddy.Config == "" {
+		logger.Info("caddy 未安装或未配置 ssl.caddy.config，跳过 reload")
+	}
+	logger.Info("Caddy证书部署完成", "domain", canonicalDomain)
 	return nil
 }
 

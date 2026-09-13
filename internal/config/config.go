@@ -61,12 +61,19 @@ type (
 	DeployConfig struct {
 		NginxPath  string          `yaml:"nginxPath"`  // NginxPath 是 Nginx SSL 证书目录
 		ApachePath string          `yaml:"apachePath"` // ApachePath 是 Apache SSL 证书目录
+		Caddy      *CaddyConfig    `yaml:"caddy"`      // Caddy 是 Caddy 证书目录和 Caddyfile 配置
 		RustFSPath string          `yaml:"rustFSPath"` // RustFSPath 兼容旧版 RustFS 本机目录配置
 		RustFS     *RustFSConfig   `yaml:"rustFS"`     // RustFS 是本机或 SSH 远程部署配置
 		FeiNiu     *SSHConfig      `yaml:"feiNiu"`     // FeiNiu 是可选的 SSH 远程配置，空值表示本机部署
 		OnePanel   *OnePanelConfig `yaml:"onePanel"`   // OnePanel 是 1Panel API 配置
 		BTPanel    *BTPanelConfig  `yaml:"btPanel"`    // BTPanel 是宝塔面板 API 配置
 		SafeLine   *SafeLineConfig `yaml:"safeLine"`   // SafeLine 是雷池 WAF OpenAPI 配置
+	}
+
+	// CaddyConfig 保存 Caddy 证书目录和可选的 Caddyfile 路径。
+	CaddyConfig struct {
+		Path   string `yaml:"path"`   // Path 是 Caddy SSL 证书目录
+		Config string `yaml:"config"` // Config 是 Caddyfile 路径，用于 validate/reload
 	}
 
 	// SSHConfig 保存仅供 deploy 客户端本地使用的 SSH 认证配置。
@@ -551,6 +558,11 @@ func PrepareRuntimeDirsForRuntime(runtime *Runtime) error {
 	}
 	if err := prepareDir("Apache", runtime.Config.SSL.ApachePath); err != nil {
 		return err
+	}
+	if runtime.Config.SSL.Caddy != nil {
+		if err := prepareDir("Caddy", runtime.Config.SSL.Caddy.Path); err != nil {
+			return err
+		}
 	}
 	if runtime.Config.SSL.RustFS != nil && !IsSSHConfigured(&runtime.Config.SSL.RustFS.SSHConfig) {
 		if err := prepareDir("RustFS", runtime.Config.SSL.RustFS.Path); err != nil {

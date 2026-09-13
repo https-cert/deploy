@@ -82,6 +82,7 @@ func TestRunLocalTargetDeployURLKeepsLocalPublishFailureKind(t *testing.T) {
 func TestFindLocalTargetCoversAllV2LocalTypes(t *testing.T) {
 	expected := []deployPB.DeploymentType{
 		deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_NGINX_CERT,
+		deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_CADDY_CERT,
 		deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_APACHE_CERT,
 		deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_RUSTFS_CERT,
 		deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_FEINIU_CERT,

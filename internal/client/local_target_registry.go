@@ -52,6 +52,20 @@ func buildLocalTargets() []localTarget {
 			},
 		},
 		{
+			DeploymentType: deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_CADDY_CERT,
+			TargetMode:     none,
+			DomainPolicy:   noDomain,
+			Test: func(ctx context.Context, runtime *config.Runtime, _ string) error {
+				if runtime == nil || runtime.Config == nil || runtime.Config.SSL == nil || runtime.Config.SSL.Caddy == nil {
+					return fmt.Errorf("未配置 Caddy (ssl.caddy)")
+				}
+				return deploys.TestCaddyConnectionWithContext(ctx, runtime.Config.SSL.Caddy.Path, runtime.Config.SSL.Caddy.Config)
+			},
+			DeployURL: func(ctx context.Context, deployer *deploys.CertDeployer, domain, downloadURL string) error {
+				return deployer.DeployCertificateToCaddy(ctx, domain, downloadURL)
+			},
+		},
+		{
 			DeploymentType: deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_APACHE_CERT,
 			TargetMode:     none,
 			DomainPolicy:   noDomain,

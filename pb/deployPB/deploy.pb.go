@@ -124,6 +124,7 @@ const (
 	DeploymentType_DEPLOYMENT_TYPE_OBS_CUSTOM_DOMAIN               DeploymentType = 23 // 华为云 OBS 自定义域名
 	DeploymentType_DEPLOYMENT_TYPE_TOS_CUSTOM_DOMAIN               DeploymentType = 24 // 火山引擎 TOS 自定义域名
 	DeploymentType_DEPLOYMENT_TYPE_ELB                             DeploymentType = 25 // 华为云 ELB
+	DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_CADDY_CERT            DeploymentType = 26 // Caddy 证书部署
 )
 
 // Enum value maps for DeploymentType.
@@ -154,6 +155,7 @@ var (
 		23: "DEPLOYMENT_TYPE_OBS_CUSTOM_DOMAIN",
 		24: "DEPLOYMENT_TYPE_TOS_CUSTOM_DOMAIN",
 		25: "DEPLOYMENT_TYPE_ELB",
+		26: "DEPLOYMENT_TYPE_ANSSL_CLI_CADDY_CERT",
 	}
 	DeploymentType_value = map[string]int32{
 		"DEPLOYMENT_TYPE_UNSPECIFIED":                     0,
@@ -181,6 +183,7 @@ var (
 		"DEPLOYMENT_TYPE_OBS_CUSTOM_DOMAIN":               23,
 		"DEPLOYMENT_TYPE_TOS_CUSTOM_DOMAIN":               24,
 		"DEPLOYMENT_TYPE_ELB":                             25,
+		"DEPLOYMENT_TYPE_ANSSL_CLI_CADDY_CERT":            26,
 	}
 )
 
@@ -455,6 +458,7 @@ const (
 	ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_1PANEL_WEBSITE_CERT   ExecuteBusinesType = 20 // 1Panel 网站证书部署
 	ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_BT_PANEL_WEBSITE_CERT ExecuteBusinesType = 21 // 宝塔面板网站证书部署
 	ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_BT_PANEL_CERT         ExecuteBusinesType = 22 // 宝塔面板证书库上传
+	ExecuteBusinesType_EXECUTE_BUSINES_ANSSL_CLI_CADDY_CERT            ExecuteBusinesType = 26 // Caddy 证书部署
 )
 
 // Enum value maps for ExecuteBusinesType.
@@ -482,6 +486,7 @@ var (
 		20: "EXECUTE_BUSINES_ANSSL_CLI_1PANEL_WEBSITE_CERT",
 		21: "EXECUTE_BUSINES_ANSSL_CLI_BT_PANEL_WEBSITE_CERT",
 		22: "EXECUTE_BUSINES_ANSSL_CLI_BT_PANEL_CERT",
+		26: "EXECUTE_BUSINES_ANSSL_CLI_CADDY_CERT",
 	}
 	ExecuteBusinesType_value = map[string]int32{
 		"EXECUTE_BUSINES_UNKNOWN":                         0,
@@ -506,6 +511,7 @@ var (
 		"EXECUTE_BUSINES_ANSSL_CLI_1PANEL_WEBSITE_CERT":   20,
 		"EXECUTE_BUSINES_ANSSL_CLI_BT_PANEL_WEBSITE_CERT": 21,
 		"EXECUTE_BUSINES_ANSSL_CLI_BT_PANEL_CERT":         22,
+		"EXECUTE_BUSINES_ANSSL_CLI_CADDY_CERT":            26,
 	}
 )
 
@@ -4080,7 +4086,7 @@ const file_deployPB_deploy_proto_rawDesc = "" +
 	"\x14PROVIDER_BAIDU_CLOUD\x10\b\x12\x17\n" +
 	"\x13PROVIDER_DOGE_CLOUD\x10\t\x12\x12\n" +
 	"\x0ePROVIDER_LECDN\x10\n" +
-	"*\xaa\a\n" +
+	"*\xd4\a\n" +
 	"\x0eDeploymentType\x12\x1f\n" +
 	"\x1bDEPLOYMENT_TYPE_UNSPECIFIED\x10\x00\x12(\n" +
 	"$DEPLOYMENT_TYPE_ANSSL_CLI_NGINX_CERT\x10\x01\x12\x1f\n" +
@@ -4107,7 +4113,8 @@ const file_deployPB_deploy_proto_rawDesc = "" +
 	"'DEPLOYMENT_TYPE_ANSSL_CLI_BT_PANEL_CERT\x10\x16\x12%\n" +
 	"!DEPLOYMENT_TYPE_OBS_CUSTOM_DOMAIN\x10\x17\x12%\n" +
 	"!DEPLOYMENT_TYPE_TOS_CUSTOM_DOMAIN\x10\x18\x12\x17\n" +
-	"\x13DEPLOYMENT_TYPE_ELB\x10\x19\"\x04\b\x05\x10\x05*\x84\x01\n" +
+	"\x13DEPLOYMENT_TYPE_ELB\x10\x19\x12(\n" +
+	"$DEPLOYMENT_TYPE_ANSSL_CLI_CADDY_CERT\x10\x1a\"\x04\b\x05\x10\x05*\x84\x01\n" +
 	"\x14DeploymentTargetMode\x12&\n" +
 	"\"DEPLOYMENT_TARGET_MODE_UNSPECIFIED\x10\x00\x12\x1f\n" +
 	"\x1bDEPLOYMENT_TARGET_MODE_NONE\x10\x01\x12#\n" +
@@ -4129,7 +4136,7 @@ const file_deployPB_deploy_proto_rawDesc = "" +
 	"\fGET_PROVIDER\x10\x03\x12\f\n" +
 	"\bREGISTER\x10\x04\x12\x13\n" +
 	"\x0fEXECUTE_BUSINES\x10\x05\x12\r\n" +
-	"\tCHALLENGE\x10\x06*\xd2\x06\n" +
+	"\tCHALLENGE\x10\x06*\xfc\x06\n" +
 	"\x12ExecuteBusinesType\x12\x1b\n" +
 	"\x17EXECUTE_BUSINES_UNKNOWN\x10\x00\x12\"\n" +
 	"\x1eEXECUTE_BUSINES_ANSSL_CLI_CERT\x10\x01\x12\x1f\n" +
@@ -4153,7 +4160,8 @@ const file_deployPB_deploy_proto_rawDesc = "" +
 	"'EXECUTE_BUSINES_ANSSL_CLI_SAFELINE_CERT\x10\x13\x121\n" +
 	"-EXECUTE_BUSINES_ANSSL_CLI_1PANEL_WEBSITE_CERT\x10\x14\x123\n" +
 	"/EXECUTE_BUSINES_ANSSL_CLI_BT_PANEL_WEBSITE_CERT\x10\x15\x12+\n" +
-	"'EXECUTE_BUSINES_ANSSL_CLI_BT_PANEL_CERT\x10\x16\"\x04\b\x05\x10\x05*\x13EXECUTE_BUSINES_OSS*\xc3\x02\n" +
+	"'EXECUTE_BUSINES_ANSSL_CLI_BT_PANEL_CERT\x10\x16\x12(\n" +
+	"$EXECUTE_BUSINES_ANSSL_CLI_CADDY_CERT\x10\x1a\"\x04\b\x05\x10\x05*\x13EXECUTE_BUSINES_OSS*\xc3\x02\n" +
 	"\x18DeploymentResourceStatus\x12&\n" +
 	"\"DEPLOYMENT_RESOURCE_STATUS_UNKNOWN\x10\x00\x12$\n" +
 	" DEPLOYMENT_RESOURCE_STATUS_READY\x10\x01\x12$\n" +
