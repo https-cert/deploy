@@ -44,14 +44,19 @@ const (
 
 // LogReporter 日志上报器（用于上报到服务端）
 type LogReporter struct {
-	ServerURL string
-	ClientID  string
-	AccessKey string
+	ServerURL string // ServerURL 是日志服务基础地址。
+	ClientID  string // ClientID 标识当前部署客户端。
+	AccessKey string // AccessKey 用于日志接口认证。
+
+	mu           sync.Mutex // mu 串行化异步请求的失败统计和本机告警。
+	failureSince time.Time  // failureSince 记录本轮连续失败的开始时间。
+	failures     uint64     // failures 统计本轮恢复前失败的上报请求数。
 }
 
 var (
-	Logger   *log.Logger
-	reporter *LogReporter
+	Logger     *log.Logger
+	reporter   *LogReporter
+	reporterMu sync.RWMutex // reporterMu 保护上报器替换和异步任务快照读取。
 )
 
 // Init 初始化日志
@@ -61,7 +66,13 @@ func Init() {
 
 // SetReporter 设置日志上报器
 func SetReporter(r *LogReporter) {
-	reporter = r
+	reporterMu.Lock()
+	defer reporterMu.Unlock()
+	reporter = nil
+	if r != nil {
+		// 配置切换后独立统计故障；在途请求继续使用原上报器的配置和状态。
+		reporter = &LogReporter{ServerURL: r.ServerURL, ClientID: r.ClientID, AccessKey: r.AccessKey}
+	}
 }
 
 // SetSensitiveValues 设置在线日志必须额外清除的实际配置值，防止第三方 SDK 无字段名回显凭据。
@@ -155,58 +166,86 @@ func sanitizeLogMessage(message string) string {
 
 // reportLog 上报日志到服务端
 func reportLog(level LogLevel, message string, timestamp int64) {
-	if reporter == nil {
+	reporterMu.RLock()
+	r := reporter
+	reporterMu.RUnlock()
+	if r == nil {
 		return
 	}
 
 	// 在线日志统一在 deploy 端脱敏；本机 logger 仍保留完整诊断。
 	message = sanitizeLogMessage(message)
 
-	// 异步上报，不阻塞
-	go func() {
-		// 后端日志存储按毫秒时间戳过滤；微秒会被当成未来时间而丢弃。
-		if timestamp > 1e15 {
-			timestamp = timestamp / 1000
-		}
-		payload := map[string]any{
-			"type":      "deploy", // 日志类型
-			"clientId":  reporter.ClientID,
-			"level":     level,
-			"message":   message,
-			"timestamp": timestamp,
-		}
+	go r.report(level, message, timestamp)
+}
 
-		jsonData, err := json.Marshal(payload)
-		if err != nil {
-			return
-		}
+// report 执行一次日志上报，失败诊断只写本机，避免再次触发上报。
+func (r *LogReporter) report(level LogLevel, message string, timestamp int64) {
+	// 后端日志存储按毫秒时间戳过滤；微秒会被当成未来时间而丢弃。
+	if timestamp > 1e15 {
+		timestamp /= 1000
+	}
+	payload := map[string]any{
+		"type":      "deploy",
+		"clientId":  r.ClientID,
+		"level":     level,
+		"message":   message,
+		"timestamp": timestamp,
+	}
 
-		url := reporter.ServerURL + "/api/logs"
-		req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
-		if err != nil {
-			return
-		}
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		return
+	}
 
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("X-Access-Key", reporter.AccessKey)
+	url := r.ServerURL + "/api/logs"
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		r.logReportResult(0, err, time.Now())
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Access-Key", r.AccessKey)
 
-		client := &http.Client{Timeout: 3 * time.Second}
-		resp, err := client.Do(req)
-		if err != nil {
-			// 上报失败只写本机，避免递归上报。
-			if Logger != nil {
-				Logger.Printf("[WARN] 在线日志上报失败 error=%v url=%s", err, url)
-			}
-			return
+	client := &http.Client{Timeout: 3 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		r.logReportResult(0, err, time.Now())
+		return
+	}
+	defer resp.Body.Close()
+	r.logReportResult(resp.StatusCode, nil, time.Now())
+	// 消费常见的小响应以复用连接；不输出 HTML 或其他未经筛选的响应正文。
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4<<10))
+}
+
+// logReportResult 每轮连续失败只告警一次，实际上报成功后记录恢复并重置状态。
+func (r *LogReporter) logReportResult(status int, err error, now time.Time) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if Logger == nil {
+		return
+	}
+	if err == nil && status >= 200 && status < 300 {
+		if r.failures > 0 {
+			Logger.Printf("[INFO] 在线日志上报已恢复 failures=%d duration=%s", r.failures, now.Sub(r.failureSince).Round(time.Second))
+			r.failures = 0
+			r.failureSince = time.Time{}
 		}
-		defer resp.Body.Close()
-		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			if Logger != nil {
-				body, _ := io.ReadAll(io.LimitReader(resp.Body, 256))
-				Logger.Printf("[WARN] 在线日志上报被拒绝 status=%d body=%s", resp.StatusCode, strings.TrimSpace(string(body)))
-			}
-		}
-	}()
+		return
+	}
+
+	r.failures++
+	if r.failures > 1 {
+		return
+	}
+	r.failureSince = now
+	detail := fmt.Sprintf("status=%d reason=%q", status, http.StatusText(status))
+	if err != nil {
+		// 引号转义保留错误信息，同时确保网络错误中的换行不会破坏日志行。
+		detail = fmt.Sprintf("error=%q", err.Error())
+	}
+	Logger.Printf("[WARN] 在线日志上报失败 %s", detail)
 }
 
 // Debug 记录调试日志

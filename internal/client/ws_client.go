@@ -43,6 +43,8 @@ type WSClient struct {
 	connMu               sync.Mutex                         // connMu 保护连接替换和关闭。
 	writeMu              sync.Mutex                         // writeMu 保证 WebSocket 只有一个并发写入者。
 	reconnectDelay       time.Duration                      // reconnectDelay 是当前重连退避时间。
+	reconnectSince       time.Time                          // reconnectSince 由连接循环记录本轮连接不可用的开始时间。
+	reconnectAttempts    int                                // reconnectAttempts 由连接循环统计本轮重试次数，包含成功的尝试。
 	deploymentExecutor   *DeploymentExecutor                // deploymentExecutor 执行部署和 provider 业务。
 	deploymentHandlers   *DeploymentHandlerRegistry         // deploymentHandlers 按 provider/type 路由 v2 业务。
 	ops                  *operationRunner                   // ops 管理并发槽、资源锁和 busy 计数。

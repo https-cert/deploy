@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -125,14 +126,14 @@ func (c *WSClient) startWebSocketLoop() {
 		default:
 		}
 
+		if !c.reconnectSince.IsZero() {
+			c.reconnectAttempts++
+		}
 		if err := c.connect(); err != nil {
-			consecutiveFailures++
-			// 只在第一次失败时打印错误日志
-			if consecutiveFailures == 1 {
-				logger.Info("WebSocket连接断开，尝试重连中...")
+			if c.ctx.Err() != nil {
+				return
 			}
-
-			c.markReconnectPending()
+			consecutiveFailures++
 
 			var reconnectDelay time.Duration
 			// websocket 连接失败通常都是临时错误（服务端可能还未启动），使用较短的重连间隔
@@ -148,6 +149,7 @@ func (c *WSClient) startWebSocketLoop() {
 			}
 
 			c.reconnectDelay = reconnectDelay
+			c.logConnectionFailure(err, time.Now())
 			if !waitForContext(c.ctx, reconnectDelay) {
 				return
 			}
@@ -157,25 +159,64 @@ func (c *WSClient) startWebSocketLoop() {
 		consecutiveFailures = 0
 		c.reconnectDelay = minReconnectDelay
 
-		if c.connectionLogged.CompareAndSwap(false, true) {
-			logger.Info("WebSocket连接已建立，开始处理消息")
+		if c.connectionLogged.CompareAndSwap(false, true) && c.reconnectSince.IsZero() {
+			logger.Info("服务端连接已建立，开始处理消息")
 		}
 
-		if err := c.handleWSMessages(); err != nil {
-			busyOps := c.operations().Busy()
-			if busyOps > 0 {
-				logger.Warn("WebSocket连接意外断开(有业务正在执行)", "error", err, "busyOps", busyOps)
-			} else {
-				logger.Info("WebSocket连接断开", "error", err)
-			}
-
-			c.markReconnectPending()
+		err := c.handleWSMessages()
+		// 主动退出不属于连接故障，也不应触发告警上报。
+		if c.ctx.Err() != nil {
+			return
 		}
+		if err == nil {
+			err = errors.New("服务端已关闭连接")
+		}
+		c.logConnectionFailure(err, time.Now())
 
 		if !waitForContext(c.ctx, c.reconnectDelay) {
 			return
 		}
 	}
+}
+
+// logConnectionFailure 每轮断线只告警一次，后续重试保持安静，直到收到有效消息确认恢复。
+func (c *WSClient) logConnectionFailure(err error, now time.Time) {
+	c.markReconnectPending()
+	if !c.reconnectSince.IsZero() {
+		return
+	}
+	c.reconnectSince = now
+
+	message := "服务端连接失败，将自动重试"
+	if c.reconnectPending.Load() {
+		message = "服务端连接中断，将自动重连"
+	}
+	// Dial 错误可能包含带 accessKey 的 URL；本机日志也不能回显认证值。
+	reason := err.Error()
+	if c.accessKey != "" {
+		reason = strings.ReplaceAll(reason, url.QueryEscape(c.accessKey), "[已脱敏]")
+		reason = strings.ReplaceAll(reason, c.accessKey, "[已脱敏]")
+	}
+	args := []any{"error", strconv.Quote(reason), "retryIn", c.reconnectDelay}
+	if busyOps := c.operations().Busy(); busyOps > 0 {
+		args = append(args, "busyOps", busyOps)
+	}
+	logger.Warn(message, args...)
+}
+
+// logConnectionRecovery 收到有效协议消息后才确认恢复，统计包含成功连接的重试次数。
+func (c *WSClient) logConnectionRecovery(now time.Time) {
+	reconnecting := c.reconnectPending.Swap(false)
+	if c.reconnectSince.IsZero() {
+		return
+	}
+	message, durationKey := "服务端连接已建立", "duration"
+	if reconnecting {
+		message, durationKey = "服务端连接已恢复", "downtime"
+	}
+	logger.Info(message, durationKey, now.Sub(c.reconnectSince).Round(time.Second), "attempts", c.reconnectAttempts)
+	c.reconnectSince = time.Time{}
+	c.reconnectAttempts = 0
 }
 
 // markReconnectPending 只在客户端曾经建立过连接后标记重连，避免首次上线被误报为重连成功。

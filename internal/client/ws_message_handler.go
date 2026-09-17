@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/coder/websocket"
 	"github.com/https-cert/deploy/pb/deployPB"
@@ -42,14 +43,12 @@ func (c *WSClient) handleWSMessages() error {
 		_, data, err := conn.Read(c.ctx)
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
-				logger.Info("WebSocket v2 连接因 context 取消而关闭")
 				return nil
 			}
 			closeStatus := websocket.CloseStatus(err)
 			if closeStatus == websocket.StatusNormalClosure {
 				return nil
 			}
-			logger.Warn("WebSocket v2 读取错误", "error", err, "closeStatus", closeStatus)
 			return err
 		}
 
@@ -63,9 +62,7 @@ func (c *WSClient) handleWSMessages() error {
 			continue
 		}
 		if c.connected.CompareAndSwap(false, true) {
-			if c.reconnectPending.Swap(false) {
-				logger.Info("deployment v2 重新连接成功")
-			}
+			c.logConnectionRecovery(time.Now())
 		}
 		c.handleDeploymentResponse(&response)
 	}
