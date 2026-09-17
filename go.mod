@@ -3,28 +3,28 @@ module github.com/https-cert/deploy
 go 1.27
 
 require (
-	connectrpc.com/connect v1.20.0
+	connectrpc.com/connect v1.21.0
 	github.com/alibabacloud-go/darabonba-openapi/v2 v2.2.4
 	github.com/alibabacloud-go/tea-utils/v2 v2.0.9
 	github.com/baidubce/bce-sdk-go v0.9.274
 	github.com/coder/websocket v1.8.15
 	github.com/huaweicloud/huaweicloud-sdk-go-obs v3.26.6+incompatible
-	github.com/huaweicloud/huaweicloud-sdk-go-v3 v0.1.212
+	github.com/huaweicloud/huaweicloud-sdk-go-v3 v0.1.216
 	github.com/jdcloud-api/jdcloud-sdk-go v1.67.0
-	github.com/qiniu/go-sdk/v7 v7.27.0
+	github.com/qiniu/go-sdk/v7 v7.28.1
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
-	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/cdn v1.3.154
-	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/clb v1.3.165
-	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.3.167
-	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/cvm v1.3.162
+	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/cdn v1.3.173
+	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/clb v1.3.176
+	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.3.181
+	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/cvm v1.3.177
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ssl v1.3.147
-	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/teo v1.3.158
+	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/teo v1.3.180
 	github.com/tencentyun/cos-go-sdk-v5 v0.7.75
-	github.com/volcengine/ve-tos-golang-sdk/v2 v2.9.9
-	github.com/volcengine/volcengine-go-sdk v1.2.49
-	golang.org/x/crypto v0.55.0
-	golang.org/x/net v0.58.0
+	github.com/volcengine/ve-tos-golang-sdk/v2 v2.9.10
+	github.com/volcengine/volcengine-go-sdk v1.2.53
+	golang.org/x/crypto v0.57.0
+	golang.org/x/net v0.59.0
 	google.golang.org/protobuf v1.36.12
 )
 
@@ -63,12 +63,12 @@ require (
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/tjfoc/gmsm v1.4.1 // indirect
-	github.com/volcengine/volc-sdk-golang v1.0.255 // indirect
-	go.mongodb.org/mongo-driver v1.17.9 // indirect
+	github.com/volcengine/volc-sdk-golang v1.0.257 // indirect
+	go.mongodb.org/mongo-driver v1.17.10 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
-	golang.org/x/sync v0.22.0 // indirect
-	golang.org/x/sys v0.47.0 // indirect
-	golang.org/x/text v0.41.0 // indirect
+	golang.org/x/sync v0.23.0 // indirect
+	golang.org/x/sys v0.48.0 // indirect
+	golang.org/x/text v0.42.0 // indirect
 	gopkg.in/ini.v1 v1.67.3 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
