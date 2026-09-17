@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/https-cert/deploy/internal/client/providers"
 	"github.com/https-cert/deploy/pb/deployPB"
@@ -73,85 +72,81 @@ func (p *Provider) discoverAcceleratedResources(ctx context.Context, deploymentT
 	return resources, true, fmt.Errorf("%s 域名目录超过安全分页上限", product.DisplayName)
 }
 
-// discoverESAResources 分页读取站点并读取站点下的 Record。
+// discoverESAResources 按 SetCertificate 的 SiteId 粒度发现站点，不依赖 DNS Record 已存在。
 func (p *Provider) discoverESAResources(ctx context.Context) ([]providers.DeploymentResource, bool, error) {
 	sites, partial, err := p.listESASites(ctx)
-	if err != nil {
-		return nil, partial, err
-	}
-	type siteResult struct {
-		resources []providers.DeploymentResource
-		err       error
-	}
-	results := make(chan siteResult, len(sites))
-	sem := make(chan struct{}, aliyunCatalogConcurrency)
-	var workers sync.WaitGroup
+	resources := make([]providers.DeploymentResource, 0, len(sites))
 	for _, site := range sites {
-		site := site
-		workers.Add(1)
-		go func() {
-			defer workers.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
-			resources, scanErr := p.listESARecords(ctx, site)
-			results <- siteResult{resources: resources, err: scanErr}
-		}()
-	}
-	workers.Wait()
-	close(results)
-	resources := make([]providers.DeploymentResource, 0)
-	var scanErr error
-	for result := range results {
-		resources = append(resources, result.resources...)
-		if result.err != nil {
-			partial = true
-			scanErr = result.err
+		resource, ok := esaSiteResource(site)
+		if ok {
+			resources = append(resources, resource)
 		}
 	}
-	return resources, partial, scanErr
+	return resources, partial, err
 }
 
-// listESASites 分页读取 ESA Site 摘要。
+// esaSiteResource 保留站点身份和根域名，以新引用区分历史 Record 目标。
+func esaSiteResource(site map[string]any) (providers.DeploymentResource, bool) {
+	siteID, err := parseESASiteID(mapString(site, "SiteId"))
+	if err != nil {
+		return providers.DeploymentResource{}, false
+	}
+	domain, err := providers.NormalizeDomain(mapString(site, "SiteName"))
+	if err != nil || strings.HasPrefix(domain, "*.") {
+		return providers.DeploymentResource{}, false
+	}
+	status := mapString(site, "Status")
+	availability := deployPB.DeploymentResourceAvailability_DEPLOYMENT_RESOURCE_AVAILABILITY_STOPPED
+	// pending 站点允许预先配置证书；offline 和 moved 不应成为可执行目标。
+	if strings.EqualFold(status, "active") || strings.EqualFold(status, "pending") {
+		availability = deployPB.DeploymentResourceAvailability_DEPLOYMENT_RESOURCE_AVAILABILITY_READY
+	}
+	return providers.DeploymentResource{
+		TargetRef: providers.BuildTargetRef("aliyun", deployPB.DeploymentType_DEPLOYMENT_TYPE_ESA, "site", siteID),
+		Label:     domain, Domain: domain, SiteDomain: domain, Domains: []string{domain},
+		Protocol: "HTTPS", Status: status, Availability: availability, SiteID: siteID,
+		Region: mapString(site, "Coverage"),
+	}, true
+}
+
+// listESASites 使用官方 PageNumber/PageSize 分页，避免 MaxResults/NextToken 导致只读取第一页。
+// https://api.aliyun.com/api/ESA/2024-09-10/ListSites
 func (p *Provider) listESASites(ctx context.Context) ([]map[string]any, bool, error) {
 	sites := make([]map[string]any, 0)
-	nextToken := ""
-	for page := 0; page < aliyunCatalogMaxPages; page++ {
-		query := map[string]string{"MaxResults": strconv.Itoa(aliyunCatalogPageSize)}
-		if nextToken != "" {
-			query["NextToken"] = nextToken
-		}
+	for page := 1; page <= aliyunCatalogMaxPages; page++ {
+		query := map[string]string{"PageNumber": strconv.Itoa(page), "PageSize": strconv.Itoa(aliyunCatalogPageSize)}
 		response, err := p.deploymentAPI.Call(ctx, cloudAPIRequest{Endpoint: aliyunESAEndpoint, Action: "ListSites", Version: aliyunESAVersion, Method: "GET", Query: query})
 		if err != nil {
 			return sites, len(sites) > 0, err
 		}
 		records := nestedMapSlice(response.Body, "Sites", "Result")
 		sites = append(sites, records...)
-		nextToken = firstMapString(response.Body, "NextToken")
-		if nextToken == "" {
+		total, hasTotal := mapInt64(response.Body, "TotalCount")
+		if hasTotal && int64(len(sites)) >= total || !hasTotal && len(records) < aliyunCatalogPageSize {
 			return sites, false, nil
+		}
+		if len(records) == 0 {
+			return sites, true, fmt.Errorf("ESA 站点分页未返回完整目录")
 		}
 	}
 	return sites, true, fmt.Errorf("ESA 站点目录超过安全分页上限")
 }
 
-// listESARecords 分页读取单个站点的加速 Record。
+// listESARecords 仅为已保存的旧目标分页解析 Record，新建目标不再依赖此接口。
 func (p *Provider) listESARecords(ctx context.Context, site map[string]any) ([]providers.DeploymentResource, error) {
 	siteID := firstMapString(site, "SiteId")
 	if siteID == "" {
 		return nil, nil
 	}
 	resources := make([]providers.DeploymentResource, 0)
-	nextToken := ""
-	for page := 0; page < aliyunCatalogMaxPages; page++ {
-		query := map[string]string{"SiteId": siteID, "MaxResults": strconv.Itoa(aliyunCatalogPageSize)}
-		if nextToken != "" {
-			query["NextToken"] = nextToken
-		}
+	for page := 1; page <= aliyunCatalogMaxPages; page++ {
+		query := map[string]string{"SiteId": siteID, "PageNumber": strconv.Itoa(page), "PageSize": strconv.Itoa(aliyunCatalogPageSize)}
 		response, err := p.deploymentAPI.Call(ctx, cloudAPIRequest{Endpoint: aliyunESAEndpoint, Action: "ListRecords", Version: aliyunESAVersion, Method: "GET", Query: query})
 		if err != nil {
 			return resources, err
 		}
-		for _, record := range nestedMapSlice(response.Body, "Records", "Result") {
+		records := nestedMapSlice(response.Body, "Records", "Result")
+		for _, record := range records {
 			domain, err := providers.NormalizeDomain(firstMapString(record, "RecordName", "Record"))
 			if err != nil {
 				continue
@@ -171,9 +166,12 @@ func (p *Provider) listESARecords(ctx context.Context, site map[string]any) ([]p
 				Protocol: "HTTPS", Status: status, Availability: availability, SiteID: siteID, ResourceID: recordID,
 			})
 		}
-		nextToken = firstMapString(response.Body, "NextToken")
-		if nextToken == "" {
+		total, hasTotal := mapInt64(response.Body, "TotalCount")
+		if hasTotal && int64(page*aliyunCatalogPageSize) >= total || !hasTotal && len(records) < aliyunCatalogPageSize {
 			return resources, nil
+		}
+		if len(records) == 0 {
+			return resources, fmt.Errorf("ESA Record 分页未返回完整目录")
 		}
 	}
 	return resources, fmt.Errorf("ESA Record 目录超过安全分页上限")

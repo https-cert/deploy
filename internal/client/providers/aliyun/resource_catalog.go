@@ -76,7 +76,24 @@ func (p *Provider) ResolveResource(ctx context.Context, deploymentType deployPB.
 		catalog.Status == deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_PERMISSION_DENIED {
 		return providers.DeploymentResource{}, fmt.Errorf("阿里云资源目录不可用: %w", catalog.Error)
 	}
-	return providers.FindResourceByTargetRef(catalog.Resources, targetRef)
+	resource, err := providers.FindResourceByTargetRef(catalog.Resources, targetRef)
+	if err == nil || deploymentType != deployPB.DeploymentType_DEPLOYMENT_TYPE_ESA || strings.TrimSpace(targetRef) == "" {
+		return resource, err
+	}
+	// 新目录只展示站点；按需查找旧 Record 引用，避免已有部署绑定在升级后失效。
+	for _, site := range catalog.Resources {
+		records, scanErr := p.listESARecords(ctx, map[string]any{"SiteId": site.SiteID, "SiteName": site.SiteDomain})
+		if scanErr != nil {
+			continue
+		}
+		if legacy, findErr := providers.FindResourceByTargetRef(records, targetRef); findErr == nil {
+			if site.Availability != deployPB.DeploymentResourceAvailability_DEPLOYMENT_RESOURCE_AVAILABILITY_READY {
+				legacy.Availability = site.Availability
+			}
+			return legacy, nil
+		}
+	}
+	return providers.DeploymentResource{}, err
 }
 
 // TestResource 只读确认阿里云资源仍存在且具备精确证书槽位。
@@ -104,6 +121,11 @@ func (p *Provider) TestResource(ctx context.Context, deploymentType deployPB.Dep
 		}
 		return validateAcceleratedDomain(response.Body, resource.Domain, product)
 	case deployPB.DeploymentType_DEPLOYMENT_TYPE_ESA:
+		if resource.SiteDomain != "" {
+			// ListCertificates 只读验证站点证书权限，无需存在 DNS 记录或现有证书。
+			_, err := p.listESASiteCertificates(ctx, resource.SiteID)
+			return err
+		}
 		response, err := p.listESACertificatesByRecord(ctx, resource.SiteID, resource.Domain)
 		if err != nil {
 			return err

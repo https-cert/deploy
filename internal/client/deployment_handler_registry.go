@@ -35,8 +35,8 @@ type DeploymentHandler interface {
 	Key() DeploymentHandlerKey
 	// Capability 返回不包含实时资源的能力声明。
 	Capability() *deployPB.DeploymentCapability
-	// DiscoverResources 返回脱敏的实时资源目录。
-	DiscoverResources(ctx context.Context) providers.ResourceCatalogResult
+	// DiscoverResources 返回实时目录，非空 targetRef 用于兼容解析已保存的精确目标。
+	DiscoverResources(ctx context.Context, targetRef string) providers.ResourceCatalogResult
 	// Test 测试当前选择器是否可用。
 	Test(ctx context.Context, targetRef string) error
 	// Deploy 执行一次证书部署。
@@ -143,7 +143,7 @@ func (h *nativeDeploymentHandler) Capability() *deployPB.DeploymentCapability {
 }
 
 // DiscoverResources 直接读取当前 v2 handler 的实时资源目录。
-func (h *nativeDeploymentHandler) DiscoverResources(ctx context.Context) providers.ResourceCatalogResult {
+func (h *nativeDeploymentHandler) DiscoverResources(ctx context.Context, targetRef string) providers.ResourceCatalogResult {
 	ctx = deploys.WithRuntime(ctx, h.client.runtime)
 	if h.spec.targetMode == deployPB.DeploymentTargetMode_DEPLOYMENT_TARGET_MODE_NONE {
 		return providers.ResourceCatalogResult{Status: deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_READY}
@@ -158,6 +158,13 @@ func (h *nativeDeploymentHandler) DiscoverResources(ctx context.Context) provide
 	adapter, err := newDeploymentResourceProvider(h.spec.key.Provider, h.spec.key.DeploymentType, h.client.runtime)
 	if err != nil {
 		return providers.ResourceCatalogResult{Status: deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_UNAVAILABLE, Error: err}
+	}
+	if targetRef != "" {
+		resource, err := adapter.ResolveResource(ctx, h.spec.key.DeploymentType, targetRef)
+		if err != nil {
+			return providers.ResourceCatalogResult{Status: deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_UNAVAILABLE, Error: err}
+		}
+		return providers.CatalogFromResources([]providers.DeploymentResource{resource})
 	}
 	return adapter.DiscoverResources(ctx, h.spec.key.DeploymentType)
 }

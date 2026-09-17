@@ -8,10 +8,13 @@ import (
 	"github.com/https-cert/deploy/internal/client/providers"
 )
 
-// deployESA 部署证书到一个 Site 中精确匹配的 ESA Record。
+// deployESA 为新目标上传站点证书，历史 Record 目标仍按原记录校验和回读。
 func (p *Provider) deployESA(ctx context.Context, certificate providers.CertificateMaterial, target providers.DeploymentResource) (providers.DeploymentResult, error) {
 	if p == nil || p.deploymentAPI == nil {
 		return providers.DeploymentResult{}, providers.NewDeploymentError("阿里云部署客户端未初始化", false, "", nil)
+	}
+	if target.SiteDomain != "" {
+		return p.deployESASiteCertificate(ctx, certificate, target)
 	}
 	siteID, err := parseESASiteID(target.SiteID)
 	if err != nil {

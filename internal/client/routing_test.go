@@ -91,7 +91,7 @@ func (f *fakeDeploymentHandler) Capability() *deployPB.DeploymentCapability {
 }
 
 // DiscoverResources 返回 fake 资源目录。
-func (f *fakeDeploymentHandler) DiscoverResources(context.Context) providers.ResourceCatalogResult {
+func (f *fakeDeploymentHandler) DiscoverResources(context.Context, string) providers.ResourceCatalogResult {
 	return f.catalog
 }
 
@@ -256,8 +256,12 @@ func TestNativeDeploymentHandlerBehavior(t *testing.T) {
 	if handler.Key() != spec.key || handler.Capability().GetTargetMode() != deployPB.DeploymentTargetMode_DEPLOYMENT_TARGET_MODE_REQUIRED {
 		t.Fatal("原生 handler 能力声明不匹配")
 	}
-	if catalog := handler.DiscoverResources(context.Background()); catalog.Status != deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_READY {
+	if catalog := handler.DiscoverResources(context.Background(), ""); catalog.Status != deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_READY {
 		t.Fatalf("资源发现状态不匹配: %+v", catalog)
+	}
+	// 读取已保存的引用必须经 ResolveResource，不能只在新建目标目录中查找。
+	if catalog := handler.DiscoverResources(context.Background(), "target-1"); len(catalog.Resources) != 1 || catalog.Resources[0].TargetRef != "target-1" {
+		t.Fatalf("精确资源发现失败: %+v", catalog)
 	}
 	if err := handler.Test(context.Background(), "target-1"); err != nil {
 		t.Fatalf("动态资源测试失败: %v", err)
@@ -277,7 +281,7 @@ func TestNativeDeploymentHandlerBehavior(t *testing.T) {
 
 	localSpec := newDeploymentHandlerSpec(deployPB.Provider_PROVIDER_ANSSL_CLI, deployPB.DeploymentType_DEPLOYMENT_TYPE_ANSSL_CLI_NGINX_CERT, deployPB.DeploymentTargetMode_DEPLOYMENT_TARGET_MODE_NONE, deployPB.DeploymentDomainPolicy_DEPLOYMENT_DOMAIN_POLICY_NONE)
 	localHandler := &nativeDeploymentHandler{client: client, spec: localSpec}
-	if catalog := localHandler.DiscoverResources(context.Background()); catalog.Status != deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_READY {
+	if catalog := localHandler.DiscoverResources(context.Background(), ""); catalog.Status != deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_READY {
 		t.Fatalf("无资源能力应直接 READY: %+v", catalog)
 	}
 	if err := localHandler.validateTargetRef(""); err != nil || localHandler.validateTargetRef("unexpected") == nil {
@@ -286,7 +290,7 @@ func TestNativeDeploymentHandlerBehavior(t *testing.T) {
 
 	unconfiguredClient := &WSClient{runtime: &config.Runtime{Config: &config.Configuration{}}, deploymentExecutor: &DeploymentExecutor{}}
 	unconfiguredHandler := &nativeDeploymentHandler{client: unconfiguredClient, spec: spec}
-	if catalog := unconfiguredHandler.DiscoverResources(context.Background()); catalog.Status != deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_NOT_CONFIGURED {
+	if catalog := unconfiguredHandler.DiscoverResources(context.Background(), ""); catalog.Status != deployPB.DeploymentResourceStatus_DEPLOYMENT_RESOURCE_STATUS_NOT_CONFIGURED {
 		t.Fatalf("未配置云 provider 状态不匹配: %+v", catalog)
 	}
 }

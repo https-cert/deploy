@@ -22,7 +22,7 @@ func (p *Provider) DeployCertificate(ctx context.Context, certificate providers.
 	if err := validateAliyunDeploymentResource(deploymentType, resource); err != nil {
 		return providers.DeploymentResult{}, providers.NewDeploymentError("阿里云部署资源配置无效", false, "", newSafeAliyunCause("资源校验", err))
 	}
-	if err := providers.ValidateCertificateMaterial(certificate, resource.Domain, time.Now()); err != nil {
+	if err := providers.ValidateCertificateForResource(certificate, resource, time.Now()); err != nil {
 		return providers.DeploymentResult{}, providers.NewDeploymentError("阿里云部署资源证书校验失败", false, "", newSafeAliyunCause("证书校验", err))
 	}
 

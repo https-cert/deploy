@@ -67,6 +67,7 @@ type DeploymentResource struct {
 	Label          string                                  // Label 本地展示名称。
 	Domain         string                                  // Domain 实际绑定证书的域名。
 	Domains        []string                                // Domains 是资源当前绑定的全部规范化域名。
+	SiteDomain     string                                  // SiteDomain 非空表示站点证书库，证书需包含站点内的域名。
 	Group          string                                  // Group 是站点、Bucket 或负载均衡实例的脱敏展示名称。
 	Region         string                                  // Region 云资源所在地域。
 	Protocol       string                                  // Protocol 是资源当前使用的公开协议名称。

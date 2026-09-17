@@ -1219,6 +1219,7 @@ type DeploymentResource struct {
 	Region        string                         `protobuf:"bytes,8,opt,name=region,proto3" json:"region,omitempty"`                                                            // 资源地域
 	Port          uint32                         `protobuf:"varint,9,opt,name=port,proto3" json:"port,omitempty"`                                                               // 监听端口
 	Availability  DeploymentResourceAvailability `protobuf:"varint,10,opt,name=availability,proto3,enum=deployPB.DeploymentResourceAvailability" json:"availability,omitempty"` // 资源可用状态
+	SiteDomain    string                         `protobuf:"bytes,11,opt,name=site_domain,json=siteDomain,proto3" json:"site_domain,omitempty"`                                 // 站点级证书上传的根域名；为空时仍按具体资源域名校验
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1321,6 +1322,13 @@ func (x *DeploymentResource) GetAvailability() DeploymentResourceAvailability {
 		return x.Availability
 	}
 	return DeploymentResourceAvailability_DEPLOYMENT_RESOURCE_AVAILABILITY_UNKNOWN
+}
+
+func (x *DeploymentResource) GetSiteDomain() string {
+	if x != nil {
+		return x.SiteDomain
+	}
+	return ""
 }
 
 // DeploymentExecutionResult 是 v2 测试和执行的统一结果。
@@ -3835,7 +3843,7 @@ const file_deployPB_deploy_proto_rawDesc = "" +
 	"\rdomain_policy\x18\r \x01(\x0e2 .deployPB.DeploymentDomainPolicyR\fdomainPolicy\x125\n" +
 	"\x16permission_description\x18\x0e \x01(\tR\x15permissionDescription\x126\n" +
 	"\x17default_timeout_seconds\x18\x0f \x01(\rR\x15defaultTimeoutSeconds\x120\n" +
-	"\x14default_max_attempts\x18\x10 \x01(\rR\x12defaultMaxAttempts\"\xbf\x02\n" +
+	"\x14default_max_attempts\x18\x10 \x01(\rR\x12defaultMaxAttempts\"\xe0\x02\n" +
 	"\x12DeploymentResource\x12\x1d\n" +
 	"\n" +
 	"target_ref\x18\x01 \x01(\tR\ttargetRef\x12\x14\n" +
@@ -3848,7 +3856,9 @@ const file_deployPB_deploy_proto_rawDesc = "" +
 	"\x06region\x18\b \x01(\tR\x06region\x12\x12\n" +
 	"\x04port\x18\t \x01(\rR\x04port\x12L\n" +
 	"\favailability\x18\n" +
-	" \x01(\x0e2(.deployPB.DeploymentResourceAvailabilityR\favailability\"\xf7\x02\n" +
+	" \x01(\x0e2(.deployPB.DeploymentResourceAvailabilityR\favailability\x12\x1f\n" +
+	"\vsite_domain\x18\v \x01(\tR\n" +
+	"siteDomain\"\xf7\x02\n" +
 	"\x19DeploymentExecutionResult\x12B\n" +
 	"\x06status\x18\x01 \x01(\x0e2*.deployPB.DeploymentExecutionResult.StatusR\x06status\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12!\n" +

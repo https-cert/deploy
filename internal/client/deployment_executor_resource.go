@@ -153,11 +153,7 @@ func (be *DeploymentExecutor) executeDeploymentResource(ctx context.Context, req
 		CertificatePEM: request.CertificatePEM,
 		PrivateKeyPEM:  request.PrivateKeyPEM,
 	}
-	domains := resource.Domains
-	if len(domains) == 0 {
-		domains = []string{resource.Domain}
-	}
-	if err := providers.ValidateCertificateForDomains(certificate, domains, time.Now()); err != nil {
+	if err := providers.ValidateCertificateForResource(certificate, resource, time.Now()); err != nil {
 		return providers.DeploymentResult{}, providers.NewDeploymentError("部署资源证书校验失败: "+err.Error(), false, "", err)
 	}
 	result, err := resourceProvider.DeployCertificate(ctx, certificate, request.DeploymentType, resource)

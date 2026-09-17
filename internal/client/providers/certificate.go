@@ -89,6 +89,41 @@ func ValidateCertificateForDomains(certificate CertificateMaterial, targetDomain
 	return nil
 }
 
+// CertificateDomainBelongsToSite 判断证书名称是否位于指定站点内，不把站点归属当作通配符覆盖。
+func CertificateDomainBelongsToSite(certificateDomain, siteDomain string) bool {
+	domain, err := NormalizeDomain(certificateDomain)
+	if err != nil {
+		return false
+	}
+	site, err := NormalizeDomain(siteDomain)
+	if err != nil || strings.HasPrefix(site, "*.") {
+		return false
+	}
+	domain = strings.TrimPrefix(domain, "*.")
+	return domain == site || strings.HasSuffix(domain, "."+site)
+}
+
+// ValidateCertificateForResource 站点上传校验真实证书名称的归属，具体资源仍要求全部域名被覆盖。
+func ValidateCertificateForResource(certificate CertificateMaterial, resource DeploymentResource, now time.Time) error {
+	if resource.SiteDomain != "" {
+		leaf, err := parseLeafCertificate([]byte(certificate.CertificatePEM))
+		if err != nil {
+			return fmt.Errorf("证书内容不可用: %w", err)
+		}
+		for _, domain := range leaf.DNSNames {
+			if CertificateDomainBelongsToSite(domain, resource.SiteDomain) {
+				return ValidateCertificateMaterial(certificate, domain, now)
+			}
+		}
+		return fmt.Errorf("证书未包含站点 %s 内的域名", resource.SiteDomain)
+	}
+	domains := resource.Domains
+	if len(domains) == 0 {
+		domains = []string{resource.Domain}
+	}
+	return ValidateCertificateForDomains(certificate, domains, now)
+}
+
 // parseLeafCertificate 解析 PEM 中第一个证书块。
 func parseLeafCertificate(certPEM []byte) (*x509.Certificate, error) {
 	for len(certPEM) > 0 {

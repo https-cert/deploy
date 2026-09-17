@@ -92,6 +92,7 @@ func (s *deploymentService) handleUpdateRequest(request *deployPB.DeploymentUpda
 	updateHandler.HandleUpdate()
 }
 
+// handleDiscoverRequest 发现新目标，或按保存的引用读取兼容资源快照。
 func (s *deploymentService) handleDiscoverRequest(requestID string, request *deployPB.DeploymentDiscoverRequest) {
 	selector := request.GetSelector()
 	handler, ok := s.lookup(selector)
@@ -103,7 +104,7 @@ func (s *deploymentService) handleDiscoverRequest(requestID string, request *dep
 	if request.GetIncludeResources() {
 		operationCtx, cancel := newDeploymentOperationContext(s.parent)
 		defer cancel()
-		catalog := handler.DiscoverResources(operationCtx)
+		catalog := handler.DiscoverResources(operationCtx, selector.GetTargetRef())
 		if catalog.Error != nil {
 			logger.ErrorLocal("deployment v2 资源发现失败", "error", catalog.Error, "provider", selector.GetProvider().String(), "deploymentType", selector.GetDeploymentType().String(), "requestId", requestID)
 		}

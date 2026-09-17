@@ -28,7 +28,8 @@ func deploymentResourcesFromProvider(resources []providers.DeploymentResource) [
 	for _, resource := range resources {
 		result = append(result, &deployPB.DeploymentResource{
 			TargetRef: resource.TargetRef, Label: resource.Label, Domain: resource.Domain, Domains: append([]string(nil), resource.Domains...),
-			Protocol: resource.Protocol, Status: resource.Status, Group: resource.Group, Region: resource.Region, Port: uint32(resource.ListenerPort), Availability: resource.Availability,
+			SiteDomain: resource.SiteDomain,
+			Protocol:   resource.Protocol, Status: resource.Status, Group: resource.Group, Region: resource.Region, Port: uint32(resource.ListenerPort), Availability: resource.Availability,
 		})
 	}
 	return result

@@ -48,6 +48,34 @@ func TestValidateCertificateMaterialRejectsMismatchedPrivateKey(t *testing.T) {
 	}
 }
 
+// TestValidateSiteCertificateUsesActualSAN 验证站点上传使用真实 SAN，并保留有效期、私钥和旧资源覆盖约束。
+func TestValidateSiteCertificateUsesActualSAN(t *testing.T) {
+	now := time.Now()
+	certificatePEM, privateKeyPEM := testCertificateMaterial(t, []string{"www.example.com"}, now.Add(-time.Hour), now.Add(time.Hour))
+	certificate := CertificateMaterial{Domain: "other.net", CertificatePEM: certificatePEM, PrivateKeyPEM: privateKeyPEM}
+	resource := DeploymentResource{Domain: "example.com", SiteDomain: "example.com", Domains: []string{"example.com"}}
+	if err := ValidateCertificateForResource(certificate, resource, now); err != nil {
+		t.Fatalf("站点内子域证书应允许上传: %v", err)
+	}
+	resource.SiteDomain = "other.net"
+	if err := ValidateCertificateForResource(certificate, resource, now); err == nil {
+		t.Fatal("不能通过伪造请求中的主域名绕过真实证书校验")
+	}
+	resource.SiteDomain = ""
+	if err := ValidateCertificateForResource(certificate, resource, now); err == nil {
+		t.Fatal("旧资源仍要求证书覆盖根域名")
+	}
+	resource.SiteDomain = "example.com"
+	if err := ValidateCertificateForResource(certificate, resource, now.Add(2*time.Hour)); err == nil {
+		t.Fatal("站点上传不能接受过期证书")
+	}
+	_, wrongKey := testCertificateMaterial(t, []string{"www.example.com"}, now.Add(-time.Hour), now.Add(time.Hour))
+	certificate.PrivateKeyPEM = wrongKey
+	if err := ValidateCertificateForResource(certificate, resource, now); err == nil {
+		t.Fatal("站点上传不能接受不匹配的私钥")
+	}
+}
+
 // testCertificateMaterial creates an offline self-signed certificate and matching RSA private key.
 func testCertificateMaterial(t *testing.T, domains []string, notBefore, notAfter time.Time) (string, string) {
 	t.Helper()
