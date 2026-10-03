@@ -1,12 +1,14 @@
 package onepanel
 
-import "encoding/json"
+import (
+	"encoding/json/jsontext"
+)
 
 // OnePanelAPIResponse 描述 1Panel v2 API 的统一响应外壳。
 type OnePanelAPIResponse struct {
-	Code    int             `json:"code"`    // Code 是 1Panel 业务状态码，200 表示成功。
-	Message string          `json:"message"` // Message 是仅供 deploy 本地日志使用的诊断信息。
-	Data    json.RawMessage `json:"data"`    // Data 是具体接口返回的数据。
+	Code    int            `json:"code"`    // Code 是 1Panel 业务状态码，200 表示成功。
+	Message string         `json:"message"` // Message 是仅供 deploy 本地日志使用的诊断信息。
+	Data    jsontext.Value `json:"data"`    // Data 是具体接口返回的数据。
 }
 
 // OnePanelWebsiteResource 是可以安全上报到 anSSL 后端的脱敏网站资源。

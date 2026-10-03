@@ -3,7 +3,7 @@ package aliyun
 import (
 	"crypto/sha256"
 	"crypto/x509"
-	"encoding/json"
+	"encoding/json/v2"
 	"encoding/pem"
 	"fmt"
 	"reflect"

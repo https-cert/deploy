@@ -4,7 +4,8 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -36,9 +37,9 @@ type safeLineClient struct {
 
 // safeLineAPIResponse 是雷池 OpenAPI 的通用响应包络。
 type safeLineAPIResponse struct {
-	Data json.RawMessage `json:"data"` // Data 是具体接口响应数据。
-	Err  string          `json:"err"`  // Err 是雷池返回的业务错误。
-	Msg  string          `json:"msg"`  // Msg 是雷池返回的补充消息。
+	Data jsontext.Value `json:"data"` // Data 是具体接口响应数据。
+	Err  string         `json:"err"`  // Err 是雷池返回的业务错误。
+	Msg  string         `json:"msg"`  // Msg 是雷池返回的补充消息。
 }
 
 // safeLineCertificateList 是雷池证书列表响应数据。

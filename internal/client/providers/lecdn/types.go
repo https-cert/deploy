@@ -1,7 +1,8 @@
 package lecdn
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"strings"
@@ -9,9 +10,9 @@ import (
 
 // apiEnvelope 是 LeCDN 统一业务响应外层。
 type apiEnvelope struct {
-	Code    int             `json:"code"`    // Code 为 0 或 200 时表示业务成功。
-	Message string          `json:"message"` // Message 是业务失败诊断信息。
-	Data    json.RawMessage `json:"data"`    // Data 保存具体接口响应。
+	Code    int            `json:"code"`    // Code 为 0 或 200 时表示业务成功。
+	Message string         `json:"message"` // Message 是业务失败诊断信息。
+	Data    jsontext.Value `json:"data"`    // Data 保存具体接口响应。
 }
 
 // pageResult 是 LeCDN 通用分页响应。
@@ -93,10 +94,13 @@ func (id *flexibleID) UnmarshalJSON(data []byte) error {
 		*id = flexibleID(strings.TrimSpace(stringValue))
 		return nil
 	}
-	var number json.Number
-	if err := json.Unmarshal(data, &number); err != nil {
+	var number jsontext.Value
+	if err := json.Unmarshal(data, &number); err != nil || number.Kind() != jsontext.KindNumber {
+		if err == nil {
+			err = fmt.Errorf("JSON 值不是数字")
+		}
 		return fmt.Errorf("LeCDN ID 格式无效: %w", err)
 	}
-	*id = flexibleID(number.String())
+	*id = flexibleID(strings.TrimSpace(number.String()))
 	return nil
 }

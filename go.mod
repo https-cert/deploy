@@ -6,7 +6,7 @@ require (
 	connectrpc.com/connect v1.21.0
 	github.com/alibabacloud-go/darabonba-openapi/v2 v2.2.4
 	github.com/alibabacloud-go/tea-utils/v2 v2.0.9
-	github.com/baidubce/bce-sdk-go v0.9.274
+	github.com/baidubce/bce-sdk-go v0.9.275
 	github.com/coder/websocket v1.8.15
 	github.com/huaweicloud/huaweicloud-sdk-go-obs v3.26.6+incompatible
 	github.com/huaweicloud/huaweicloud-sdk-go-v3 v0.1.216
@@ -16,7 +16,7 @@ require (
 	github.com/spf13/viper v1.21.0
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/cdn v1.3.173
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/clb v1.3.176
-	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.3.181
+	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.3.188
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/cvm v1.3.177
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ssl v1.3.147
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/teo v1.3.180
@@ -61,6 +61,7 @@ require (
 	github.com/spf13/afero v1.15.0 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
+	github.com/stretchr/testify v1.12.1 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/tjfoc/gmsm v1.4.1 // indirect
 	github.com/volcengine/volc-sdk-golang v1.0.257 // indirect

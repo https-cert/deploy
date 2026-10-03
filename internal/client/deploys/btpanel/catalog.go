@@ -4,7 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
+	"encoding/json/jsontext"
 	"fmt"
 	"net"
 	"net/url"
@@ -350,7 +350,7 @@ func normalizeBTPanelDomain(raw string) string {
 }
 
 // btPanelWebsiteStatus 将宝塔数字或字符串状态转换为稳定运行状态。
-func btPanelWebsiteStatus(raw json.RawMessage) string {
+func btPanelWebsiteStatus(raw jsontext.Value) string {
 	value := strings.Trim(strings.TrimSpace(string(raw)), "\"")
 	if value == "1" || strings.EqualFold(value, "running") {
 		return btPanelStatusRunning
@@ -359,7 +359,7 @@ func btPanelWebsiteStatus(raw json.RawMessage) string {
 }
 
 // btPanelWebsiteProtocol 将宝塔网站列表中的 SSL 标记转换为稳定协议名称。
-func btPanelWebsiteProtocol(raw json.RawMessage) string {
+func btPanelWebsiteProtocol(raw jsontext.Value) string {
 	value := strings.Trim(strings.TrimSpace(string(raw)), "\"")
 	if value != "" && value != "-1" && value != "0" && !strings.EqualFold(value, "false") && value != "null" {
 		return btPanelProtocolHTTPS

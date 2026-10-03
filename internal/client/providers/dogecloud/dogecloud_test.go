@@ -6,7 +6,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/json"
+	"encoding/json/v2"
 	"encoding/pem"
 	"math/big"
 	"net/http"
@@ -52,7 +52,7 @@ func TestDogeCloudOfflineOrchestration(t *testing.T) {
 			writeDogeCloudResponse(t, response, map[string]any{"certs": certificates})
 		case "/cdn/cert/upload.json":
 			payload := map[string]any{}
-			if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+			if err := json.UnmarshalRead(request.Body, &payload); err != nil {
 				t.Errorf("解析上传请求失败: %v", err)
 			}
 			certificateID = "certificate-1"
@@ -60,7 +60,7 @@ func TestDogeCloudOfflineOrchestration(t *testing.T) {
 			writeDogeCloudResponse(t, response, map[string]any{"id": certificateID})
 		case "/cdn/cert/bind.json":
 			payload := map[string]any{}
-			if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+			if err := json.UnmarshalRead(request.Body, &payload); err != nil {
 				t.Errorf("解析绑定请求失败: %v", err)
 			}
 			if payload["domain"] != "www.example.com" || payload["id"] != "certificate-1" {
@@ -136,7 +136,7 @@ func TestDogeCloudPermissionAndConfiguration(t *testing.T) {
 // writeDogeCloudResponse 写入统一的多吉云 fake API 成功响应。
 func writeDogeCloudResponse(t *testing.T, response http.ResponseWriter, data map[string]any) {
 	t.Helper()
-	if err := json.NewEncoder(response).Encode(map[string]any{"code": http.StatusOK, "msg": "ok", "data": data}); err != nil {
+	if err := json.MarshalWrite(response, map[string]any{"code": http.StatusOK, "msg": "ok", "data": data}); err != nil {
 		t.Errorf("写入 fake API 响应失败: %v", err)
 	}
 }

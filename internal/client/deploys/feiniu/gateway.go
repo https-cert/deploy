@@ -2,7 +2,8 @@ package feiniu
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"os"
 	"path"
@@ -87,7 +88,7 @@ func renderFeiniuNginxConfig(content []byte, domain, certPath string) ([]byte, e
 	if !found {
 		entries = append([]map[string]any{replacement}, entries...)
 	}
-	newContent, err := json.MarshalIndent(entries, "", "  ")
+	newContent, err := json.Marshal(entries, jsontext.WithIndent("  "))
 	if err != nil {
 		return nil, fmt.Errorf("序列化Nginx配置失败: %w", err)
 	}

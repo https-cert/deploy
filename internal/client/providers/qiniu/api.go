@@ -3,7 +3,8 @@ package qiniu
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -192,7 +193,7 @@ func qiniuRequestID(headers http.Header) string {
 
 // responseMessage extracts a compact, non-sensitive provider error message.
 func responseMessage(body []byte) string {
-	var payload map[string]json.RawMessage
+	var payload map[string]jsontext.Value
 	if err := json.Unmarshal(body, &payload); err == nil {
 		for _, key := range []string{"error", "message", "code"} {
 			value, ok := payload[key]

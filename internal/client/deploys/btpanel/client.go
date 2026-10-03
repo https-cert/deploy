@@ -5,7 +5,7 @@ import (
 	"crypto/md5"
 	"crypto/tls"
 	"encoding/hex"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"

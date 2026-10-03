@@ -1,11 +1,12 @@
 package utils
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 )
 
 func PrintlnJson(obj any) {
-	jsonBytes, _ := json.MarshalIndent(obj, "", "\t")
+	jsonBytes, _ := json.Marshal(obj, jsontext.WithIndent("\t"))
 	fmt.Println(string(jsonBytes))
 }

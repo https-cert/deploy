@@ -1,7 +1,6 @@
 package lecdn
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -62,8 +61,6 @@ func stringValue(value any) string {
 	switch typed := value.(type) {
 	case string:
 		return typed
-	case json.Number:
-		return typed.String()
 	case float64:
 		return strconv.FormatFloat(typed, 'f', -1, 64)
 	case nil:

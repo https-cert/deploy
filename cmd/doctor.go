@@ -2,7 +2,8 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"io"
 	"net"
@@ -368,11 +369,11 @@ func writeDoctorTextResults(writer io.Writer, results []doctorResult) {
 
 // writeDoctorJSONResults 输出 JSON 诊断结果。
 func writeDoctorJSONResults(writer io.Writer, results []doctorResult) {
-	encoder := json.NewEncoder(writer)
-	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(doctorReport{OK: !hasDoctorFailure(results), Results: results}); err != nil {
+	if err := json.MarshalWrite(writer, doctorReport{OK: !hasDoctorFailure(results), Results: results}, jsontext.WithIndent("  ")); err != nil {
 		fmt.Fprintf(writer, `{"ok":false,"results":[],"error":%q}`+"\n", err.Error())
+		return
 	}
+	_, _ = io.WriteString(writer, "\n")
 }
 
 // hasDoctorFailure 判断诊断结果中是否存在失败项。

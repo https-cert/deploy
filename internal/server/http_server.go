@@ -2,7 +2,7 @@ package server
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"net"
@@ -211,9 +211,11 @@ func (s *HTTPServer) handleACMEChallenge(w http.ResponseWriter, r *http.Request)
 func writeJSON(w http.ResponseWriter, status int, data any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	if err := json.NewEncoder(w).Encode(data); err != nil {
+	if err := json.MarshalWrite(w, data); err != nil {
 		logger.Error("写入 JSON 响应失败", "error", err)
+		return
 	}
+	_, _ = w.Write([]byte("\n"))
 }
 
 // SetChallenge 设置 challenge token 和 response，10 分钟后过期。

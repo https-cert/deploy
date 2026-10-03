@@ -7,7 +7,8 @@ import (
 	"crypto/hmac"
 	"crypto/sha1"
 	"encoding/hex"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -52,9 +53,9 @@ type Provider struct {
 
 // apiEnvelope 是多吉云统一业务响应外层。
 type apiEnvelope struct {
-	Code int             `json:"code"` // Code 为 200 时表示业务成功。
-	Msg  string          `json:"msg"`  // Msg 是业务响应信息。
-	Data json.RawMessage `json:"data"` // Data 保存具体业务结果。
+	Code int            `json:"code"` // Code 为 200 时表示业务成功。
+	Msg  string         `json:"msg"`  // Msg 是业务响应信息。
+	Data jsontext.Value `json:"data"` // Data 保存具体业务结果。
 }
 
 // domainRecord 保存 CDN 域名及当前证书引用。
@@ -370,19 +371,15 @@ func (p *Provider) request(ctx context.Context, operation, apiPath string, paylo
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
 		return nil, requestID, &apiError{Operation: operation, Status: response.StatusCode, RequestID: requestID, Retryable: response.StatusCode == http.StatusTooManyRequests || response.StatusCode >= http.StatusInternalServerError}
 	}
-	decoder := json.NewDecoder(bytes.NewReader(responseBody))
-	decoder.UseNumber()
 	var envelope apiEnvelope
-	if err := decoder.Decode(&envelope); err != nil {
+	if err := json.Unmarshal(responseBody, &envelope); err != nil {
 		return nil, requestID, &apiError{Operation: operation, Status: response.StatusCode, RequestID: requestID, Retryable: true, Cause: err}
 	}
 	if envelope.Code != http.StatusOK {
 		return nil, requestID, &apiError{Operation: operation, Status: response.StatusCode, Code: envelope.Code, RequestID: requestID, Retryable: false}
 	}
 	data := make(map[string]any)
-	dataDecoder := json.NewDecoder(bytes.NewReader(envelope.Data))
-	dataDecoder.UseNumber()
-	if err := dataDecoder.Decode(&data); err != nil {
+	if err := json.Unmarshal(envelope.Data, &data); err != nil {
 		return nil, requestID, &apiError{Operation: operation, Status: response.StatusCode, Code: envelope.Code, RequestID: requestID, Retryable: true, Cause: err}
 	}
 	return data, requestID, nil
@@ -420,8 +417,6 @@ func scalarString(value any) string {
 	switch typed := value.(type) {
 	case string:
 		return strings.TrimSpace(typed)
-	case json.Number:
-		return typed.String()
 	case float64:
 		return strconv.FormatFloat(typed, 'f', -1, 64)
 	case nil:

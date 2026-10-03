@@ -3,7 +3,8 @@ package lecdn
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"io"
 	"net/http"
 	"net/url"
@@ -13,7 +14,7 @@ import (
 )
 
 // request 执行 LeCDN 请求并校验 HTTP 与业务响应码。
-func (p *Provider) request(ctx context.Context, operation, method, endpoint string, body []byte) (json.RawMessage, string, error) {
+func (p *Provider) request(ctx context.Context, operation, method, endpoint string, body []byte) (jsontext.Value, string, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}

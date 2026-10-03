@@ -6,7 +6,8 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/hex"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -86,7 +87,7 @@ func DeployCertificateToBTPanelCertificateStore(ctx context.Context, certificate
 
 // listBTPanelCertificates 通过宝塔只读接口读取证书库的脱敏摘要。
 func listBTPanelCertificates(ctx context.Context, apiURL, apiKey string, insecureSkipVerify bool) ([]btPanelCertificateSummary, error) {
-	var raw json.RawMessage
+	var raw jsontext.Value
 	if err := requestBTPanelAPI(ctx, apiURL, apiKey, insecureSkipVerify, btPanelSSLPath, url.Values{
 		"action": {"get_cert_list"},
 	}, &raw); err != nil {
@@ -133,7 +134,7 @@ func validateBTPanelCertificatePair(certificatePEM, privateKeyPEM string) (*x509
 // getBTPanelCertificateDetails 读取宝塔证书库中指定摘要的证书详情。
 func getBTPanelCertificateDetails(ctx context.Context, apiURL, apiKey string, insecureSkipVerify bool, sslHash string) (*btPanelCertificateDetails, error) {
 	var details btPanelCertificateDetails
-	var raw json.RawMessage
+	var raw jsontext.Value
 	if err := requestBTPanelAPI(ctx, apiURL, apiKey, insecureSkipVerify, btPanelSSLPath, url.Values{
 		"action":   {"get_cert_info"},
 		"ssl_hash": {strings.TrimSpace(sslHash)},
@@ -257,8 +258,6 @@ func findBTPanelMetadataString(data map[string]any, keys ...string) string {
 				switch typed := value.(type) {
 				case string:
 					return strings.TrimSpace(typed)
-				case json.Number:
-					return typed.String()
 				case float64:
 					return strconv.FormatFloat(typed, 'f', -1, 64)
 				}

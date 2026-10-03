@@ -2,7 +2,7 @@ package updater
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -126,7 +126,7 @@ func (s *Service) fetchRelease(ctx context.Context) (*GitHubRelease, error) {
 		return nil, fmt.Errorf("Release API 返回错误状态码: %d", response.StatusCode)
 	}
 	var release GitHubRelease
-	if err := json.NewDecoder(response.Body).Decode(&release); err != nil {
+	if err := json.UnmarshalRead(response.Body, &release); err != nil {
 		return nil, err
 	}
 	return &release, nil

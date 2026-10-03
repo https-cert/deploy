@@ -1,6 +1,8 @@
 package btpanel
 
-import "encoding/json"
+import (
+	"encoding/json/jsontext"
+)
 
 // BTPanelWebsiteResource 是可以安全上报到 anSSL 后端的脱敏宝塔网站资源。
 type BTPanelWebsiteResource struct {
@@ -14,13 +16,13 @@ type BTPanelWebsiteResource struct {
 
 // btPanelWebsiteSummary 描述宝塔网站列表中的本地身份和展示字段。
 type btPanelWebsiteSummary struct {
-	ID      uint64          `json:"id"`      // ID 是仅保留在 deploy 本地的宝塔网站 ID。
-	Name    string          `json:"name"`    // Name 是宝塔网站主名称，也是 SetSSL 的 siteName。
-	Remark  string          `json:"rname"`   // Remark 是宝塔网站备注名称。
-	Legacy  string          `json:"ps"`      // Legacy 兼容旧版宝塔网站备注字段。
-	Status  json.RawMessage `json:"status"`  // Status 是兼容字符串或数字的启停状态。
-	SSL     json.RawMessage `json:"ssl"`     // SSL 是网站列表中的证书启用标记。
-	AddTime string          `json:"addtime"` // AddTime 用于区分删除后重新创建的网站。
+	ID      uint64         `json:"id"`      // ID 是仅保留在 deploy 本地的宝塔网站 ID。
+	Name    string         `json:"name"`    // Name 是宝塔网站主名称，也是 SetSSL 的 siteName。
+	Remark  string         `json:"rname"`   // Remark 是宝塔网站备注名称。
+	Legacy  string         `json:"ps"`      // Legacy 兼容旧版宝塔网站备注字段。
+	Status  jsontext.Value `json:"status"`  // Status 是兼容字符串或数字的启停状态。
+	SSL     jsontext.Value `json:"ssl"`     // SSL 是网站列表中的证书启用标记。
+	AddTime string         `json:"addtime"` // AddTime 用于区分删除后重新创建的网站。
 }
 
 // btPanelWebsitePage 描述宝塔数据查询接口的网站分页响应。
