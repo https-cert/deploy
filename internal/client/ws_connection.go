@@ -21,6 +21,11 @@ import (
 // wsCloseWaitTimeout 限制 Close 等待连接循环退出的最长时间。
 const wsCloseWaitTimeout = 5 * time.Second
 
+// stableConnectionThreshold 是判定「连接曾稳定运行」的时长门槛。
+// 超过该时长后再次断线视为新的一轮故障，退避档位复位到最小值，
+// 既避免抖动风暴，也让真实故障能快速重新连接。
+const stableConnectionThreshold = 5 * time.Minute
+
 // isTemporaryError 判断错误是否为临时网络错误
 func isTemporaryError(err error) bool {
 	if err == nil {
@@ -118,6 +123,8 @@ func (c *WSClient) connect() error {
 func (c *WSClient) startWebSocketLoop() {
 	c.reconnectDelay = minReconnectDelay
 	consecutiveFailures := 0
+	// uptime 是上一条成功连接维持的时长，用于区分「网络抖动」与「稳定运行后中断」。
+	uptime := time.Duration(0)
 
 	for {
 		select {
@@ -135,6 +142,12 @@ func (c *WSClient) startWebSocketLoop() {
 			}
 			consecutiveFailures++
 
+			// 上一次连接稳定运行过，说明这不是持续抖动，而是新的一轮故障，
+			// 退避从最小档重新开始，避免上一轮积攒的 30s 拖慢本次恢复。
+			if uptime >= stableConnectionThreshold {
+				c.reconnectDelay = minReconnectDelay
+			}
+
 			var reconnectDelay time.Duration
 			// websocket 连接失败通常都是临时错误（服务端可能还未启动），使用较短的重连间隔
 			if isTemporaryError(err) {
@@ -149,21 +162,24 @@ func (c *WSClient) startWebSocketLoop() {
 			}
 
 			c.reconnectDelay = reconnectDelay
-			c.logConnectionFailure(err, time.Now())
+			c.logConnectionFailure(err, time.Now(), reconnectDelay)
 			if !waitForContext(c.ctx, reconnectDelay) {
 				return
 			}
 			continue
 		}
 
+		// 握手成功不代表连接可用：紧接着的读循环可能立刻失败。
+		// 这里不清零退避，只有真正稳定运行够久才允许复位，否则「连上即断」
+		// 会退化成 1 秒高频重连，把服务端日志刷满。
 		consecutiveFailures = 0
-		c.reconnectDelay = minReconnectDelay
-
 		if c.connectionLogged.CompareAndSwap(false, true) && c.reconnectSince.IsZero() {
 			logger.Info("服务端连接已建立，开始处理消息")
 		}
 
+		connectedAt := time.Now()
 		err := c.handleWSMessages()
+		uptime = time.Since(connectedAt)
 		// 主动退出不属于连接故障，也不应触发告警上报。
 		if c.ctx.Err() != nil {
 			return
@@ -171,16 +187,29 @@ func (c *WSClient) startWebSocketLoop() {
 		if err == nil {
 			err = errors.New("服务端已关闭连接")
 		}
-		c.logConnectionFailure(err, time.Now())
 
-		if !waitForContext(c.ctx, c.reconnectDelay) {
+		// 连接刚建立就断开时继续按指数增长退避，连续抖动才不会变成重连风暴。
+		// waitForContext 用的是同一个 delay，保证日志里的 retryIn 与实际等待一致。
+		retryIn := c.nextReconnectDelay()
+		c.logConnectionFailure(err, time.Now(), retryIn)
+		if !waitForContext(c.ctx, retryIn) {
 			return
 		}
 	}
 }
 
+// nextReconnectDelay 返回本轮断线后的等待时长，按 1s→2s→4s…指数增长到 30s 封顶。
+// 退避档位不会因为一次握手成功而清零，只有连接稳定运行超过 stableConnectionThreshold
+// 后再次失败才复位，避免「连上即断」退化为 1 秒高频重连。
+func (c *WSClient) nextReconnectDelay() time.Duration {
+	c.reconnectDelay = min(c.reconnectDelay*2, maxReconnectDelay)
+	return c.reconnectDelay
+}
+
 // logConnectionFailure 每轮断线只告警一次，后续重试保持安静，直到收到有效消息确认恢复。
-func (c *WSClient) logConnectionFailure(err error, now time.Time) {
+// retryIn 必须由调用方传入本轮真实等待时长，而不是读取 c.reconnectDelay，
+// 否则日志会与实际退避不一致，排查时会被retryIn 误导。
+func (c *WSClient) logConnectionFailure(err error, now time.Time, retryIn time.Duration) {
 	c.markReconnectPending()
 	if !c.reconnectSince.IsZero() {
 		return
@@ -197,7 +226,7 @@ func (c *WSClient) logConnectionFailure(err error, now time.Time) {
 		reason = strings.ReplaceAll(reason, url.QueryEscape(c.accessKey), "[已脱敏]")
 		reason = strings.ReplaceAll(reason, c.accessKey, "[已脱敏]")
 	}
-	args := []any{"error", strconv.Quote(reason), "retryIn", c.reconnectDelay}
+	args := []any{"error", strconv.Quote(reason), "retryIn", retryIn}
 	if busyOps := c.operations().Busy(); busyOps > 0 {
 		args = append(args, "busyOps", busyOps)
 	}

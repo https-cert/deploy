@@ -64,6 +64,11 @@ func (c *WSClient) handleWSMessages() error {
 		if c.connected.CompareAndSwap(false, true) {
 			c.logConnectionRecovery(time.Now())
 		}
-		c.handleDeploymentResponse(&response)
+		// 响应处理必须异步派发：deploy 的 discover/test/execute/challenge 会执行
+		// nginx reload、云厂商 API 等真实运维操作，耗时可达数十秒。
+		// coder/websocket 的 Pong 是在读循环解析帧时自动回复的，
+		// 一旦在这里同步阻塞，pong 就发不出去，服务端心跳会判定连接超时。
+		// 与服务端 handleMessages 的 goroutine 派发保持同一策略。
+		go c.handleDeploymentResponse(&response)
 	}
 }
