@@ -34,12 +34,12 @@ func (c *WSClient) sendRegister() error {
 		Data:      &deployPB.DeploymentRequest_Register{Register: c.buildDeploymentRegistration(sysInfo)},
 	}
 
-	return c.sendDeploymentRequest(req)
+	return c.sendDeploymentRequestOnConnection(c.ctx, conn, req)
 }
 
-// sendHeartbeat 发送心跳消息
-func (c *WSClient) sendHeartbeat(ctx context.Context) {
-	ticker := time.NewTicker(heartbeatInterval)
+// sendHeartbeat 只为传入的连接发送心跳，旧连接的失败不能关闭重连后的连接。
+func (c *WSClient) sendHeartbeat(ctx context.Context, conn *websocket.Conn, interval time.Duration) {
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for {
@@ -63,14 +63,12 @@ func (c *WSClient) sendHeartbeat(ctx context.Context) {
 				Data:      &deployPB.DeploymentRequest_Heartbeat{Heartbeat: &deployPB.DeploymentHeartbeat{Registration: c.buildDeploymentRegistration(systemInfo)}},
 			}
 
-			if err := c.sendDeploymentRequest(req); err != nil {
-				logger.Warn("发送心跳失败，主动关闭连接以触发重连", "error", err, "interval", heartbeatInterval)
-				// 主动关闭连接，触发重连机制
-				c.connMu.Lock()
-				if c.conn != nil {
-					c.conn.Close(websocket.StatusAbnormalClosure, "heartbeat failed")
+			if err := c.sendDeploymentRequestOnConnection(ctx, conn, req); err != nil {
+				if ctx.Err() == nil {
+					logger.Warn("发送心跳失败，主动关闭连接以触发重连", "error", err, "interval", interval)
 				}
-				c.connMu.Unlock()
+				// 写超时后底层连接已不可复用；1006 不能作为线上关闭帧发送。
+				_ = conn.CloseNow()
 				return
 			}
 		}
@@ -79,11 +77,18 @@ func (c *WSClient) sendHeartbeat(ctx context.Context) {
 
 // sendDeploymentRequest 发送 v2 WebSocket 信封。
 func (c *WSClient) sendDeploymentRequest(req *deployPB.DeploymentRequest) error {
-	c.writeMu.Lock()
-	defer c.writeMu.Unlock()
 	c.connMu.Lock()
 	conn := c.conn
 	c.connMu.Unlock()
+	return c.sendDeploymentRequestOnConnection(c.ctx, conn, req)
+}
+
+// sendDeploymentRequestOnConnection 将写入绑定到连接和 context。
+// coder/websocket 自身会串行化 Write，避免全局写锁让旧连接阻塞新连接注册。
+func (c *WSClient) sendDeploymentRequestOnConnection(ctx context.Context, conn *websocket.Conn, req *deployPB.DeploymentRequest) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if conn == nil {
 		return errors.New("连接已关闭")
 	}
@@ -91,7 +96,7 @@ func (c *WSClient) sendDeploymentRequest(req *deployPB.DeploymentRequest) error 
 	if err != nil {
 		return fmt.Errorf("序列化 v2 消息失败: %w", err)
 	}
-	ctx, cancel := context.WithTimeout(c.ctx, 30*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	return conn.Write(ctx, websocket.MessageText, data)
 }

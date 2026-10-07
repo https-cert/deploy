@@ -28,6 +28,7 @@ type WSClient struct {
 	clientId             string                             // clientId 是本机客户端唯一标识。
 	serverURL            string                             // serverURL 是 deploy 服务基础地址。
 	httpClient           *http.Client                       // httpClient 复用证书下载连接。
+	wsHTTPClient         *http.Client                       // wsHTTPClient 可替换握手传输；nil 保留标准代理和拨号行为。
 	ctx                  context.Context                    // ctx 控制客户端完整生命周期。
 	cancel               context.CancelFunc                 // cancel 终止连接循环和所有派生业务 context。
 	accessKey            string                             // accessKey 是服务端鉴权令牌。
@@ -41,7 +42,6 @@ type WSClient struct {
 	httpServer           httpChallengeServer                // httpServer 提供 HTTP-01 challenge 能力。
 	conn                 *websocket.Conn                    // conn 是当前 WebSocket 连接。
 	connMu               sync.Mutex                         // connMu 保护连接替换和关闭。
-	writeMu              sync.Mutex                         // writeMu 保证 WebSocket 只有一个并发写入者。
 	reconnectDelay       time.Duration                      // reconnectDelay 是当前重连退避时间。
 	reconnectSince       time.Time                          // reconnectSince 由连接循环记录本轮连接不可用的开始时间。
 	reconnectAttempts    int                                // reconnectAttempts 由连接循环统计本轮重试次数，包含成功的尝试。

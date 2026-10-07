@@ -3,7 +3,6 @@ package client
 import (
 	"context"
 	"errors"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -134,14 +133,8 @@ func TestWSClientConstructionAndLifecycle(t *testing.T) {
 	}
 }
 
-// TestWSConnectionHelpers 验证临时错误识别、URL 规范化和重连标记。
+// TestWSConnectionHelpers 验证 URL 规范化和重连标记。
 func TestWSConnectionHelpers(t *testing.T) {
-	if isTemporaryError(nil) || isTemporaryError(errors.New("permanent")) {
-		t.Fatal("永久错误分类不匹配")
-	}
-	if !isTemporaryError(&net.DNSError{IsTimeout: true}) || !isTemporaryError(errors.New("connection refused")) || !isTemporaryError(errors.New("websocket closed")) {
-		t.Fatal("临时网络错误未被识别")
-	}
 	client := &WSClient{serverURL: "http://example.com", accessKey: "key", clientId: "id"}
 	if got := client.buildWSURL(); got != "ws://example.com/deploy/v2/ws?accessKey=key&clientId=id" {
 		t.Fatalf("根路径 WebSocket URL 不匹配: %s", got)
@@ -364,8 +357,8 @@ func TestHandleWSMessages(t *testing.T) {
 	}
 	select {
 	case err := <-result:
-		if err != nil {
-			t.Fatalf("正常关闭消息循环返回错误: %v", err)
+		if websocket.CloseStatus(err) != websocket.StatusNormalClosure || !strings.Contains(err.Error(), "done") {
+			t.Fatalf("消息循环应保留关闭帧状态和原因: %v", err)
 		}
 	case <-time.After(time.Second):
 		t.Fatal("消息循环未退出")

@@ -18,14 +18,13 @@ import (
 
 // 共享常量
 const (
-	downloadTimeout      = 30 * time.Second
-	maxDownloadSize      = int64(64 << 20)  // 证书归档最大下载大小
-	minReconnectDelay    = 1 * time.Second  // 最小重连延迟
-	maxReconnectDelay    = 30 * time.Second // 最大重连延迟
-	fastReconnectAttempt = 3                // 快速重连尝试次数
-	heartbeatInterval    = 10 * time.Second // 应用层心跳间隔
-	maxWSMessageSize     = int64(16 << 20)  // WebSocket 单条消息最大 16 MiB
-	maxConcurrentOps     = 8                // 客户端最多并发执行的业务任务数
+	downloadTimeout   = 30 * time.Second
+	maxDownloadSize   = int64(64 << 20)  // 证书归档最大下载大小
+	minReconnectDelay = 1 * time.Second  // 最小重连延迟
+	maxReconnectDelay = 30 * time.Second // 最大重连延迟
+	heartbeatInterval = 10 * time.Second // 应用层心跳间隔
+	maxWSMessageSize  = int64(16 << 20)  // WebSocket 单条消息最大 16 MiB
+	maxConcurrentOps  = 8                // 客户端最多并发执行的业务任务数
 	// tcpKeepaliveInterval = 15 * time.Second // TCP keepalive 间隔
 )
 

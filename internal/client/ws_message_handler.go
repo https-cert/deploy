@@ -5,21 +5,33 @@ import (
 	"errors"
 	"time"
 
-	"github.com/coder/websocket"
 	"github.com/https-cert/deploy/pb/deployPB"
 	"github.com/https-cert/deploy/pkg/logger"
 )
 
 // handleWSMessages 处理纯 v2 WebSocket 消息循环。
 func (c *WSClient) handleWSMessages() error {
+	c.connMu.Lock()
+	conn := c.conn
+	c.connMu.Unlock()
+	if conn == nil {
+		return errors.New("WebSocket v2 连接已关闭")
+	}
+
 	heartbeatCtx, cancelHeartbeat := context.WithCancel(c.ctx)
-	defer cancelHeartbeat()
-	go c.sendHeartbeat(heartbeatCtx)
+	heartbeatDone := make(chan struct{})
+	go func() {
+		defer close(heartbeatDone)
+		c.sendHeartbeat(heartbeatCtx, conn, heartbeatInterval)
+	}()
 
 	defer func() {
+		// 先停止本连接的心跳和写入，再允许重连，旧任务不能操作下一条连接。
+		cancelHeartbeat()
+		_ = conn.CloseNow()
+		<-heartbeatDone
 		c.connMu.Lock()
-		if c.conn != nil {
-			_ = c.conn.Close(websocket.StatusNormalClosure, "消息处理结束")
+		if c.conn == conn {
 			c.conn = nil
 		}
 		c.connMu.Unlock()
@@ -33,22 +45,12 @@ func (c *WSClient) handleWSMessages() error {
 		default:
 		}
 
-		c.connMu.Lock()
-		conn := c.conn
-		c.connMu.Unlock()
-		if conn == nil {
-			return errors.New("WebSocket v2 连接已关闭")
-		}
-
 		_, data, err := conn.Read(c.ctx)
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
 				return nil
 			}
-			closeStatus := websocket.CloseStatus(err)
-			if closeStatus == websocket.StatusNormalClosure {
-				return nil
-			}
+			// 保留正常关闭帧的 reason，以区分连接替换、服务端退出与网络故障。
 			return err
 		}
 
@@ -64,11 +66,8 @@ func (c *WSClient) handleWSMessages() error {
 		if c.connected.CompareAndSwap(false, true) {
 			c.logConnectionRecovery(time.Now())
 		}
-		// 响应处理必须异步派发：deploy 的 discover/test/execute/challenge 会执行
-		// nginx reload、云厂商 API 等真实运维操作，耗时可达数十秒。
-		// coder/websocket 的 Pong 是在读循环解析帧时自动回复的，
-		// 一旦在这里同步阻塞，pong 就发不出去，服务端心跳会判定连接超时。
-		// 与服务端 handleMessages 的 goroutine 派发保持同一策略。
+		// 常规业务已由 operationRunner 异步执行，但满载时的 onBusy 会同步回包，
+		// 等待网络写入也会阻塞分发。保持异步入口，确保读循环持续处理 Ping 并回复 Pong。
 		go c.handleDeploymentResponse(&response)
 	}
 }
