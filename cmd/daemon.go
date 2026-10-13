@@ -7,7 +7,6 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
-	"sync"
 	"syscall"
 	"time"
 
@@ -42,20 +41,8 @@ func CreateDaemonCmd() *cobra.Command {
 				time.Sleep(2 * time.Second)
 			}
 
-			execPath, err := os.Executable()
-			if err != nil {
-				return fmt.Errorf("获取可执行文件路径失败: %w", err)
-			}
-
-			supervisorCmd := exec.Command(execPath, "_supervisor", "-c", ConfigFile)
-			if err := supervisorCmd.Start(); err != nil {
-				return fmt.Errorf("启动守护进程失败: %w", err)
-			}
-
-			time.Sleep(500 * time.Millisecond)
-
-			if !IsRunning() {
-				return fmt.Errorf("守护进程启动失败")
+			if err := startDaemon(runtime); err != nil {
+				return err
 			}
 
 			fmt.Println("守护进程已启动")
@@ -86,30 +73,27 @@ func createSupervisorCmd() *cobra.Command {
 		Use:    "_supervisor",
 		Hidden: true,
 		Short:  "运行守护进程监控器（内部命令）",
-		Run: func(cmd *cobra.Command, args []string) {
-			runSupervisor()
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runSupervisor()
 		},
 	}
 }
 
 // runSupervisor 运行守护进程监控器
-func runSupervisor() {
+func runSupervisor() error {
 	runtime, err := config.Load(ConfigFile)
 	if err != nil {
-		fmt.Printf("初始化配置失败: %v\n", err)
-		return
+		return fmt.Errorf("初始化配置失败: %w", err)
 	}
 
 	execPath, err := os.Executable()
 	if err != nil {
-		fmt.Printf("获取可执行文件路径失败: %v\n", err)
-		return
+		return fmt.Errorf("获取可执行文件路径失败: %w", err)
 	}
 
 	logWriter, err := newRotatingLogWriter(GetLogFile(), logRotationOptionsFromRuntime(runtime))
 	if err != nil {
-		fmt.Printf("打开日志文件失败: %v\n", err)
-		return
+		return fmt.Errorf("打开日志文件失败: %w", err)
 	}
 	defer logWriter.Close()
 
@@ -121,43 +105,29 @@ func runSupervisor() {
 		logWriter.Sync()
 	}
 
-	// 将 supervisor 自身的 PID 写入 PID 文件
 	pidFile := GetPIDFile()
-	if err := writePIDRecord(pidFile, pidFileRecord{PID: os.Getpid(), Executable: execPath, StartedAt: time.Now()}); err != nil {
-		fmt.Printf("写入PID文件失败: %v\n", err)
-		return
-	}
-
-	logSupervisor("已启动 (PID: %d)", os.Getpid())
 
 	// 信号处理：收到 SIGTERM/SIGINT 时杀掉子进程并退出
-	var currentChild *os.Process
-	var childMu sync.Mutex
+	child := &supervisorChild{}
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
+	defer signal.Stop(sigCh)
 	go func() {
 		sig := <-sigCh
 		logSupervisor("收到信号 %v，正在停止...", sig)
-		childMu.Lock()
-		child := currentChild
-		childMu.Unlock()
-		if child != nil {
-			child.Signal(syscall.SIGTERM)
-			// 等待子进程退出，最多 5 秒后强杀
-			for i := 0; i < 50; i++ {
-				time.Sleep(100 * time.Millisecond)
-				if err := child.Signal(syscall.Signal(0)); err != nil {
-					break // 子进程已退出
-				}
-			}
-			// 如果还活着，强杀
-			child.Kill()
-		}
+		child.stop(5 * time.Second)
 		os.Remove(pidFile)
 		os.Remove(filepath.Join(getHomeDir(), ".anssl-stop"))
 		os.Exit(0)
 	}()
+
+	// 日志和停止信号处理准备完成后再发布 PID，供父命令确认本次 supervisor 已启动。
+	if err := writePIDRecord(pidFile, pidFileRecord{PID: os.Getpid(), Executable: execPath, StartedAt: time.Now()}); err != nil {
+		return fmt.Errorf("写入PID文件失败: %w", err)
+	}
+	defer removeSupervisorPID(pidFile, os.Getpid())
+	logSupervisor("已启动 (PID: %d)", os.Getpid())
 
 	restartDelay := 1 * time.Second
 	maxRestartDelay := 30 * time.Second
@@ -167,30 +137,26 @@ func runSupervisor() {
 		if shouldStopSupervisor() {
 			logSupervisor("停止")
 			os.Remove(pidFile)
-			return
+			return nil
 		}
 
-		cmd := exec.Command(execPath, "start", "-c", ConfigFile)
+		cmd := exec.Command(execPath, "start", "-c", runtime.ConfigFile)
 
 		cmd.Stdout = logWriter
 		cmd.Stderr = logWriter
 
 		startTime := time.Now()
-		if err := cmd.Start(); err != nil {
+		started, err := child.start(cmd)
+		if err != nil {
 			consecutiveFailures++
+			logSupervisor("启动 worker 失败: %v", err)
 			time.Sleep(restartDelay)
 			continue
 		}
-
-		childMu.Lock()
-		currentChild = cmd.Process
-		childMu.Unlock()
-
-		err = cmd.Wait()
-
-		childMu.Lock()
-		currentChild = nil
-		childMu.Unlock()
+		if !started {
+			return nil
+		}
+		err = child.wait()
 
 		uptime := time.Since(startTime)
 
@@ -220,7 +186,7 @@ func runSupervisor() {
 			} else {
 				logSupervisor("正常退出")
 				os.Remove(pidFile)
-				return
+				return nil
 			}
 		}
 	}

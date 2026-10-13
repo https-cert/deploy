@@ -292,6 +292,10 @@ func checkProviderConfigs(cfg *config.Configuration) []doctorResult {
 				"secretId":  provider.GetSecretId(),
 				"secretKey": provider.GetSecretKey(),
 			}))
+		case config.ProviderCloudflare:
+			results = append(results, checkProviderFields("Provider cloudflare", map[string]string{
+				"apiToken": provider.GetAPIToken(),
+			}))
 		default:
 			results = append(results, failDoctor("Provider "+provider.Name, "暂不支持的 provider 名称"))
 		}

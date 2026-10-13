@@ -2,10 +2,9 @@ package cmd
 
 import (
 	"fmt"
-	"os"
-	"os/exec"
 	"time"
 
+	"github.com/https-cert/deploy/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -16,6 +15,11 @@ func CreateRestartCmd() *cobra.Command {
 		Short: "重启守护进程",
 		Long:  "重启证书部署守护进程",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// 新配置必须先通过校验，避免误配置导致原本正常的守护进程被停止。
+			runtime, err := config.Load(ConfigFile)
+			if err != nil {
+				return fmt.Errorf("初始化配置失败: %w", err)
+			}
 			releaseLock, err := acquireDaemonStartLock()
 			if err != nil {
 				return err
@@ -29,20 +33,8 @@ func CreateRestartCmd() *cobra.Command {
 				time.Sleep(2 * time.Second)
 			}
 
-			execPath, err := os.Executable()
-			if err != nil {
-				return fmt.Errorf("获取可执行文件路径失败: %w", err)
-			}
-
-			supervisorCmd := exec.Command(execPath, "_supervisor", "-c", ConfigFile)
-			if err := supervisorCmd.Start(); err != nil {
-				return fmt.Errorf("启动守护进程失败: %w", err)
-			}
-
-			time.Sleep(500 * time.Millisecond)
-
-			if !IsRunning() {
-				return fmt.Errorf("守护进程启动失败")
+			if err := startDaemon(runtime); err != nil {
+				return err
 			}
 
 			fmt.Println("守护进程已重启")
