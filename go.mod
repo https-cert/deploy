@@ -7,6 +7,7 @@ require (
 	github.com/alibabacloud-go/darabonba-openapi/v2 v2.2.4
 	github.com/alibabacloud-go/tea-utils/v2 v2.0.9
 	github.com/baidubce/bce-sdk-go v0.9.275
+	github.com/cloudflare/cloudflare-go/v4 v4.6.0
 	github.com/coder/websocket v1.8.15
 	github.com/huaweicloud/huaweicloud-sdk-go-obs v3.26.6+incompatible
 	github.com/huaweicloud/huaweicloud-sdk-go-v3 v0.1.216
@@ -18,6 +19,7 @@ require (
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/clb v1.3.176
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.3.188
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/cvm v1.3.177
+	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/dnspod v1.3.131
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ssl v1.3.147
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/teo v1.3.180
 	github.com/tencentyun/cos-go-sdk-v5 v0.7.75
@@ -63,6 +65,10 @@ require (
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/stretchr/testify v1.12.1 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
+	github.com/tidwall/gjson v1.14.4 // indirect
+	github.com/tidwall/match v1.1.1 // indirect
+	github.com/tidwall/pretty v1.2.1 // indirect
+	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/tjfoc/gmsm v1.4.1 // indirect
 	github.com/volcengine/volc-sdk-golang v1.0.257 // indirect
 	go.mongodb.org/mongo-driver v1.17.10 // indirect

@@ -326,3 +326,25 @@ func stringPointers(values map[string]string) map[string]*string {
 	}
 	return result
 }
+
+// DNSCaller 复用现有上下文感知 OpenAPI 适配器，仅允许 AliDNS 产品调用。
+type DNSCaller struct {
+	api deploymentAPI // api 使用同一签名与超时实现。
+}
+
+// NewDNSCaller 只构建 DNS 所需的适配器，不请求 CAS 或 CDN。
+func NewDNSCaller(accessKeyID, accessKeySecret string) (*DNSCaller, error) {
+	endpoint := "alidns.aliyuncs.com"
+	client, err := buildOpenAPIClient(accessKeyID, accessKeySecret, endpoint)
+	if err != nil {
+		return nil, err
+	}
+	adapter := &openAPIDeploymentAPI{accessKeyID: accessKeyID, accessKeySecret: accessKeySecret, clients: map[string]*openapi.Client{endpoint: client}}
+	return &DNSCaller{adapter}, nil
+}
+
+// Call 执行固定 Endpoint 与版本的 DNS RPC。
+func (c *DNSCaller) Call(ctx context.Context, action string, query map[string]string) (map[string]any, string, error) {
+	reply, err := c.api.Call(ctx, cloudAPIRequest{Endpoint: "alidns.aliyuncs.com", Version: "2015-01-09", Action: action, Method: "POST", Query: query})
+	return reply.Body, reply.RequestID, err
+}

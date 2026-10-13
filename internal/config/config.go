@@ -137,9 +137,10 @@ type (
 		// 阿里云认证字段
 		AccessKeyId     string `yaml:"accessKeyId,omitempty"`
 		AccessKeySecret string `yaml:"accessKeySecret,omitempty"`
-		// LeCDN API 地址和访问令牌
+		// APIBaseURL 是 LeCDN 自定义 API 地址。
 		APIBaseURL string `yaml:"apiBaseUrl,omitempty"`
-		APIToken   string `yaml:"apiToken,omitempty"`
+		// APIToken 是 LeCDN 或 Cloudflare 的 API Token。
+		APIToken string `yaml:"apiToken,omitempty"`
 		// 腾讯云认证字段
 		SecretId  string `yaml:"secretId,omitempty"`
 		SecretKey string `yaml:"secretKey,omitempty"`

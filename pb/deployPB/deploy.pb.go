@@ -95,6 +95,142 @@ func (Provider) EnumDescriptor() ([]byte, []int) {
 	return file_deployPB_deploy_proto_rawDescGZIP(), []int{0}
 }
 
+// DnsProvider 是一键配置 CNAME 支持的 DNS 托管商。
+type DnsProvider int32
+
+const (
+	DnsProvider_DNS_PROVIDER_UNSPECIFIED DnsProvider = 0 // 未指定
+	DnsProvider_DNS_PROVIDER_ALIYUN      DnsProvider = 1 // 阿里云 DNS
+	DnsProvider_DNS_PROVIDER_TENCENT     DnsProvider = 2 // 腾讯云 DNSPod
+	DnsProvider_DNS_PROVIDER_HUAWEI      DnsProvider = 3 // 华为云 DNS
+	DnsProvider_DNS_PROVIDER_BAIDU       DnsProvider = 4 // 百度智能云 DNS
+	DnsProvider_DNS_PROVIDER_JDCLOUD     DnsProvider = 5 // 京东云 DNS
+	DnsProvider_DNS_PROVIDER_VOLCENGINE  DnsProvider = 6 // 火山引擎 DNS
+	DnsProvider_DNS_PROVIDER_CLOUDFLARE  DnsProvider = 7 // Cloudflare DNS
+)
+
+// Enum value maps for DnsProvider.
+var (
+	DnsProvider_name = map[int32]string{
+		0: "DNS_PROVIDER_UNSPECIFIED",
+		1: "DNS_PROVIDER_ALIYUN",
+		2: "DNS_PROVIDER_TENCENT",
+		3: "DNS_PROVIDER_HUAWEI",
+		4: "DNS_PROVIDER_BAIDU",
+		5: "DNS_PROVIDER_JDCLOUD",
+		6: "DNS_PROVIDER_VOLCENGINE",
+		7: "DNS_PROVIDER_CLOUDFLARE",
+	}
+	DnsProvider_value = map[string]int32{
+		"DNS_PROVIDER_UNSPECIFIED": 0,
+		"DNS_PROVIDER_ALIYUN":      1,
+		"DNS_PROVIDER_TENCENT":     2,
+		"DNS_PROVIDER_HUAWEI":      3,
+		"DNS_PROVIDER_BAIDU":       4,
+		"DNS_PROVIDER_JDCLOUD":     5,
+		"DNS_PROVIDER_VOLCENGINE":  6,
+		"DNS_PROVIDER_CLOUDFLARE":  7,
+	}
+)
+
+func (x DnsProvider) Enum() *DnsProvider {
+	p := new(DnsProvider)
+	*p = x
+	return p
+}
+
+func (x DnsProvider) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (DnsProvider) Descriptor() protoreflect.EnumDescriptor {
+	return file_deployPB_deploy_proto_enumTypes[1].Descriptor()
+}
+
+func (DnsProvider) Type() protoreflect.EnumType {
+	return &file_deployPB_deploy_proto_enumTypes[1]
+}
+
+func (x DnsProvider) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use DnsProvider.Descriptor instead.
+func (DnsProvider) EnumDescriptor() ([]byte, []int) {
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{1}
+}
+
+// DnsOperationStatus 区分云平台写入状态与公网 DNS 生效状态。
+type DnsOperationStatus int32
+
+const (
+	DnsOperationStatus_DNS_OPERATION_STATUS_UNSPECIFIED       DnsOperationStatus = 0 // 未指定
+	DnsOperationStatus_DNS_OPERATION_STATUS_READY             DnsOperationStatus = 1 // 可以创建
+	DnsOperationStatus_DNS_OPERATION_STATUS_ALREADY_EXISTS    DnsOperationStatus = 2 // 已有相同记录
+	DnsOperationStatus_DNS_OPERATION_STATUS_CREATED           DnsOperationStatus = 3 // 已创建并回读
+	DnsOperationStatus_DNS_OPERATION_STATUS_CONFLICT          DnsOperationStatus = 4 // 记录冲突
+	DnsOperationStatus_DNS_OPERATION_STATUS_NOT_CONFIGURED    DnsOperationStatus = 5 // 未配置密钥
+	DnsOperationStatus_DNS_OPERATION_STATUS_PERMISSION_DENIED DnsOperationStatus = 6 // 无权访问
+	DnsOperationStatus_DNS_OPERATION_STATUS_UNSUPPORTED       DnsOperationStatus = 7 // 不支持
+	DnsOperationStatus_DNS_OPERATION_STATUS_FAILED            DnsOperationStatus = 8 // 操作失败
+	DnsOperationStatus_DNS_OPERATION_STATUS_UNCONFIRMED       DnsOperationStatus = 9 // 结果待确认
+)
+
+// Enum value maps for DnsOperationStatus.
+var (
+	DnsOperationStatus_name = map[int32]string{
+		0: "DNS_OPERATION_STATUS_UNSPECIFIED",
+		1: "DNS_OPERATION_STATUS_READY",
+		2: "DNS_OPERATION_STATUS_ALREADY_EXISTS",
+		3: "DNS_OPERATION_STATUS_CREATED",
+		4: "DNS_OPERATION_STATUS_CONFLICT",
+		5: "DNS_OPERATION_STATUS_NOT_CONFIGURED",
+		6: "DNS_OPERATION_STATUS_PERMISSION_DENIED",
+		7: "DNS_OPERATION_STATUS_UNSUPPORTED",
+		8: "DNS_OPERATION_STATUS_FAILED",
+		9: "DNS_OPERATION_STATUS_UNCONFIRMED",
+	}
+	DnsOperationStatus_value = map[string]int32{
+		"DNS_OPERATION_STATUS_UNSPECIFIED":       0,
+		"DNS_OPERATION_STATUS_READY":             1,
+		"DNS_OPERATION_STATUS_ALREADY_EXISTS":    2,
+		"DNS_OPERATION_STATUS_CREATED":           3,
+		"DNS_OPERATION_STATUS_CONFLICT":          4,
+		"DNS_OPERATION_STATUS_NOT_CONFIGURED":    5,
+		"DNS_OPERATION_STATUS_PERMISSION_DENIED": 6,
+		"DNS_OPERATION_STATUS_UNSUPPORTED":       7,
+		"DNS_OPERATION_STATUS_FAILED":            8,
+		"DNS_OPERATION_STATUS_UNCONFIRMED":       9,
+	}
+)
+
+func (x DnsOperationStatus) Enum() *DnsOperationStatus {
+	p := new(DnsOperationStatus)
+	*p = x
+	return p
+}
+
+func (x DnsOperationStatus) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (DnsOperationStatus) Descriptor() protoreflect.EnumDescriptor {
+	return file_deployPB_deploy_proto_enumTypes[2].Descriptor()
+}
+
+func (DnsOperationStatus) Type() protoreflect.EnumType {
+	return &file_deployPB_deploy_proto_enumTypes[2]
+}
+
+func (x DnsOperationStatus) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use DnsOperationStatus.Descriptor instead.
+func (DnsOperationStatus) EnumDescriptor() ([]byte, []int) {
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{2}
+}
+
 // DeploymentType 是 v2 部署协议中的明确部署业务。
 type DeploymentType int32
 
@@ -198,11 +334,11 @@ func (x DeploymentType) String() string {
 }
 
 func (DeploymentType) Descriptor() protoreflect.EnumDescriptor {
-	return file_deployPB_deploy_proto_enumTypes[1].Descriptor()
+	return file_deployPB_deploy_proto_enumTypes[3].Descriptor()
 }
 
 func (DeploymentType) Type() protoreflect.EnumType {
-	return &file_deployPB_deploy_proto_enumTypes[1]
+	return &file_deployPB_deploy_proto_enumTypes[3]
 }
 
 func (x DeploymentType) Number() protoreflect.EnumNumber {
@@ -211,7 +347,7 @@ func (x DeploymentType) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use DeploymentType.Descriptor instead.
 func (DeploymentType) EnumDescriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{1}
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{3}
 }
 
 // DeploymentTargetMode 描述业务是否需要客户端动态资源引用。
@@ -248,11 +384,11 @@ func (x DeploymentTargetMode) String() string {
 }
 
 func (DeploymentTargetMode) Descriptor() protoreflect.EnumDescriptor {
-	return file_deployPB_deploy_proto_enumTypes[2].Descriptor()
+	return file_deployPB_deploy_proto_enumTypes[4].Descriptor()
 }
 
 func (DeploymentTargetMode) Type() protoreflect.EnumType {
-	return &file_deployPB_deploy_proto_enumTypes[2]
+	return &file_deployPB_deploy_proto_enumTypes[4]
 }
 
 func (x DeploymentTargetMode) Number() protoreflect.EnumNumber {
@@ -261,7 +397,7 @@ func (x DeploymentTargetMode) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use DeploymentTargetMode.Descriptor instead.
 func (DeploymentTargetMode) EnumDescriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{2}
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{4}
 }
 
 // DeploymentCategory 是前端展示部署能力时使用的稳定分类。
@@ -301,11 +437,11 @@ func (x DeploymentCategory) String() string {
 }
 
 func (DeploymentCategory) Descriptor() protoreflect.EnumDescriptor {
-	return file_deployPB_deploy_proto_enumTypes[3].Descriptor()
+	return file_deployPB_deploy_proto_enumTypes[5].Descriptor()
 }
 
 func (DeploymentCategory) Type() protoreflect.EnumType {
-	return &file_deployPB_deploy_proto_enumTypes[3]
+	return &file_deployPB_deploy_proto_enumTypes[5]
 }
 
 func (x DeploymentCategory) Number() protoreflect.EnumNumber {
@@ -314,7 +450,7 @@ func (x DeploymentCategory) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use DeploymentCategory.Descriptor instead.
 func (DeploymentCategory) EnumDescriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{3}
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{5}
 }
 
 // DeploymentDomainPolicy 描述证书域名与目标资源域名的匹配策略。
@@ -354,11 +490,11 @@ func (x DeploymentDomainPolicy) String() string {
 }
 
 func (DeploymentDomainPolicy) Descriptor() protoreflect.EnumDescriptor {
-	return file_deployPB_deploy_proto_enumTypes[4].Descriptor()
+	return file_deployPB_deploy_proto_enumTypes[6].Descriptor()
 }
 
 func (DeploymentDomainPolicy) Type() protoreflect.EnumType {
-	return &file_deployPB_deploy_proto_enumTypes[4]
+	return &file_deployPB_deploy_proto_enumTypes[6]
 }
 
 func (x DeploymentDomainPolicy) Number() protoreflect.EnumNumber {
@@ -367,7 +503,7 @@ func (x DeploymentDomainPolicy) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use DeploymentDomainPolicy.Descriptor instead.
 func (DeploymentDomainPolicy) EnumDescriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{4}
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{6}
 }
 
 // MARK: - 通知类型
@@ -416,11 +552,11 @@ func (x Type) String() string {
 }
 
 func (Type) Descriptor() protoreflect.EnumDescriptor {
-	return file_deployPB_deploy_proto_enumTypes[5].Descriptor()
+	return file_deployPB_deploy_proto_enumTypes[7].Descriptor()
 }
 
 func (Type) Type() protoreflect.EnumType {
-	return &file_deployPB_deploy_proto_enumTypes[5]
+	return &file_deployPB_deploy_proto_enumTypes[7]
 }
 
 func (x Type) Number() protoreflect.EnumNumber {
@@ -429,7 +565,7 @@ func (x Type) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Type.Descriptor instead.
 func (Type) EnumDescriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{5}
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{7}
 }
 
 // MARK: - 执行业务类型
@@ -526,11 +662,11 @@ func (x ExecuteBusinesType) String() string {
 }
 
 func (ExecuteBusinesType) Descriptor() protoreflect.EnumDescriptor {
-	return file_deployPB_deploy_proto_enumTypes[6].Descriptor()
+	return file_deployPB_deploy_proto_enumTypes[8].Descriptor()
 }
 
 func (ExecuteBusinesType) Type() protoreflect.EnumType {
-	return &file_deployPB_deploy_proto_enumTypes[6]
+	return &file_deployPB_deploy_proto_enumTypes[8]
 }
 
 func (x ExecuteBusinesType) Number() protoreflect.EnumNumber {
@@ -539,7 +675,7 @@ func (x ExecuteBusinesType) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ExecuteBusinesType.Descriptor instead.
 func (ExecuteBusinesType) EnumDescriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{6}
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{8}
 }
 
 // DeploymentResourceStatus 描述动态部署资源目录的可用状态，不携带客户端诊断信息。
@@ -588,11 +724,11 @@ func (x DeploymentResourceStatus) String() string {
 }
 
 func (DeploymentResourceStatus) Descriptor() protoreflect.EnumDescriptor {
-	return file_deployPB_deploy_proto_enumTypes[7].Descriptor()
+	return file_deployPB_deploy_proto_enumTypes[9].Descriptor()
 }
 
 func (DeploymentResourceStatus) Type() protoreflect.EnumType {
-	return &file_deployPB_deploy_proto_enumTypes[7]
+	return &file_deployPB_deploy_proto_enumTypes[9]
 }
 
 func (x DeploymentResourceStatus) Number() protoreflect.EnumNumber {
@@ -601,7 +737,7 @@ func (x DeploymentResourceStatus) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use DeploymentResourceStatus.Descriptor instead.
 func (DeploymentResourceStatus) EnumDescriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{7}
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{9}
 }
 
 // DeploymentResourceAvailability 描述单个动态部署资源当前是否可以执行证书部署。
@@ -647,11 +783,11 @@ func (x DeploymentResourceAvailability) String() string {
 }
 
 func (DeploymentResourceAvailability) Descriptor() protoreflect.EnumDescriptor {
-	return file_deployPB_deploy_proto_enumTypes[8].Descriptor()
+	return file_deployPB_deploy_proto_enumTypes[10].Descriptor()
 }
 
 func (DeploymentResourceAvailability) Type() protoreflect.EnumType {
-	return &file_deployPB_deploy_proto_enumTypes[8]
+	return &file_deployPB_deploy_proto_enumTypes[10]
 }
 
 func (x DeploymentResourceAvailability) Number() protoreflect.EnumNumber {
@@ -660,7 +796,7 @@ func (x DeploymentResourceAvailability) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use DeploymentResourceAvailability.Descriptor instead.
 func (DeploymentResourceAvailability) EnumDescriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{8}
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{10}
 }
 
 // FailureKind 描述部署失败的稳定原因分类。
@@ -709,11 +845,11 @@ func (x FailureKind) String() string {
 }
 
 func (FailureKind) Descriptor() protoreflect.EnumDescriptor {
-	return file_deployPB_deploy_proto_enumTypes[9].Descriptor()
+	return file_deployPB_deploy_proto_enumTypes[11].Descriptor()
 }
 
 func (FailureKind) Type() protoreflect.EnumType {
-	return &file_deployPB_deploy_proto_enumTypes[9]
+	return &file_deployPB_deploy_proto_enumTypes[11]
 }
 
 func (x FailureKind) Number() protoreflect.EnumNumber {
@@ -722,7 +858,7 @@ func (x FailureKind) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use FailureKind.Descriptor instead.
 func (FailureKind) EnumDescriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{9}
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{11}
 }
 
 type DeploymentExecutionResult_Status int32
@@ -761,11 +897,11 @@ func (x DeploymentExecutionResult_Status) String() string {
 }
 
 func (DeploymentExecutionResult_Status) Descriptor() protoreflect.EnumDescriptor {
-	return file_deployPB_deploy_proto_enumTypes[10].Descriptor()
+	return file_deployPB_deploy_proto_enumTypes[12].Descriptor()
 }
 
 func (DeploymentExecutionResult_Status) Type() protoreflect.EnumType {
-	return &file_deployPB_deploy_proto_enumTypes[10]
+	return &file_deployPB_deploy_proto_enumTypes[12]
 }
 
 func (x DeploymentExecutionResult_Status) Number() protoreflect.EnumNumber {
@@ -774,7 +910,7 @@ func (x DeploymentExecutionResult_Status) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use DeploymentExecutionResult_Status.Descriptor instead.
 func (DeploymentExecutionResult_Status) EnumDescriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{3, 0}
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{7, 0}
 }
 
 type DeploymentChallengeRequest_Action int32
@@ -810,11 +946,11 @@ func (x DeploymentChallengeRequest_Action) String() string {
 }
 
 func (DeploymentChallengeRequest_Action) Descriptor() protoreflect.EnumDescriptor {
-	return file_deployPB_deploy_proto_enumTypes[11].Descriptor()
+	return file_deployPB_deploy_proto_enumTypes[13].Descriptor()
 }
 
 func (DeploymentChallengeRequest_Action) Type() protoreflect.EnumType {
-	return &file_deployPB_deploy_proto_enumTypes[11]
+	return &file_deployPB_deploy_proto_enumTypes[13]
 }
 
 func (x DeploymentChallengeRequest_Action) Number() protoreflect.EnumNumber {
@@ -823,7 +959,7 @@ func (x DeploymentChallengeRequest_Action) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use DeploymentChallengeRequest_Action.Descriptor instead.
 func (DeploymentChallengeRequest_Action) EnumDescriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{11, 0}
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{15, 0}
 }
 
 type ChallengeRequest_Action int32
@@ -859,11 +995,11 @@ func (x ChallengeRequest_Action) String() string {
 }
 
 func (ChallengeRequest_Action) Descriptor() protoreflect.EnumDescriptor {
-	return file_deployPB_deploy_proto_enumTypes[12].Descriptor()
+	return file_deployPB_deploy_proto_enumTypes[14].Descriptor()
 }
 
 func (ChallengeRequest_Action) Type() protoreflect.EnumType {
-	return &file_deployPB_deploy_proto_enumTypes[12]
+	return &file_deployPB_deploy_proto_enumTypes[14]
 }
 
 func (x ChallengeRequest_Action) Number() protoreflect.EnumNumber {
@@ -872,7 +1008,7 @@ func (x ChallengeRequest_Action) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ChallengeRequest_Action.Descriptor instead.
 func (ChallengeRequest_Action) EnumDescriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{22, 0}
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{26, 0}
 }
 
 type ChallengeResponse_Result int32
@@ -911,11 +1047,11 @@ func (x ChallengeResponse_Result) String() string {
 }
 
 func (ChallengeResponse_Result) Descriptor() protoreflect.EnumDescriptor {
-	return file_deployPB_deploy_proto_enumTypes[13].Descriptor()
+	return file_deployPB_deploy_proto_enumTypes[15].Descriptor()
 }
 
 func (ChallengeResponse_Result) Type() protoreflect.EnumType {
-	return &file_deployPB_deploy_proto_enumTypes[13]
+	return &file_deployPB_deploy_proto_enumTypes[15]
 }
 
 func (x ChallengeResponse_Result) Number() protoreflect.EnumNumber {
@@ -924,7 +1060,7 @@ func (x ChallengeResponse_Result) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ChallengeResponse_Result.Descriptor instead.
 func (ChallengeResponse_Result) EnumDescriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{23, 0}
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{27, 0}
 }
 
 // 请求结果
@@ -964,11 +1100,11 @@ func (x ExecuteBusinesRequest_RequestResult) String() string {
 }
 
 func (ExecuteBusinesRequest_RequestResult) Descriptor() protoreflect.EnumDescriptor {
-	return file_deployPB_deploy_proto_enumTypes[14].Descriptor()
+	return file_deployPB_deploy_proto_enumTypes[16].Descriptor()
 }
 
 func (ExecuteBusinesRequest_RequestResult) Type() protoreflect.EnumType {
-	return &file_deployPB_deploy_proto_enumTypes[14]
+	return &file_deployPB_deploy_proto_enumTypes[16]
 }
 
 func (x ExecuteBusinesRequest_RequestResult) Number() protoreflect.EnumNumber {
@@ -977,7 +1113,267 @@ func (x ExecuteBusinesRequest_RequestResult) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ExecuteBusinesRequest_RequestResult.Descriptor instead.
 func (ExecuteBusinesRequest_RequestResult) EnumDescriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{29, 0}
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{33, 0}
+}
+
+// DnsProviderCapability 只上报本地凭据是否完整，不上传密钥。
+type DnsProviderCapability struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Provider      DnsProvider            `protobuf:"varint,1,opt,name=provider,proto3,enum=deployPB.DnsProvider" json:"provider,omitempty"` // DNS 服务商
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`                                    // 展示名称
+	Configured    bool                   `protobuf:"varint,3,opt,name=configured,proto3" json:"configured,omitempty"`                       // 是否存在完整凭据
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DnsProviderCapability) Reset() {
+	*x = DnsProviderCapability{}
+	mi := &file_deployPB_deploy_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DnsProviderCapability) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DnsProviderCapability) ProtoMessage() {}
+
+func (x *DnsProviderCapability) ProtoReflect() protoreflect.Message {
+	mi := &file_deployPB_deploy_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DnsProviderCapability.ProtoReflect.Descriptor instead.
+func (*DnsProviderCapability) Descriptor() ([]byte, []int) {
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *DnsProviderCapability) GetProvider() DnsProvider {
+	if x != nil {
+		return x.Provider
+	}
+	return DnsProvider_DNS_PROVIDER_UNSPECIFIED
+}
+
+func (x *DnsProviderCapability) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *DnsProviderCapability) GetConfigured() bool {
+	if x != nil {
+		return x.Configured
+	}
+	return false
+}
+
+// DnsRecord 是后端从当前用户 CNAME 数据中读取的授权记录。
+type DnsRecord struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Provider      DnsProvider            `protobuf:"varint,1,opt,name=provider,proto3,enum=deployPB.DnsProvider" json:"provider,omitempty"` // DNS 服务商
+	Zone          string                 `protobuf:"bytes,2,opt,name=zone,proto3" json:"zone,omitempty"`                                    // 当前权威托管区
+	Fqdn          string                 `protobuf:"bytes,3,opt,name=fqdn,proto3" json:"fqdn,omitempty"`                                    // 完整记录名
+	Host          string                 `protobuf:"bytes,4,opt,name=host,proto3" json:"host,omitempty"`                                    // 相对于托管区的主机记录
+	Value         string                 `protobuf:"bytes,5,opt,name=value,proto3" json:"value,omitempty"`                                  // CNAME 记录值
+	Fingerprint   string                 `protobuf:"bytes,6,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`                      // 记录内容与托管区的摘要
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DnsRecord) Reset() {
+	*x = DnsRecord{}
+	mi := &file_deployPB_deploy_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DnsRecord) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DnsRecord) ProtoMessage() {}
+
+func (x *DnsRecord) ProtoReflect() protoreflect.Message {
+	mi := &file_deployPB_deploy_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DnsRecord.ProtoReflect.Descriptor instead.
+func (*DnsRecord) Descriptor() ([]byte, []int) {
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *DnsRecord) GetProvider() DnsProvider {
+	if x != nil {
+		return x.Provider
+	}
+	return DnsProvider_DNS_PROVIDER_UNSPECIFIED
+}
+
+func (x *DnsRecord) GetZone() string {
+	if x != nil {
+		return x.Zone
+	}
+	return ""
+}
+
+func (x *DnsRecord) GetFqdn() string {
+	if x != nil {
+		return x.Fqdn
+	}
+	return ""
+}
+
+func (x *DnsRecord) GetHost() string {
+	if x != nil {
+		return x.Host
+	}
+	return ""
+}
+
+func (x *DnsRecord) GetValue() string {
+	if x != nil {
+		return x.Value
+	}
+	return ""
+}
+
+func (x *DnsRecord) GetFingerprint() string {
+	if x != nil {
+		return x.Fingerprint
+	}
+	return ""
+}
+
+// DnsOperationRequest 请求检查或创建一条精确 CNAME。
+type DnsOperationRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Record        *DnsRecord             `protobuf:"bytes,1,opt,name=record,proto3" json:"record,omitempty"` // 授权记录
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DnsOperationRequest) Reset() {
+	*x = DnsOperationRequest{}
+	mi := &file_deployPB_deploy_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DnsOperationRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DnsOperationRequest) ProtoMessage() {}
+
+func (x *DnsOperationRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_deployPB_deploy_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DnsOperationRequest.ProtoReflect.Descriptor instead.
+func (*DnsOperationRequest) Descriptor() ([]byte, []int) {
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *DnsOperationRequest) GetRecord() *DnsRecord {
+	if x != nil {
+		return x.Record
+	}
+	return nil
+}
+
+// DnsOperationResult 返回可安全展示的逐条操作结果。
+type DnsOperationResult struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	Status            DnsOperationStatus     `protobuf:"varint,1,opt,name=status,proto3,enum=deployPB.DnsOperationStatus" json:"status,omitempty"`                // 操作状态
+	Message           string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`                                                // 脱敏说明
+	Record            *DnsRecord             `protobuf:"bytes,3,opt,name=record,proto3" json:"record,omitempty"`                                                  // 实际检查的记录
+	ProviderRequestId string                 `protobuf:"bytes,4,opt,name=provider_request_id,json=providerRequestId,proto3" json:"provider_request_id,omitempty"` // 云厂商请求 ID
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *DnsOperationResult) Reset() {
+	*x = DnsOperationResult{}
+	mi := &file_deployPB_deploy_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DnsOperationResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DnsOperationResult) ProtoMessage() {}
+
+func (x *DnsOperationResult) ProtoReflect() protoreflect.Message {
+	mi := &file_deployPB_deploy_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DnsOperationResult.ProtoReflect.Descriptor instead.
+func (*DnsOperationResult) Descriptor() ([]byte, []int) {
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *DnsOperationResult) GetStatus() DnsOperationStatus {
+	if x != nil {
+		return x.Status
+	}
+	return DnsOperationStatus_DNS_OPERATION_STATUS_UNSPECIFIED
+}
+
+func (x *DnsOperationResult) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *DnsOperationResult) GetRecord() *DnsRecord {
+	if x != nil {
+		return x.Record
+	}
+	return nil
+}
+
+func (x *DnsOperationResult) GetProviderRequestId() string {
+	if x != nil {
+		return x.ProviderRequestId
+	}
+	return ""
 }
 
 // DeploymentSelector 是定位客户端部署目标的稳定选择器。
@@ -992,7 +1388,7 @@ type DeploymentSelector struct {
 
 func (x *DeploymentSelector) Reset() {
 	*x = DeploymentSelector{}
-	mi := &file_deployPB_deploy_proto_msgTypes[0]
+	mi := &file_deployPB_deploy_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1004,7 +1400,7 @@ func (x *DeploymentSelector) String() string {
 func (*DeploymentSelector) ProtoMessage() {}
 
 func (x *DeploymentSelector) ProtoReflect() protoreflect.Message {
-	mi := &file_deployPB_deploy_proto_msgTypes[0]
+	mi := &file_deployPB_deploy_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1017,7 +1413,7 @@ func (x *DeploymentSelector) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeploymentSelector.ProtoReflect.Descriptor instead.
 func (*DeploymentSelector) Descriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{0}
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *DeploymentSelector) GetProvider() Provider {
@@ -1066,7 +1462,7 @@ type DeploymentCapability struct {
 
 func (x *DeploymentCapability) Reset() {
 	*x = DeploymentCapability{}
-	mi := &file_deployPB_deploy_proto_msgTypes[1]
+	mi := &file_deployPB_deploy_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1078,7 +1474,7 @@ func (x *DeploymentCapability) String() string {
 func (*DeploymentCapability) ProtoMessage() {}
 
 func (x *DeploymentCapability) ProtoReflect() protoreflect.Message {
-	mi := &file_deployPB_deploy_proto_msgTypes[1]
+	mi := &file_deployPB_deploy_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1091,7 +1487,7 @@ func (x *DeploymentCapability) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeploymentCapability.ProtoReflect.Descriptor instead.
 func (*DeploymentCapability) Descriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{1}
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *DeploymentCapability) GetProvider() Provider {
@@ -1226,7 +1622,7 @@ type DeploymentResource struct {
 
 func (x *DeploymentResource) Reset() {
 	*x = DeploymentResource{}
-	mi := &file_deployPB_deploy_proto_msgTypes[2]
+	mi := &file_deployPB_deploy_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1238,7 +1634,7 @@ func (x *DeploymentResource) String() string {
 func (*DeploymentResource) ProtoMessage() {}
 
 func (x *DeploymentResource) ProtoReflect() protoreflect.Message {
-	mi := &file_deployPB_deploy_proto_msgTypes[2]
+	mi := &file_deployPB_deploy_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1251,7 +1647,7 @@ func (x *DeploymentResource) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeploymentResource.ProtoReflect.Descriptor instead.
 func (*DeploymentResource) Descriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{2}
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *DeploymentResource) GetTargetRef() string {
@@ -1345,7 +1741,7 @@ type DeploymentExecutionResult struct {
 
 func (x *DeploymentExecutionResult) Reset() {
 	*x = DeploymentExecutionResult{}
-	mi := &file_deployPB_deploy_proto_msgTypes[3]
+	mi := &file_deployPB_deploy_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1357,7 +1753,7 @@ func (x *DeploymentExecutionResult) String() string {
 func (*DeploymentExecutionResult) ProtoMessage() {}
 
 func (x *DeploymentExecutionResult) ProtoReflect() protoreflect.Message {
-	mi := &file_deployPB_deploy_proto_msgTypes[3]
+	mi := &file_deployPB_deploy_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1370,7 +1766,7 @@ func (x *DeploymentExecutionResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeploymentExecutionResult.ProtoReflect.Descriptor instead.
 func (*DeploymentExecutionResult) Descriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{3}
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *DeploymentExecutionResult) GetStatus() DeploymentExecutionResult_Status {
@@ -1410,22 +1806,23 @@ func (x *DeploymentExecutionResult) GetFailureKind() FailureKind {
 
 // DeploymentRegisterV2 描述 v2 客户端注册能力。
 type DeploymentRegisterV2 struct {
-	state           protoimpl.MessageState  `protogen:"open.v1"`
-	ProtocolVersion uint32                  `protobuf:"varint,1,opt,name=protocol_version,json=protocolVersion,proto3" json:"protocol_version,omitempty"` // 协议主版本
-	ClientVersion   string                  `protobuf:"bytes,2,opt,name=client_version,json=clientVersion,proto3" json:"client_version,omitempty"`        // 客户端版本
-	Features        []string                `protobuf:"bytes,3,rep,name=features,proto3" json:"features,omitempty"`                                       // 客户端能力开关
-	Capabilities    []*DeploymentCapability `protobuf:"bytes,4,rep,name=capabilities,proto3" json:"capabilities,omitempty"`                               // 支持的部署能力
-	Os              string                  `protobuf:"bytes,5,opt,name=os,proto3" json:"os,omitempty"`                                                   // 操作系统摘要
-	Arch            string                  `protobuf:"bytes,6,opt,name=arch,proto3" json:"arch,omitempty"`                                               // CPU 架构摘要
-	Hostname        string                  `protobuf:"bytes,7,opt,name=hostname,proto3" json:"hostname,omitempty"`                                       // 主机名摘要
-	Ip              string                  `protobuf:"bytes,8,opt,name=ip,proto3" json:"ip,omitempty"`                                                   // 客户端 IP 摘要
+	state           protoimpl.MessageState   `protogen:"open.v1"`
+	ProtocolVersion uint32                   `protobuf:"varint,1,opt,name=protocol_version,json=protocolVersion,proto3" json:"protocol_version,omitempty"` // 协议主版本
+	ClientVersion   string                   `protobuf:"bytes,2,opt,name=client_version,json=clientVersion,proto3" json:"client_version,omitempty"`        // 客户端版本
+	Features        []string                 `protobuf:"bytes,3,rep,name=features,proto3" json:"features,omitempty"`                                       // 客户端能力开关
+	Capabilities    []*DeploymentCapability  `protobuf:"bytes,4,rep,name=capabilities,proto3" json:"capabilities,omitempty"`                               // 支持的部署能力
+	Os              string                   `protobuf:"bytes,5,opt,name=os,proto3" json:"os,omitempty"`                                                   // 操作系统摘要
+	Arch            string                   `protobuf:"bytes,6,opt,name=arch,proto3" json:"arch,omitempty"`                                               // CPU 架构摘要
+	Hostname        string                   `protobuf:"bytes,7,opt,name=hostname,proto3" json:"hostname,omitempty"`                                       // 主机名摘要
+	Ip              string                   `protobuf:"bytes,8,opt,name=ip,proto3" json:"ip,omitempty"`                                                   // 客户端 IP 摘要
+	DnsCapabilities []*DnsProviderCapability `protobuf:"bytes,9,rep,name=dns_capabilities,json=dnsCapabilities,proto3" json:"dns_capabilities,omitempty"`  // 本地 DNS 凭据摘要
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
 
 func (x *DeploymentRegisterV2) Reset() {
 	*x = DeploymentRegisterV2{}
-	mi := &file_deployPB_deploy_proto_msgTypes[4]
+	mi := &file_deployPB_deploy_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1437,7 +1834,7 @@ func (x *DeploymentRegisterV2) String() string {
 func (*DeploymentRegisterV2) ProtoMessage() {}
 
 func (x *DeploymentRegisterV2) ProtoReflect() protoreflect.Message {
-	mi := &file_deployPB_deploy_proto_msgTypes[4]
+	mi := &file_deployPB_deploy_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1450,7 +1847,7 @@ func (x *DeploymentRegisterV2) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeploymentRegisterV2.ProtoReflect.Descriptor instead.
 func (*DeploymentRegisterV2) Descriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{4}
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *DeploymentRegisterV2) GetProtocolVersion() uint32 {
@@ -1509,6 +1906,13 @@ func (x *DeploymentRegisterV2) GetIp() string {
 	return ""
 }
 
+func (x *DeploymentRegisterV2) GetDnsCapabilities() []*DnsProviderCapability {
+	if x != nil {
+		return x.DnsCapabilities
+	}
+	return nil
+}
+
 // DeploymentDiscoverRequest 请求客户端发现指定部署能力的资源。
 type DeploymentDiscoverRequest struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
@@ -1520,7 +1924,7 @@ type DeploymentDiscoverRequest struct {
 
 func (x *DeploymentDiscoverRequest) Reset() {
 	*x = DeploymentDiscoverRequest{}
-	mi := &file_deployPB_deploy_proto_msgTypes[5]
+	mi := &file_deployPB_deploy_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1532,7 +1936,7 @@ func (x *DeploymentDiscoverRequest) String() string {
 func (*DeploymentDiscoverRequest) ProtoMessage() {}
 
 func (x *DeploymentDiscoverRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_deployPB_deploy_proto_msgTypes[5]
+	mi := &file_deployPB_deploy_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1545,7 +1949,7 @@ func (x *DeploymentDiscoverRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeploymentDiscoverRequest.ProtoReflect.Descriptor instead.
 func (*DeploymentDiscoverRequest) Descriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{5}
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *DeploymentDiscoverRequest) GetSelector() *DeploymentSelector {
@@ -1572,7 +1976,7 @@ type DeploymentDiscoverResponse struct {
 
 func (x *DeploymentDiscoverResponse) Reset() {
 	*x = DeploymentDiscoverResponse{}
-	mi := &file_deployPB_deploy_proto_msgTypes[6]
+	mi := &file_deployPB_deploy_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1584,7 +1988,7 @@ func (x *DeploymentDiscoverResponse) String() string {
 func (*DeploymentDiscoverResponse) ProtoMessage() {}
 
 func (x *DeploymentDiscoverResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_deployPB_deploy_proto_msgTypes[6]
+	mi := &file_deployPB_deploy_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1597,7 +2001,7 @@ func (x *DeploymentDiscoverResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeploymentDiscoverResponse.ProtoReflect.Descriptor instead.
 func (*DeploymentDiscoverResponse) Descriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{6}
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *DeploymentDiscoverResponse) GetCapability() *DeploymentCapability {
@@ -1618,7 +2022,7 @@ type DeploymentTestRequest struct {
 
 func (x *DeploymentTestRequest) Reset() {
 	*x = DeploymentTestRequest{}
-	mi := &file_deployPB_deploy_proto_msgTypes[7]
+	mi := &file_deployPB_deploy_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1630,7 +2034,7 @@ func (x *DeploymentTestRequest) String() string {
 func (*DeploymentTestRequest) ProtoMessage() {}
 
 func (x *DeploymentTestRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_deployPB_deploy_proto_msgTypes[7]
+	mi := &file_deployPB_deploy_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1643,7 +2047,7 @@ func (x *DeploymentTestRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeploymentTestRequest.ProtoReflect.Descriptor instead.
 func (*DeploymentTestRequest) Descriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{7}
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *DeploymentTestRequest) GetRequestId() string {
@@ -1672,7 +2076,7 @@ type DeploymentTestResponse struct {
 
 func (x *DeploymentTestResponse) Reset() {
 	*x = DeploymentTestResponse{}
-	mi := &file_deployPB_deploy_proto_msgTypes[8]
+	mi := &file_deployPB_deploy_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1684,7 +2088,7 @@ func (x *DeploymentTestResponse) String() string {
 func (*DeploymentTestResponse) ProtoMessage() {}
 
 func (x *DeploymentTestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_deployPB_deploy_proto_msgTypes[8]
+	mi := &file_deployPB_deploy_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1697,7 +2101,7 @@ func (x *DeploymentTestResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeploymentTestResponse.ProtoReflect.Descriptor instead.
 func (*DeploymentTestResponse) Descriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{8}
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *DeploymentTestResponse) GetRequestId() string {
@@ -1736,7 +2140,7 @@ type DeploymentExecuteRequest struct {
 
 func (x *DeploymentExecuteRequest) Reset() {
 	*x = DeploymentExecuteRequest{}
-	mi := &file_deployPB_deploy_proto_msgTypes[9]
+	mi := &file_deployPB_deploy_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1748,7 +2152,7 @@ func (x *DeploymentExecuteRequest) String() string {
 func (*DeploymentExecuteRequest) ProtoMessage() {}
 
 func (x *DeploymentExecuteRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_deployPB_deploy_proto_msgTypes[9]
+	mi := &file_deployPB_deploy_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1761,7 +2165,7 @@ func (x *DeploymentExecuteRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeploymentExecuteRequest.ProtoReflect.Descriptor instead.
 func (*DeploymentExecuteRequest) Descriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{9}
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *DeploymentExecuteRequest) GetRequestId() string {
@@ -1818,7 +2222,7 @@ type DeploymentExecuteResponse struct {
 
 func (x *DeploymentExecuteResponse) Reset() {
 	*x = DeploymentExecuteResponse{}
-	mi := &file_deployPB_deploy_proto_msgTypes[10]
+	mi := &file_deployPB_deploy_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1830,7 +2234,7 @@ func (x *DeploymentExecuteResponse) String() string {
 func (*DeploymentExecuteResponse) ProtoMessage() {}
 
 func (x *DeploymentExecuteResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_deployPB_deploy_proto_msgTypes[10]
+	mi := &file_deployPB_deploy_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1843,7 +2247,7 @@ func (x *DeploymentExecuteResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeploymentExecuteResponse.ProtoReflect.Descriptor instead.
 func (*DeploymentExecuteResponse) Descriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{10}
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *DeploymentExecuteResponse) GetRequestId() string {
@@ -1883,7 +2287,7 @@ type DeploymentChallengeRequest struct {
 
 func (x *DeploymentChallengeRequest) Reset() {
 	*x = DeploymentChallengeRequest{}
-	mi := &file_deployPB_deploy_proto_msgTypes[11]
+	mi := &file_deployPB_deploy_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1895,7 +2299,7 @@ func (x *DeploymentChallengeRequest) String() string {
 func (*DeploymentChallengeRequest) ProtoMessage() {}
 
 func (x *DeploymentChallengeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_deployPB_deploy_proto_msgTypes[11]
+	mi := &file_deployPB_deploy_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1908,7 +2312,7 @@ func (x *DeploymentChallengeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeploymentChallengeRequest.ProtoReflect.Descriptor instead.
 func (*DeploymentChallengeRequest) Descriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{11}
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *DeploymentChallengeRequest) GetRequestId() string {
@@ -1975,7 +2379,7 @@ type DeploymentChallengeResponse struct {
 
 func (x *DeploymentChallengeResponse) Reset() {
 	*x = DeploymentChallengeResponse{}
-	mi := &file_deployPB_deploy_proto_msgTypes[12]
+	mi := &file_deployPB_deploy_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1987,7 +2391,7 @@ func (x *DeploymentChallengeResponse) String() string {
 func (*DeploymentChallengeResponse) ProtoMessage() {}
 
 func (x *DeploymentChallengeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_deployPB_deploy_proto_msgTypes[12]
+	mi := &file_deployPB_deploy_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2000,7 +2404,7 @@ func (x *DeploymentChallengeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeploymentChallengeResponse.ProtoReflect.Descriptor instead.
 func (*DeploymentChallengeResponse) Descriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{12}
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *DeploymentChallengeResponse) GetRequestId() string {
@@ -2055,7 +2459,7 @@ type DeploymentHeartbeat struct {
 
 func (x *DeploymentHeartbeat) Reset() {
 	*x = DeploymentHeartbeat{}
-	mi := &file_deployPB_deploy_proto_msgTypes[13]
+	mi := &file_deployPB_deploy_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2067,7 +2471,7 @@ func (x *DeploymentHeartbeat) String() string {
 func (*DeploymentHeartbeat) ProtoMessage() {}
 
 func (x *DeploymentHeartbeat) ProtoReflect() protoreflect.Message {
-	mi := &file_deployPB_deploy_proto_msgTypes[13]
+	mi := &file_deployPB_deploy_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2080,7 +2484,7 @@ func (x *DeploymentHeartbeat) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeploymentHeartbeat.ProtoReflect.Descriptor instead.
 func (*DeploymentHeartbeat) Descriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{13}
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *DeploymentHeartbeat) GetRegistration() *DeploymentRegisterV2 {
@@ -2102,7 +2506,7 @@ type DeploymentUpdateRequest struct {
 
 func (x *DeploymentUpdateRequest) Reset() {
 	*x = DeploymentUpdateRequest{}
-	mi := &file_deployPB_deploy_proto_msgTypes[14]
+	mi := &file_deployPB_deploy_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2114,7 +2518,7 @@ func (x *DeploymentUpdateRequest) String() string {
 func (*DeploymentUpdateRequest) ProtoMessage() {}
 
 func (x *DeploymentUpdateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_deployPB_deploy_proto_msgTypes[14]
+	mi := &file_deployPB_deploy_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2127,7 +2531,7 @@ func (x *DeploymentUpdateRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeploymentUpdateRequest.ProtoReflect.Descriptor instead.
 func (*DeploymentUpdateRequest) Descriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{14}
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *DeploymentUpdateRequest) GetVersion() string {
@@ -2165,6 +2569,8 @@ type DeploymentRequest struct {
 	//	*DeploymentRequest_TestResponse
 	//	*DeploymentRequest_ExecuteResponse
 	//	*DeploymentRequest_ChallengeResponse
+	//	*DeploymentRequest_DnsCheckResponse
+	//	*DeploymentRequest_DnsConfigureResponse
 	Data          isDeploymentRequest_Data `protobuf_oneof:"data"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -2172,7 +2578,7 @@ type DeploymentRequest struct {
 
 func (x *DeploymentRequest) Reset() {
 	*x = DeploymentRequest{}
-	mi := &file_deployPB_deploy_proto_msgTypes[15]
+	mi := &file_deployPB_deploy_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2184,7 +2590,7 @@ func (x *DeploymentRequest) String() string {
 func (*DeploymentRequest) ProtoMessage() {}
 
 func (x *DeploymentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_deployPB_deploy_proto_msgTypes[15]
+	mi := &file_deployPB_deploy_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2197,7 +2603,7 @@ func (x *DeploymentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeploymentRequest.ProtoReflect.Descriptor instead.
 func (*DeploymentRequest) Descriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{15}
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *DeploymentRequest) GetAccessKey() string {
@@ -2282,6 +2688,24 @@ func (x *DeploymentRequest) GetChallengeResponse() *DeploymentChallengeResponse 
 	return nil
 }
 
+func (x *DeploymentRequest) GetDnsCheckResponse() *DnsOperationResult {
+	if x != nil {
+		if x, ok := x.Data.(*DeploymentRequest_DnsCheckResponse); ok {
+			return x.DnsCheckResponse
+		}
+	}
+	return nil
+}
+
+func (x *DeploymentRequest) GetDnsConfigureResponse() *DnsOperationResult {
+	if x != nil {
+		if x, ok := x.Data.(*DeploymentRequest_DnsConfigureResponse); ok {
+			return x.DnsConfigureResponse
+		}
+	}
+	return nil
+}
+
 type isDeploymentRequest_Data interface {
 	isDeploymentRequest_Data()
 }
@@ -2310,6 +2734,14 @@ type DeploymentRequest_ChallengeResponse struct {
 	ChallengeResponse *DeploymentChallengeResponse `protobuf:"bytes,15,opt,name=challenge_response,json=challengeResponse,proto3,oneof"` // HTTP-01 响应
 }
 
+type DeploymentRequest_DnsCheckResponse struct {
+	DnsCheckResponse *DnsOperationResult `protobuf:"bytes,16,opt,name=dns_check_response,json=dnsCheckResponse,proto3,oneof"` // CNAME 检查响应
+}
+
+type DeploymentRequest_DnsConfigureResponse struct {
+	DnsConfigureResponse *DnsOperationResult `protobuf:"bytes,17,opt,name=dns_configure_response,json=dnsConfigureResponse,proto3,oneof"` // CNAME 配置响应
+}
+
 func (*DeploymentRequest_Register) isDeploymentRequest_Data() {}
 
 func (*DeploymentRequest_Heartbeat) isDeploymentRequest_Data() {}
@@ -2321,6 +2753,10 @@ func (*DeploymentRequest_TestResponse) isDeploymentRequest_Data() {}
 func (*DeploymentRequest_ExecuteResponse) isDeploymentRequest_Data() {}
 
 func (*DeploymentRequest_ChallengeResponse) isDeploymentRequest_Data() {}
+
+func (*DeploymentRequest_DnsCheckResponse) isDeploymentRequest_Data() {}
+
+func (*DeploymentRequest_DnsConfigureResponse) isDeploymentRequest_Data() {}
 
 // DeploymentResponse 是服务端发送给 v2 客户端的统一消息信封。
 type DeploymentResponse struct {
@@ -2335,6 +2771,8 @@ type DeploymentResponse struct {
 	//	*DeploymentResponse_ExecuteRequest
 	//	*DeploymentResponse_ChallengeRequest
 	//	*DeploymentResponse_UpdateRequest
+	//	*DeploymentResponse_DnsCheckRequest
+	//	*DeploymentResponse_DnsConfigureRequest
 	Data          isDeploymentResponse_Data `protobuf_oneof:"data"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -2342,7 +2780,7 @@ type DeploymentResponse struct {
 
 func (x *DeploymentResponse) Reset() {
 	*x = DeploymentResponse{}
-	mi := &file_deployPB_deploy_proto_msgTypes[16]
+	mi := &file_deployPB_deploy_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2354,7 +2792,7 @@ func (x *DeploymentResponse) String() string {
 func (*DeploymentResponse) ProtoMessage() {}
 
 func (x *DeploymentResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_deployPB_deploy_proto_msgTypes[16]
+	mi := &file_deployPB_deploy_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2367,7 +2805,7 @@ func (x *DeploymentResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeploymentResponse.ProtoReflect.Descriptor instead.
 func (*DeploymentResponse) Descriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{16}
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *DeploymentResponse) GetClientId() string {
@@ -2445,6 +2883,24 @@ func (x *DeploymentResponse) GetUpdateRequest() *DeploymentUpdateRequest {
 	return nil
 }
 
+func (x *DeploymentResponse) GetDnsCheckRequest() *DnsOperationRequest {
+	if x != nil {
+		if x, ok := x.Data.(*DeploymentResponse_DnsCheckRequest); ok {
+			return x.DnsCheckRequest
+		}
+	}
+	return nil
+}
+
+func (x *DeploymentResponse) GetDnsConfigureRequest() *DnsOperationRequest {
+	if x != nil {
+		if x, ok := x.Data.(*DeploymentResponse_DnsConfigureRequest); ok {
+			return x.DnsConfigureRequest
+		}
+	}
+	return nil
+}
+
 type isDeploymentResponse_Data interface {
 	isDeploymentResponse_Data()
 }
@@ -2473,6 +2929,14 @@ type DeploymentResponse_UpdateRequest struct {
 	UpdateRequest *DeploymentUpdateRequest `protobuf:"bytes,15,opt,name=update_request,json=updateRequest,proto3,oneof"` // 客户端版本更新请求
 }
 
+type DeploymentResponse_DnsCheckRequest struct {
+	DnsCheckRequest *DnsOperationRequest `protobuf:"bytes,16,opt,name=dns_check_request,json=dnsCheckRequest,proto3,oneof"` // CNAME 只读检查
+}
+
+type DeploymentResponse_DnsConfigureRequest struct {
+	DnsConfigureRequest *DnsOperationRequest `protobuf:"bytes,17,opt,name=dns_configure_request,json=dnsConfigureRequest,proto3,oneof"` // CNAME 配置
+}
+
 func (*DeploymentResponse_Register) isDeploymentResponse_Data() {}
 
 func (*DeploymentResponse_DiscoverRequest) isDeploymentResponse_Data() {}
@@ -2484,6 +2948,10 @@ func (*DeploymentResponse_ExecuteRequest) isDeploymentResponse_Data() {}
 func (*DeploymentResponse_ChallengeRequest) isDeploymentResponse_Data() {}
 
 func (*DeploymentResponse_UpdateRequest) isDeploymentResponse_Data() {}
+
+func (*DeploymentResponse_DnsCheckRequest) isDeploymentResponse_Data() {}
+
+func (*DeploymentResponse_DnsConfigureRequest) isDeploymentResponse_Data() {}
 
 // MARK: - 通知
 type NotifyRequest struct {
@@ -2506,7 +2974,7 @@ type NotifyRequest struct {
 
 func (x *NotifyRequest) Reset() {
 	*x = NotifyRequest{}
-	mi := &file_deployPB_deploy_proto_msgTypes[17]
+	mi := &file_deployPB_deploy_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2518,7 +2986,7 @@ func (x *NotifyRequest) String() string {
 func (*NotifyRequest) ProtoMessage() {}
 
 func (x *NotifyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_deployPB_deploy_proto_msgTypes[17]
+	mi := &file_deployPB_deploy_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2531,7 +2999,7 @@ func (x *NotifyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NotifyRequest.ProtoReflect.Descriptor instead.
 func (*NotifyRequest) Descriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{17}
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *NotifyRequest) GetAccessKey() string {
@@ -2668,7 +3136,7 @@ type NotifyResponse struct {
 
 func (x *NotifyResponse) Reset() {
 	*x = NotifyResponse{}
-	mi := &file_deployPB_deploy_proto_msgTypes[18]
+	mi := &file_deployPB_deploy_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2680,7 +3148,7 @@ func (x *NotifyResponse) String() string {
 func (*NotifyResponse) ProtoMessage() {}
 
 func (x *NotifyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_deployPB_deploy_proto_msgTypes[18]
+	mi := &file_deployPB_deploy_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2693,7 +3161,7 @@ func (x *NotifyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NotifyResponse.ProtoReflect.Descriptor instead.
 func (*NotifyResponse) Descriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{18}
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *NotifyResponse) GetType() Type {
@@ -2831,7 +3299,7 @@ type ConnectRequest struct {
 
 func (x *ConnectRequest) Reset() {
 	*x = ConnectRequest{}
-	mi := &file_deployPB_deploy_proto_msgTypes[19]
+	mi := &file_deployPB_deploy_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2843,7 +3311,7 @@ func (x *ConnectRequest) String() string {
 func (*ConnectRequest) ProtoMessage() {}
 
 func (x *ConnectRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_deployPB_deploy_proto_msgTypes[19]
+	mi := &file_deployPB_deploy_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2856,7 +3324,7 @@ func (x *ConnectRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectRequest.ProtoReflect.Descriptor instead.
 func (*ConnectRequest) Descriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{19}
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *ConnectRequest) GetProvider() string {
@@ -2896,7 +3364,7 @@ type CertUpdateRequest struct {
 
 func (x *CertUpdateRequest) Reset() {
 	*x = CertUpdateRequest{}
-	mi := &file_deployPB_deploy_proto_msgTypes[20]
+	mi := &file_deployPB_deploy_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2908,7 +3376,7 @@ func (x *CertUpdateRequest) String() string {
 func (*CertUpdateRequest) ProtoMessage() {}
 
 func (x *CertUpdateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_deployPB_deploy_proto_msgTypes[20]
+	mi := &file_deployPB_deploy_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2921,7 +3389,7 @@ func (x *CertUpdateRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CertUpdateRequest.ProtoReflect.Descriptor instead.
 func (*CertUpdateRequest) Descriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{20}
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{24}
 }
 
 type CertUpdateResponse struct {
@@ -2934,7 +3402,7 @@ type CertUpdateResponse struct {
 
 func (x *CertUpdateResponse) Reset() {
 	*x = CertUpdateResponse{}
-	mi := &file_deployPB_deploy_proto_msgTypes[21]
+	mi := &file_deployPB_deploy_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2946,7 +3414,7 @@ func (x *CertUpdateResponse) String() string {
 func (*CertUpdateResponse) ProtoMessage() {}
 
 func (x *CertUpdateResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_deployPB_deploy_proto_msgTypes[21]
+	mi := &file_deployPB_deploy_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2959,7 +3427,7 @@ func (x *CertUpdateResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CertUpdateResponse.ProtoReflect.Descriptor instead.
 func (*CertUpdateResponse) Descriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{21}
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *CertUpdateResponse) GetDomain() string {
@@ -2992,7 +3460,7 @@ type ChallengeRequest struct {
 
 func (x *ChallengeRequest) Reset() {
 	*x = ChallengeRequest{}
-	mi := &file_deployPB_deploy_proto_msgTypes[22]
+	mi := &file_deployPB_deploy_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3004,7 +3472,7 @@ func (x *ChallengeRequest) String() string {
 func (*ChallengeRequest) ProtoMessage() {}
 
 func (x *ChallengeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_deployPB_deploy_proto_msgTypes[22]
+	mi := &file_deployPB_deploy_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3017,7 +3485,7 @@ func (x *ChallengeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChallengeRequest.ProtoReflect.Descriptor instead.
 func (*ChallengeRequest) Descriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{22}
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *ChallengeRequest) GetOperationId() int64 {
@@ -3077,7 +3545,7 @@ type ChallengeResponse struct {
 
 func (x *ChallengeResponse) Reset() {
 	*x = ChallengeResponse{}
-	mi := &file_deployPB_deploy_proto_msgTypes[23]
+	mi := &file_deployPB_deploy_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3089,7 +3557,7 @@ func (x *ChallengeResponse) String() string {
 func (*ChallengeResponse) ProtoMessage() {}
 
 func (x *ChallengeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_deployPB_deploy_proto_msgTypes[23]
+	mi := &file_deployPB_deploy_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3102,7 +3570,7 @@ func (x *ChallengeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChallengeResponse.ProtoReflect.Descriptor instead.
 func (*ChallengeResponse) Descriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{23}
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *ChallengeResponse) GetOperationId() int64 {
@@ -3159,7 +3627,7 @@ type GetProviderRequest struct {
 
 func (x *GetProviderRequest) Reset() {
 	*x = GetProviderRequest{}
-	mi := &file_deployPB_deploy_proto_msgTypes[24]
+	mi := &file_deployPB_deploy_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3171,7 +3639,7 @@ func (x *GetProviderRequest) String() string {
 func (*GetProviderRequest) ProtoMessage() {}
 
 func (x *GetProviderRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_deployPB_deploy_proto_msgTypes[24]
+	mi := &file_deployPB_deploy_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3184,7 +3652,7 @@ func (x *GetProviderRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetProviderRequest.ProtoReflect.Descriptor instead.
 func (*GetProviderRequest) Descriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{24}
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *GetProviderRequest) GetProvider() string {
@@ -3227,7 +3695,7 @@ type DeployResource struct {
 
 func (x *DeployResource) Reset() {
 	*x = DeployResource{}
-	mi := &file_deployPB_deploy_proto_msgTypes[25]
+	mi := &file_deployPB_deploy_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3239,7 +3707,7 @@ func (x *DeployResource) String() string {
 func (*DeployResource) ProtoMessage() {}
 
 func (x *DeployResource) ProtoReflect() protoreflect.Message {
-	mi := &file_deployPB_deploy_proto_msgTypes[25]
+	mi := &file_deployPB_deploy_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3252,7 +3720,7 @@ func (x *DeployResource) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeployResource.ProtoReflect.Descriptor instead.
 func (*DeployResource) Descriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{25}
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *DeployResource) GetTargetRef() string {
@@ -3334,7 +3802,7 @@ type GetProviderResponse struct {
 
 func (x *GetProviderResponse) Reset() {
 	*x = GetProviderResponse{}
-	mi := &file_deployPB_deploy_proto_msgTypes[26]
+	mi := &file_deployPB_deploy_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3346,7 +3814,7 @@ func (x *GetProviderResponse) String() string {
 func (*GetProviderResponse) ProtoMessage() {}
 
 func (x *GetProviderResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_deployPB_deploy_proto_msgTypes[26]
+	mi := &file_deployPB_deploy_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3359,7 +3827,7 @@ func (x *GetProviderResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetProviderResponse.ProtoReflect.Descriptor instead.
 func (*GetProviderResponse) Descriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{26}
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *GetProviderResponse) GetProviders() []*GetProviderResponse_Provider {
@@ -3378,7 +3846,7 @@ type RegisterRequest struct {
 
 func (x *RegisterRequest) Reset() {
 	*x = RegisterRequest{}
-	mi := &file_deployPB_deploy_proto_msgTypes[27]
+	mi := &file_deployPB_deploy_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3390,7 +3858,7 @@ func (x *RegisterRequest) String() string {
 func (*RegisterRequest) ProtoMessage() {}
 
 func (x *RegisterRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_deployPB_deploy_proto_msgTypes[27]
+	mi := &file_deployPB_deploy_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3403,7 +3871,7 @@ func (x *RegisterRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterRequest.ProtoReflect.Descriptor instead.
 func (*RegisterRequest) Descriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{27}
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{31}
 }
 
 type RegisterResponse struct {
@@ -3415,7 +3883,7 @@ type RegisterResponse struct {
 
 func (x *RegisterResponse) Reset() {
 	*x = RegisterResponse{}
-	mi := &file_deployPB_deploy_proto_msgTypes[28]
+	mi := &file_deployPB_deploy_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3427,7 +3895,7 @@ func (x *RegisterResponse) String() string {
 func (*RegisterResponse) ProtoMessage() {}
 
 func (x *RegisterResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_deployPB_deploy_proto_msgTypes[28]
+	mi := &file_deployPB_deploy_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3440,7 +3908,7 @@ func (x *RegisterResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterResponse.ProtoReflect.Descriptor instead.
 func (*RegisterResponse) Descriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{28}
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *RegisterResponse) GetSystemInfo() *RegisterResponse_SystemInfo {
@@ -3463,7 +3931,7 @@ type ExecuteBusinesRequest struct {
 
 func (x *ExecuteBusinesRequest) Reset() {
 	*x = ExecuteBusinesRequest{}
-	mi := &file_deployPB_deploy_proto_msgTypes[29]
+	mi := &file_deployPB_deploy_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3475,7 +3943,7 @@ func (x *ExecuteBusinesRequest) String() string {
 func (*ExecuteBusinesRequest) ProtoMessage() {}
 
 func (x *ExecuteBusinesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_deployPB_deploy_proto_msgTypes[29]
+	mi := &file_deployPB_deploy_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3488,7 +3956,7 @@ func (x *ExecuteBusinesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecuteBusinesRequest.ProtoReflect.Descriptor instead.
 func (*ExecuteBusinesRequest) Descriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{29}
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *ExecuteBusinesRequest) GetRequestResult() ExecuteBusinesRequest_RequestResult {
@@ -3536,7 +4004,7 @@ type ExecuteBusinesResponse struct {
 
 func (x *ExecuteBusinesResponse) Reset() {
 	*x = ExecuteBusinesResponse{}
-	mi := &file_deployPB_deploy_proto_msgTypes[30]
+	mi := &file_deployPB_deploy_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3548,7 +4016,7 @@ func (x *ExecuteBusinesResponse) String() string {
 func (*ExecuteBusinesResponse) ProtoMessage() {}
 
 func (x *ExecuteBusinesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_deployPB_deploy_proto_msgTypes[30]
+	mi := &file_deployPB_deploy_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3561,7 +4029,7 @@ func (x *ExecuteBusinesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecuteBusinesResponse.ProtoReflect.Descriptor instead.
 func (*ExecuteBusinesResponse) Descriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{30}
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *ExecuteBusinesResponse) GetProvider() string {
@@ -3638,7 +4106,7 @@ type GetProviderResponse_Provider struct {
 
 func (x *GetProviderResponse_Provider) Reset() {
 	*x = GetProviderResponse_Provider{}
-	mi := &file_deployPB_deploy_proto_msgTypes[31]
+	mi := &file_deployPB_deploy_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3650,7 +4118,7 @@ func (x *GetProviderResponse_Provider) String() string {
 func (*GetProviderResponse_Provider) ProtoMessage() {}
 
 func (x *GetProviderResponse_Provider) ProtoReflect() protoreflect.Message {
-	mi := &file_deployPB_deploy_proto_msgTypes[31]
+	mi := &file_deployPB_deploy_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3663,7 +4131,7 @@ func (x *GetProviderResponse_Provider) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetProviderResponse_Provider.ProtoReflect.Descriptor instead.
 func (*GetProviderResponse_Provider) Descriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{26, 0}
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{30, 0}
 }
 
 func (x *GetProviderResponse_Provider) GetName() string {
@@ -3698,7 +4166,7 @@ type GetProviderResponse_Provider_Business struct {
 
 func (x *GetProviderResponse_Provider_Business) Reset() {
 	*x = GetProviderResponse_Provider_Business{}
-	mi := &file_deployPB_deploy_proto_msgTypes[32]
+	mi := &file_deployPB_deploy_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3710,7 +4178,7 @@ func (x *GetProviderResponse_Provider_Business) String() string {
 func (*GetProviderResponse_Provider_Business) ProtoMessage() {}
 
 func (x *GetProviderResponse_Provider_Business) ProtoReflect() protoreflect.Message {
-	mi := &file_deployPB_deploy_proto_msgTypes[32]
+	mi := &file_deployPB_deploy_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3723,7 +4191,7 @@ func (x *GetProviderResponse_Provider_Business) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use GetProviderResponse_Provider_Business.ProtoReflect.Descriptor instead.
 func (*GetProviderResponse_Provider_Business) Descriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{26, 0, 0}
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{30, 0, 0}
 }
 
 func (x *GetProviderResponse_Provider_Business) GetExecuteBusinesType() ExecuteBusinesType {
@@ -3759,7 +4227,7 @@ type RegisterResponse_SystemInfo struct {
 
 func (x *RegisterResponse_SystemInfo) Reset() {
 	*x = RegisterResponse_SystemInfo{}
-	mi := &file_deployPB_deploy_proto_msgTypes[33]
+	mi := &file_deployPB_deploy_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3771,7 +4239,7 @@ func (x *RegisterResponse_SystemInfo) String() string {
 func (*RegisterResponse_SystemInfo) ProtoMessage() {}
 
 func (x *RegisterResponse_SystemInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_deployPB_deploy_proto_msgTypes[33]
+	mi := &file_deployPB_deploy_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3784,7 +4252,7 @@ func (x *RegisterResponse_SystemInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterResponse_SystemInfo.ProtoReflect.Descriptor instead.
 func (*RegisterResponse_SystemInfo) Descriptor() ([]byte, []int) {
-	return file_deployPB_deploy_proto_rawDescGZIP(), []int{28, 0}
+	return file_deployPB_deploy_proto_rawDescGZIP(), []int{32, 0}
 }
 
 func (x *RegisterResponse_SystemInfo) GetOs() string {
@@ -3819,7 +4287,27 @@ var File_deployPB_deploy_proto protoreflect.FileDescriptor
 
 const file_deployPB_deploy_proto_rawDesc = "" +
 	"\n" +
-	"\x15deployPB/deploy.proto\x12\bdeployPB\"\xa6\x01\n" +
+	"\x15deployPB/deploy.proto\x12\bdeployPB\"~\n" +
+	"\x15DnsProviderCapability\x121\n" +
+	"\bprovider\x18\x01 \x01(\x0e2\x15.deployPB.DnsProviderR\bprovider\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1e\n" +
+	"\n" +
+	"configured\x18\x03 \x01(\bR\n" +
+	"configured\"\xb2\x01\n" +
+	"\tDnsRecord\x121\n" +
+	"\bprovider\x18\x01 \x01(\x0e2\x15.deployPB.DnsProviderR\bprovider\x12\x12\n" +
+	"\x04zone\x18\x02 \x01(\tR\x04zone\x12\x12\n" +
+	"\x04fqdn\x18\x03 \x01(\tR\x04fqdn\x12\x12\n" +
+	"\x04host\x18\x04 \x01(\tR\x04host\x12\x14\n" +
+	"\x05value\x18\x05 \x01(\tR\x05value\x12 \n" +
+	"\vfingerprint\x18\x06 \x01(\tR\vfingerprint\"B\n" +
+	"\x13DnsOperationRequest\x12+\n" +
+	"\x06record\x18\x01 \x01(\v2\x13.deployPB.DnsRecordR\x06record\"\xc1\x01\n" +
+	"\x12DnsOperationResult\x124\n" +
+	"\x06status\x18\x01 \x01(\x0e2\x1c.deployPB.DnsOperationStatusR\x06status\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\x12+\n" +
+	"\x06record\x18\x03 \x01(\v2\x13.deployPB.DnsRecordR\x06record\x12.\n" +
+	"\x13provider_request_id\x18\x04 \x01(\tR\x11providerRequestId\"\xa6\x01\n" +
 	"\x12DeploymentSelector\x12.\n" +
 	"\bprovider\x18\x01 \x01(\x0e2\x12.deployPB.ProviderR\bprovider\x12A\n" +
 	"\x0fdeployment_type\x18\x02 \x01(\x0e2\x18.deployPB.DeploymentTypeR\x0edeploymentType\x12\x1d\n" +
@@ -3871,7 +4359,7 @@ const file_deployPB_deploy_proto_rawDesc = "" +
 	"\rSTATUS_FAILED\x10\x02\x12\x18\n" +
 	"\x14STATUS_NOT_SUPPORTED\x10\x03B\f\n" +
 	"\n" +
-	"_retryable\"\x98\x02\n" +
+	"_retryable\"\xe4\x02\n" +
 	"\x14DeploymentRegisterV2\x12)\n" +
 	"\x10protocol_version\x18\x01 \x01(\rR\x0fprotocolVersion\x12%\n" +
 	"\x0eclient_version\x18\x02 \x01(\tR\rclientVersion\x12\x1a\n" +
@@ -3880,7 +4368,8 @@ const file_deployPB_deploy_proto_rawDesc = "" +
 	"\x02os\x18\x05 \x01(\tR\x02os\x12\x12\n" +
 	"\x04arch\x18\x06 \x01(\tR\x04arch\x12\x1a\n" +
 	"\bhostname\x18\a \x01(\tR\bhostname\x12\x0e\n" +
-	"\x02ip\x18\b \x01(\tR\x02ip\"\x82\x01\n" +
+	"\x02ip\x18\b \x01(\tR\x02ip\x12J\n" +
+	"\x10dns_capabilities\x18\t \x03(\v2\x1f.deployPB.DnsProviderCapabilityR\x0fdnsCapabilities\"\x82\x01\n" +
 	"\x19DeploymentDiscoverRequest\x128\n" +
 	"\bselector\x18\x01 \x01(\v2\x1c.deployPB.DeploymentSelectorR\bselector\x12+\n" +
 	"\x11include_resources\x18\x02 \x01(\bR\x10includeResources\"\\\n" +
@@ -3937,7 +4426,7 @@ const file_deployPB_deploy_proto_rawDesc = "" +
 	"\x17DeploymentUpdateRequest\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\tR\aversion\x12!\n" +
 	"\fdownload_url\x18\x02 \x01(\tR\vdownloadUrl\x12!\n" +
-	"\frelease_note\x18\x03 \x01(\tR\vreleaseNote\"\xbb\x04\n" +
+	"\frelease_note\x18\x03 \x01(\tR\vreleaseNote\"\xdf\x05\n" +
 	"\x11DeploymentRequest\x12\x1d\n" +
 	"\n" +
 	"access_key\x18\x01 \x01(\tR\taccessKey\x12\x1b\n" +
@@ -3950,8 +4439,10 @@ const file_deployPB_deploy_proto_rawDesc = "" +
 	"\x11discover_response\x18\f \x01(\v2$.deployPB.DeploymentDiscoverResponseH\x00R\x10discoverResponse\x12G\n" +
 	"\rtest_response\x18\r \x01(\v2 .deployPB.DeploymentTestResponseH\x00R\ftestResponse\x12P\n" +
 	"\x10execute_response\x18\x0e \x01(\v2#.deployPB.DeploymentExecuteResponseH\x00R\x0fexecuteResponse\x12V\n" +
-	"\x12challenge_response\x18\x0f \x01(\v2%.deployPB.DeploymentChallengeResponseH\x00R\x11challengeResponseB\x06\n" +
-	"\x04data\"\x9e\x04\n" +
+	"\x12challenge_response\x18\x0f \x01(\v2%.deployPB.DeploymentChallengeResponseH\x00R\x11challengeResponse\x12L\n" +
+	"\x12dns_check_response\x18\x10 \x01(\v2\x1c.deployPB.DnsOperationResultH\x00R\x10dnsCheckResponse\x12T\n" +
+	"\x16dns_configure_response\x18\x11 \x01(\v2\x1c.deployPB.DnsOperationResultH\x00R\x14dnsConfigureResponseB\x06\n" +
+	"\x04data\"\xc0\x05\n" +
 	"\x12DeploymentResponse\x12\x1b\n" +
 	"\tclient_id\x18\x01 \x01(\tR\bclientId\x12\x1d\n" +
 	"\n" +
@@ -3962,7 +4453,9 @@ const file_deployPB_deploy_proto_rawDesc = "" +
 	"\ftest_request\x18\f \x01(\v2\x1f.deployPB.DeploymentTestRequestH\x00R\vtestRequest\x12M\n" +
 	"\x0fexecute_request\x18\r \x01(\v2\".deployPB.DeploymentExecuteRequestH\x00R\x0eexecuteRequest\x12S\n" +
 	"\x11challenge_request\x18\x0e \x01(\v2$.deployPB.DeploymentChallengeRequestH\x00R\x10challengeRequest\x12J\n" +
-	"\x0eupdate_request\x18\x0f \x01(\v2!.deployPB.DeploymentUpdateRequestH\x00R\rupdateRequestB\x06\n" +
+	"\x0eupdate_request\x18\x0f \x01(\v2!.deployPB.DeploymentUpdateRequestH\x00R\rupdateRequest\x12K\n" +
+	"\x11dns_check_request\x18\x10 \x01(\v2\x1d.deployPB.DnsOperationRequestH\x00R\x0fdnsCheckRequest\x12S\n" +
+	"\x15dns_configure_request\x18\x11 \x01(\v2\x1d.deployPB.DnsOperationRequestH\x00R\x13dnsConfigureRequestB\x06\n" +
 	"\x04data\"\x90\x04\n" +
 	"\rNotifyRequest\x12\x1c\n" +
 	"\taccessKey\x18\x01 \x01(\tR\taccessKey\x12\x1a\n" +
@@ -4096,7 +4589,27 @@ const file_deployPB_deploy_proto_rawDesc = "" +
 	"\x14PROVIDER_BAIDU_CLOUD\x10\b\x12\x17\n" +
 	"\x13PROVIDER_DOGE_CLOUD\x10\t\x12\x12\n" +
 	"\x0ePROVIDER_LECDN\x10\n" +
-	"*\xd4\a\n" +
+	"*\xe3\x01\n" +
+	"\vDnsProvider\x12\x1c\n" +
+	"\x18DNS_PROVIDER_UNSPECIFIED\x10\x00\x12\x17\n" +
+	"\x13DNS_PROVIDER_ALIYUN\x10\x01\x12\x18\n" +
+	"\x14DNS_PROVIDER_TENCENT\x10\x02\x12\x17\n" +
+	"\x13DNS_PROVIDER_HUAWEI\x10\x03\x12\x16\n" +
+	"\x12DNS_PROVIDER_BAIDU\x10\x04\x12\x18\n" +
+	"\x14DNS_PROVIDER_JDCLOUD\x10\x05\x12\x1b\n" +
+	"\x17DNS_PROVIDER_VOLCENGINE\x10\x06\x12\x1b\n" +
+	"\x17DNS_PROVIDER_CLOUDFLARE\x10\a*\x8a\x03\n" +
+	"\x12DnsOperationStatus\x12$\n" +
+	" DNS_OPERATION_STATUS_UNSPECIFIED\x10\x00\x12\x1e\n" +
+	"\x1aDNS_OPERATION_STATUS_READY\x10\x01\x12'\n" +
+	"#DNS_OPERATION_STATUS_ALREADY_EXISTS\x10\x02\x12 \n" +
+	"\x1cDNS_OPERATION_STATUS_CREATED\x10\x03\x12!\n" +
+	"\x1dDNS_OPERATION_STATUS_CONFLICT\x10\x04\x12'\n" +
+	"#DNS_OPERATION_STATUS_NOT_CONFIGURED\x10\x05\x12*\n" +
+	"&DNS_OPERATION_STATUS_PERMISSION_DENIED\x10\x06\x12$\n" +
+	" DNS_OPERATION_STATUS_UNSUPPORTED\x10\a\x12\x1f\n" +
+	"\x1bDNS_OPERATION_STATUS_FAILED\x10\b\x12$\n" +
+	" DNS_OPERATION_STATUS_UNCONFIRMED\x10\t*\xd4\a\n" +
 	"\x0eDeploymentType\x12\x1f\n" +
 	"\x1bDEPLOYMENT_TYPE_UNSPECIFIED\x10\x00\x12(\n" +
 	"$DEPLOYMENT_TYPE_ANSSL_CLI_NGINX_CERT\x10\x01\x12\x1f\n" +
@@ -4211,128 +4724,144 @@ func file_deployPB_deploy_proto_rawDescGZIP() []byte {
 	return file_deployPB_deploy_proto_rawDescData
 }
 
-var file_deployPB_deploy_proto_enumTypes = make([]protoimpl.EnumInfo, 15)
-var file_deployPB_deploy_proto_msgTypes = make([]protoimpl.MessageInfo, 34)
+var file_deployPB_deploy_proto_enumTypes = make([]protoimpl.EnumInfo, 17)
+var file_deployPB_deploy_proto_msgTypes = make([]protoimpl.MessageInfo, 38)
 var file_deployPB_deploy_proto_goTypes = []any{
 	(Provider)(0),                                 // 0: deployPB.Provider
-	(DeploymentType)(0),                           // 1: deployPB.DeploymentType
-	(DeploymentTargetMode)(0),                     // 2: deployPB.DeploymentTargetMode
-	(DeploymentCategory)(0),                       // 3: deployPB.DeploymentCategory
-	(DeploymentDomainPolicy)(0),                   // 4: deployPB.DeploymentDomainPolicy
-	(Type)(0),                                     // 5: deployPB.Type
-	(ExecuteBusinesType)(0),                       // 6: deployPB.ExecuteBusinesType
-	(DeploymentResourceStatus)(0),                 // 7: deployPB.DeploymentResourceStatus
-	(DeploymentResourceAvailability)(0),           // 8: deployPB.DeploymentResourceAvailability
-	(FailureKind)(0),                              // 9: deployPB.FailureKind
-	(DeploymentExecutionResult_Status)(0),         // 10: deployPB.DeploymentExecutionResult.Status
-	(DeploymentChallengeRequest_Action)(0),        // 11: deployPB.DeploymentChallengeRequest.Action
-	(ChallengeRequest_Action)(0),                  // 12: deployPB.ChallengeRequest.Action
-	(ChallengeResponse_Result)(0),                 // 13: deployPB.ChallengeResponse.Result
-	(ExecuteBusinesRequest_RequestResult)(0),      // 14: deployPB.ExecuteBusinesRequest.RequestResult
-	(*DeploymentSelector)(nil),                    // 15: deployPB.DeploymentSelector
-	(*DeploymentCapability)(nil),                  // 16: deployPB.DeploymentCapability
-	(*DeploymentResource)(nil),                    // 17: deployPB.DeploymentResource
-	(*DeploymentExecutionResult)(nil),             // 18: deployPB.DeploymentExecutionResult
-	(*DeploymentRegisterV2)(nil),                  // 19: deployPB.DeploymentRegisterV2
-	(*DeploymentDiscoverRequest)(nil),             // 20: deployPB.DeploymentDiscoverRequest
-	(*DeploymentDiscoverResponse)(nil),            // 21: deployPB.DeploymentDiscoverResponse
-	(*DeploymentTestRequest)(nil),                 // 22: deployPB.DeploymentTestRequest
-	(*DeploymentTestResponse)(nil),                // 23: deployPB.DeploymentTestResponse
-	(*DeploymentExecuteRequest)(nil),              // 24: deployPB.DeploymentExecuteRequest
-	(*DeploymentExecuteResponse)(nil),             // 25: deployPB.DeploymentExecuteResponse
-	(*DeploymentChallengeRequest)(nil),            // 26: deployPB.DeploymentChallengeRequest
-	(*DeploymentChallengeResponse)(nil),           // 27: deployPB.DeploymentChallengeResponse
-	(*DeploymentHeartbeat)(nil),                   // 28: deployPB.DeploymentHeartbeat
-	(*DeploymentUpdateRequest)(nil),               // 29: deployPB.DeploymentUpdateRequest
-	(*DeploymentRequest)(nil),                     // 30: deployPB.DeploymentRequest
-	(*DeploymentResponse)(nil),                    // 31: deployPB.DeploymentResponse
-	(*NotifyRequest)(nil),                         // 32: deployPB.NotifyRequest
-	(*NotifyResponse)(nil),                        // 33: deployPB.NotifyResponse
-	(*ConnectRequest)(nil),                        // 34: deployPB.ConnectRequest
-	(*CertUpdateRequest)(nil),                     // 35: deployPB.CertUpdateRequest
-	(*CertUpdateResponse)(nil),                    // 36: deployPB.CertUpdateResponse
-	(*ChallengeRequest)(nil),                      // 37: deployPB.ChallengeRequest
-	(*ChallengeResponse)(nil),                     // 38: deployPB.ChallengeResponse
-	(*GetProviderRequest)(nil),                    // 39: deployPB.GetProviderRequest
-	(*DeployResource)(nil),                        // 40: deployPB.DeployResource
-	(*GetProviderResponse)(nil),                   // 41: deployPB.GetProviderResponse
-	(*RegisterRequest)(nil),                       // 42: deployPB.RegisterRequest
-	(*RegisterResponse)(nil),                      // 43: deployPB.RegisterResponse
-	(*ExecuteBusinesRequest)(nil),                 // 44: deployPB.ExecuteBusinesRequest
-	(*ExecuteBusinesResponse)(nil),                // 45: deployPB.ExecuteBusinesResponse
-	(*GetProviderResponse_Provider)(nil),          // 46: deployPB.GetProviderResponse.Provider
-	(*GetProviderResponse_Provider_Business)(nil), // 47: deployPB.GetProviderResponse.Provider.Business
-	(*RegisterResponse_SystemInfo)(nil),           // 48: deployPB.RegisterResponse.SystemInfo
+	(DnsProvider)(0),                              // 1: deployPB.DnsProvider
+	(DnsOperationStatus)(0),                       // 2: deployPB.DnsOperationStatus
+	(DeploymentType)(0),                           // 3: deployPB.DeploymentType
+	(DeploymentTargetMode)(0),                     // 4: deployPB.DeploymentTargetMode
+	(DeploymentCategory)(0),                       // 5: deployPB.DeploymentCategory
+	(DeploymentDomainPolicy)(0),                   // 6: deployPB.DeploymentDomainPolicy
+	(Type)(0),                                     // 7: deployPB.Type
+	(ExecuteBusinesType)(0),                       // 8: deployPB.ExecuteBusinesType
+	(DeploymentResourceStatus)(0),                 // 9: deployPB.DeploymentResourceStatus
+	(DeploymentResourceAvailability)(0),           // 10: deployPB.DeploymentResourceAvailability
+	(FailureKind)(0),                              // 11: deployPB.FailureKind
+	(DeploymentExecutionResult_Status)(0),         // 12: deployPB.DeploymentExecutionResult.Status
+	(DeploymentChallengeRequest_Action)(0),        // 13: deployPB.DeploymentChallengeRequest.Action
+	(ChallengeRequest_Action)(0),                  // 14: deployPB.ChallengeRequest.Action
+	(ChallengeResponse_Result)(0),                 // 15: deployPB.ChallengeResponse.Result
+	(ExecuteBusinesRequest_RequestResult)(0),      // 16: deployPB.ExecuteBusinesRequest.RequestResult
+	(*DnsProviderCapability)(nil),                 // 17: deployPB.DnsProviderCapability
+	(*DnsRecord)(nil),                             // 18: deployPB.DnsRecord
+	(*DnsOperationRequest)(nil),                   // 19: deployPB.DnsOperationRequest
+	(*DnsOperationResult)(nil),                    // 20: deployPB.DnsOperationResult
+	(*DeploymentSelector)(nil),                    // 21: deployPB.DeploymentSelector
+	(*DeploymentCapability)(nil),                  // 22: deployPB.DeploymentCapability
+	(*DeploymentResource)(nil),                    // 23: deployPB.DeploymentResource
+	(*DeploymentExecutionResult)(nil),             // 24: deployPB.DeploymentExecutionResult
+	(*DeploymentRegisterV2)(nil),                  // 25: deployPB.DeploymentRegisterV2
+	(*DeploymentDiscoverRequest)(nil),             // 26: deployPB.DeploymentDiscoverRequest
+	(*DeploymentDiscoverResponse)(nil),            // 27: deployPB.DeploymentDiscoverResponse
+	(*DeploymentTestRequest)(nil),                 // 28: deployPB.DeploymentTestRequest
+	(*DeploymentTestResponse)(nil),                // 29: deployPB.DeploymentTestResponse
+	(*DeploymentExecuteRequest)(nil),              // 30: deployPB.DeploymentExecuteRequest
+	(*DeploymentExecuteResponse)(nil),             // 31: deployPB.DeploymentExecuteResponse
+	(*DeploymentChallengeRequest)(nil),            // 32: deployPB.DeploymentChallengeRequest
+	(*DeploymentChallengeResponse)(nil),           // 33: deployPB.DeploymentChallengeResponse
+	(*DeploymentHeartbeat)(nil),                   // 34: deployPB.DeploymentHeartbeat
+	(*DeploymentUpdateRequest)(nil),               // 35: deployPB.DeploymentUpdateRequest
+	(*DeploymentRequest)(nil),                     // 36: deployPB.DeploymentRequest
+	(*DeploymentResponse)(nil),                    // 37: deployPB.DeploymentResponse
+	(*NotifyRequest)(nil),                         // 38: deployPB.NotifyRequest
+	(*NotifyResponse)(nil),                        // 39: deployPB.NotifyResponse
+	(*ConnectRequest)(nil),                        // 40: deployPB.ConnectRequest
+	(*CertUpdateRequest)(nil),                     // 41: deployPB.CertUpdateRequest
+	(*CertUpdateResponse)(nil),                    // 42: deployPB.CertUpdateResponse
+	(*ChallengeRequest)(nil),                      // 43: deployPB.ChallengeRequest
+	(*ChallengeResponse)(nil),                     // 44: deployPB.ChallengeResponse
+	(*GetProviderRequest)(nil),                    // 45: deployPB.GetProviderRequest
+	(*DeployResource)(nil),                        // 46: deployPB.DeployResource
+	(*GetProviderResponse)(nil),                   // 47: deployPB.GetProviderResponse
+	(*RegisterRequest)(nil),                       // 48: deployPB.RegisterRequest
+	(*RegisterResponse)(nil),                      // 49: deployPB.RegisterResponse
+	(*ExecuteBusinesRequest)(nil),                 // 50: deployPB.ExecuteBusinesRequest
+	(*ExecuteBusinesResponse)(nil),                // 51: deployPB.ExecuteBusinesResponse
+	(*GetProviderResponse_Provider)(nil),          // 52: deployPB.GetProviderResponse.Provider
+	(*GetProviderResponse_Provider_Business)(nil), // 53: deployPB.GetProviderResponse.Provider.Business
+	(*RegisterResponse_SystemInfo)(nil),           // 54: deployPB.RegisterResponse.SystemInfo
 }
 var file_deployPB_deploy_proto_depIdxs = []int32{
-	0,  // 0: deployPB.DeploymentSelector.provider:type_name -> deployPB.Provider
-	1,  // 1: deployPB.DeploymentSelector.deployment_type:type_name -> deployPB.DeploymentType
-	0,  // 2: deployPB.DeploymentCapability.provider:type_name -> deployPB.Provider
-	1,  // 3: deployPB.DeploymentCapability.deployment_type:type_name -> deployPB.DeploymentType
-	2,  // 4: deployPB.DeploymentCapability.target_mode:type_name -> deployPB.DeploymentTargetMode
-	7,  // 5: deployPB.DeploymentCapability.resource_status:type_name -> deployPB.DeploymentResourceStatus
-	17, // 6: deployPB.DeploymentCapability.resources:type_name -> deployPB.DeploymentResource
-	3,  // 7: deployPB.DeploymentCapability.category:type_name -> deployPB.DeploymentCategory
-	4,  // 8: deployPB.DeploymentCapability.domain_policy:type_name -> deployPB.DeploymentDomainPolicy
-	8,  // 9: deployPB.DeploymentResource.availability:type_name -> deployPB.DeploymentResourceAvailability
-	10, // 10: deployPB.DeploymentExecutionResult.status:type_name -> deployPB.DeploymentExecutionResult.Status
-	9,  // 11: deployPB.DeploymentExecutionResult.failure_kind:type_name -> deployPB.FailureKind
-	16, // 12: deployPB.DeploymentRegisterV2.capabilities:type_name -> deployPB.DeploymentCapability
-	15, // 13: deployPB.DeploymentDiscoverRequest.selector:type_name -> deployPB.DeploymentSelector
-	16, // 14: deployPB.DeploymentDiscoverResponse.capability:type_name -> deployPB.DeploymentCapability
-	15, // 15: deployPB.DeploymentTestRequest.selector:type_name -> deployPB.DeploymentSelector
-	15, // 16: deployPB.DeploymentTestResponse.selector:type_name -> deployPB.DeploymentSelector
-	18, // 17: deployPB.DeploymentTestResponse.result:type_name -> deployPB.DeploymentExecutionResult
-	15, // 18: deployPB.DeploymentExecuteRequest.selector:type_name -> deployPB.DeploymentSelector
-	15, // 19: deployPB.DeploymentExecuteResponse.selector:type_name -> deployPB.DeploymentSelector
-	18, // 20: deployPB.DeploymentExecuteResponse.result:type_name -> deployPB.DeploymentExecutionResult
-	11, // 21: deployPB.DeploymentChallengeRequest.action:type_name -> deployPB.DeploymentChallengeRequest.Action
-	18, // 22: deployPB.DeploymentChallengeResponse.result:type_name -> deployPB.DeploymentExecutionResult
-	19, // 23: deployPB.DeploymentHeartbeat.registration:type_name -> deployPB.DeploymentRegisterV2
-	19, // 24: deployPB.DeploymentRequest.register:type_name -> deployPB.DeploymentRegisterV2
-	28, // 25: deployPB.DeploymentRequest.heartbeat:type_name -> deployPB.DeploymentHeartbeat
-	21, // 26: deployPB.DeploymentRequest.discover_response:type_name -> deployPB.DeploymentDiscoverResponse
-	23, // 27: deployPB.DeploymentRequest.test_response:type_name -> deployPB.DeploymentTestResponse
-	25, // 28: deployPB.DeploymentRequest.execute_response:type_name -> deployPB.DeploymentExecuteResponse
-	27, // 29: deployPB.DeploymentRequest.challenge_response:type_name -> deployPB.DeploymentChallengeResponse
-	19, // 30: deployPB.DeploymentResponse.register:type_name -> deployPB.DeploymentRegisterV2
-	20, // 31: deployPB.DeploymentResponse.discover_request:type_name -> deployPB.DeploymentDiscoverRequest
-	22, // 32: deployPB.DeploymentResponse.test_request:type_name -> deployPB.DeploymentTestRequest
-	24, // 33: deployPB.DeploymentResponse.execute_request:type_name -> deployPB.DeploymentExecuteRequest
-	26, // 34: deployPB.DeploymentResponse.challenge_request:type_name -> deployPB.DeploymentChallengeRequest
-	29, // 35: deployPB.DeploymentResponse.update_request:type_name -> deployPB.DeploymentUpdateRequest
-	41, // 36: deployPB.NotifyRequest.getProviderResponse:type_name -> deployPB.GetProviderResponse
-	43, // 37: deployPB.NotifyRequest.registerResponse:type_name -> deployPB.RegisterResponse
-	34, // 38: deployPB.NotifyRequest.connectRequest:type_name -> deployPB.ConnectRequest
-	44, // 39: deployPB.NotifyRequest.executeBusinesRequest:type_name -> deployPB.ExecuteBusinesRequest
-	38, // 40: deployPB.NotifyRequest.challengeResponse:type_name -> deployPB.ChallengeResponse
-	5,  // 41: deployPB.NotifyResponse.type:type_name -> deployPB.Type
-	41, // 42: deployPB.NotifyResponse.getProviderResponse:type_name -> deployPB.GetProviderResponse
-	42, // 43: deployPB.NotifyResponse.registerRequest:type_name -> deployPB.RegisterRequest
-	34, // 44: deployPB.NotifyResponse.connectRequest:type_name -> deployPB.ConnectRequest
-	45, // 45: deployPB.NotifyResponse.executeBusinesResponse:type_name -> deployPB.ExecuteBusinesResponse
-	37, // 46: deployPB.NotifyResponse.challengeRequest:type_name -> deployPB.ChallengeRequest
-	39, // 47: deployPB.NotifyResponse.getProviderRequest:type_name -> deployPB.GetProviderRequest
-	6,  // 48: deployPB.ConnectRequest.execute_busines_type:type_name -> deployPB.ExecuteBusinesType
-	12, // 49: deployPB.ChallengeRequest.action:type_name -> deployPB.ChallengeRequest.Action
-	13, // 50: deployPB.ChallengeResponse.result:type_name -> deployPB.ChallengeResponse.Result
-	6,  // 51: deployPB.GetProviderRequest.execute_busines_type:type_name -> deployPB.ExecuteBusinesType
-	8,  // 52: deployPB.DeployResource.availability:type_name -> deployPB.DeploymentResourceAvailability
-	46, // 53: deployPB.GetProviderResponse.providers:type_name -> deployPB.GetProviderResponse.Provider
-	48, // 54: deployPB.RegisterResponse.systemInfo:type_name -> deployPB.RegisterResponse.SystemInfo
-	14, // 55: deployPB.ExecuteBusinesRequest.requestResult:type_name -> deployPB.ExecuteBusinesRequest.RequestResult
-	6,  // 56: deployPB.ExecuteBusinesResponse.executeBusinesType:type_name -> deployPB.ExecuteBusinesType
-	47, // 57: deployPB.GetProviderResponse.Provider.businesses:type_name -> deployPB.GetProviderResponse.Provider.Business
-	6,  // 58: deployPB.GetProviderResponse.Provider.Business.execute_busines_type:type_name -> deployPB.ExecuteBusinesType
-	40, // 59: deployPB.GetProviderResponse.Provider.Business.resources:type_name -> deployPB.DeployResource
-	7,  // 60: deployPB.GetProviderResponse.Provider.Business.resource_status:type_name -> deployPB.DeploymentResourceStatus
-	32, // 61: deployPB.DeployService.Notify:input_type -> deployPB.NotifyRequest
-	33, // 62: deployPB.DeployService.Notify:output_type -> deployPB.NotifyResponse
-	62, // [62:63] is the sub-list for method output_type
-	61, // [61:62] is the sub-list for method input_type
-	61, // [61:61] is the sub-list for extension type_name
-	61, // [61:61] is the sub-list for extension extendee
-	0,  // [0:61] is the sub-list for field type_name
+	1,  // 0: deployPB.DnsProviderCapability.provider:type_name -> deployPB.DnsProvider
+	1,  // 1: deployPB.DnsRecord.provider:type_name -> deployPB.DnsProvider
+	18, // 2: deployPB.DnsOperationRequest.record:type_name -> deployPB.DnsRecord
+	2,  // 3: deployPB.DnsOperationResult.status:type_name -> deployPB.DnsOperationStatus
+	18, // 4: deployPB.DnsOperationResult.record:type_name -> deployPB.DnsRecord
+	0,  // 5: deployPB.DeploymentSelector.provider:type_name -> deployPB.Provider
+	3,  // 6: deployPB.DeploymentSelector.deployment_type:type_name -> deployPB.DeploymentType
+	0,  // 7: deployPB.DeploymentCapability.provider:type_name -> deployPB.Provider
+	3,  // 8: deployPB.DeploymentCapability.deployment_type:type_name -> deployPB.DeploymentType
+	4,  // 9: deployPB.DeploymentCapability.target_mode:type_name -> deployPB.DeploymentTargetMode
+	9,  // 10: deployPB.DeploymentCapability.resource_status:type_name -> deployPB.DeploymentResourceStatus
+	23, // 11: deployPB.DeploymentCapability.resources:type_name -> deployPB.DeploymentResource
+	5,  // 12: deployPB.DeploymentCapability.category:type_name -> deployPB.DeploymentCategory
+	6,  // 13: deployPB.DeploymentCapability.domain_policy:type_name -> deployPB.DeploymentDomainPolicy
+	10, // 14: deployPB.DeploymentResource.availability:type_name -> deployPB.DeploymentResourceAvailability
+	12, // 15: deployPB.DeploymentExecutionResult.status:type_name -> deployPB.DeploymentExecutionResult.Status
+	11, // 16: deployPB.DeploymentExecutionResult.failure_kind:type_name -> deployPB.FailureKind
+	22, // 17: deployPB.DeploymentRegisterV2.capabilities:type_name -> deployPB.DeploymentCapability
+	17, // 18: deployPB.DeploymentRegisterV2.dns_capabilities:type_name -> deployPB.DnsProviderCapability
+	21, // 19: deployPB.DeploymentDiscoverRequest.selector:type_name -> deployPB.DeploymentSelector
+	22, // 20: deployPB.DeploymentDiscoverResponse.capability:type_name -> deployPB.DeploymentCapability
+	21, // 21: deployPB.DeploymentTestRequest.selector:type_name -> deployPB.DeploymentSelector
+	21, // 22: deployPB.DeploymentTestResponse.selector:type_name -> deployPB.DeploymentSelector
+	24, // 23: deployPB.DeploymentTestResponse.result:type_name -> deployPB.DeploymentExecutionResult
+	21, // 24: deployPB.DeploymentExecuteRequest.selector:type_name -> deployPB.DeploymentSelector
+	21, // 25: deployPB.DeploymentExecuteResponse.selector:type_name -> deployPB.DeploymentSelector
+	24, // 26: deployPB.DeploymentExecuteResponse.result:type_name -> deployPB.DeploymentExecutionResult
+	13, // 27: deployPB.DeploymentChallengeRequest.action:type_name -> deployPB.DeploymentChallengeRequest.Action
+	24, // 28: deployPB.DeploymentChallengeResponse.result:type_name -> deployPB.DeploymentExecutionResult
+	25, // 29: deployPB.DeploymentHeartbeat.registration:type_name -> deployPB.DeploymentRegisterV2
+	25, // 30: deployPB.DeploymentRequest.register:type_name -> deployPB.DeploymentRegisterV2
+	34, // 31: deployPB.DeploymentRequest.heartbeat:type_name -> deployPB.DeploymentHeartbeat
+	27, // 32: deployPB.DeploymentRequest.discover_response:type_name -> deployPB.DeploymentDiscoverResponse
+	29, // 33: deployPB.DeploymentRequest.test_response:type_name -> deployPB.DeploymentTestResponse
+	31, // 34: deployPB.DeploymentRequest.execute_response:type_name -> deployPB.DeploymentExecuteResponse
+	33, // 35: deployPB.DeploymentRequest.challenge_response:type_name -> deployPB.DeploymentChallengeResponse
+	20, // 36: deployPB.DeploymentRequest.dns_check_response:type_name -> deployPB.DnsOperationResult
+	20, // 37: deployPB.DeploymentRequest.dns_configure_response:type_name -> deployPB.DnsOperationResult
+	25, // 38: deployPB.DeploymentResponse.register:type_name -> deployPB.DeploymentRegisterV2
+	26, // 39: deployPB.DeploymentResponse.discover_request:type_name -> deployPB.DeploymentDiscoverRequest
+	28, // 40: deployPB.DeploymentResponse.test_request:type_name -> deployPB.DeploymentTestRequest
+	30, // 41: deployPB.DeploymentResponse.execute_request:type_name -> deployPB.DeploymentExecuteRequest
+	32, // 42: deployPB.DeploymentResponse.challenge_request:type_name -> deployPB.DeploymentChallengeRequest
+	35, // 43: deployPB.DeploymentResponse.update_request:type_name -> deployPB.DeploymentUpdateRequest
+	19, // 44: deployPB.DeploymentResponse.dns_check_request:type_name -> deployPB.DnsOperationRequest
+	19, // 45: deployPB.DeploymentResponse.dns_configure_request:type_name -> deployPB.DnsOperationRequest
+	47, // 46: deployPB.NotifyRequest.getProviderResponse:type_name -> deployPB.GetProviderResponse
+	49, // 47: deployPB.NotifyRequest.registerResponse:type_name -> deployPB.RegisterResponse
+	40, // 48: deployPB.NotifyRequest.connectRequest:type_name -> deployPB.ConnectRequest
+	50, // 49: deployPB.NotifyRequest.executeBusinesRequest:type_name -> deployPB.ExecuteBusinesRequest
+	44, // 50: deployPB.NotifyRequest.challengeResponse:type_name -> deployPB.ChallengeResponse
+	7,  // 51: deployPB.NotifyResponse.type:type_name -> deployPB.Type
+	47, // 52: deployPB.NotifyResponse.getProviderResponse:type_name -> deployPB.GetProviderResponse
+	48, // 53: deployPB.NotifyResponse.registerRequest:type_name -> deployPB.RegisterRequest
+	40, // 54: deployPB.NotifyResponse.connectRequest:type_name -> deployPB.ConnectRequest
+	51, // 55: deployPB.NotifyResponse.executeBusinesResponse:type_name -> deployPB.ExecuteBusinesResponse
+	43, // 56: deployPB.NotifyResponse.challengeRequest:type_name -> deployPB.ChallengeRequest
+	45, // 57: deployPB.NotifyResponse.getProviderRequest:type_name -> deployPB.GetProviderRequest
+	8,  // 58: deployPB.ConnectRequest.execute_busines_type:type_name -> deployPB.ExecuteBusinesType
+	14, // 59: deployPB.ChallengeRequest.action:type_name -> deployPB.ChallengeRequest.Action
+	15, // 60: deployPB.ChallengeResponse.result:type_name -> deployPB.ChallengeResponse.Result
+	8,  // 61: deployPB.GetProviderRequest.execute_busines_type:type_name -> deployPB.ExecuteBusinesType
+	10, // 62: deployPB.DeployResource.availability:type_name -> deployPB.DeploymentResourceAvailability
+	52, // 63: deployPB.GetProviderResponse.providers:type_name -> deployPB.GetProviderResponse.Provider
+	54, // 64: deployPB.RegisterResponse.systemInfo:type_name -> deployPB.RegisterResponse.SystemInfo
+	16, // 65: deployPB.ExecuteBusinesRequest.requestResult:type_name -> deployPB.ExecuteBusinesRequest.RequestResult
+	8,  // 66: deployPB.ExecuteBusinesResponse.executeBusinesType:type_name -> deployPB.ExecuteBusinesType
+	53, // 67: deployPB.GetProviderResponse.Provider.businesses:type_name -> deployPB.GetProviderResponse.Provider.Business
+	8,  // 68: deployPB.GetProviderResponse.Provider.Business.execute_busines_type:type_name -> deployPB.ExecuteBusinesType
+	46, // 69: deployPB.GetProviderResponse.Provider.Business.resources:type_name -> deployPB.DeployResource
+	9,  // 70: deployPB.GetProviderResponse.Provider.Business.resource_status:type_name -> deployPB.DeploymentResourceStatus
+	38, // 71: deployPB.DeployService.Notify:input_type -> deployPB.NotifyRequest
+	39, // 72: deployPB.DeployService.Notify:output_type -> deployPB.NotifyResponse
+	72, // [72:73] is the sub-list for method output_type
+	71, // [71:72] is the sub-list for method input_type
+	71, // [71:71] is the sub-list for extension type_name
+	71, // [71:71] is the sub-list for extension extendee
+	0,  // [0:71] is the sub-list for field type_name
 }
 
 func init() { file_deployPB_deploy_proto_init() }
@@ -4340,31 +4869,35 @@ func file_deployPB_deploy_proto_init() {
 	if File_deployPB_deploy_proto != nil {
 		return
 	}
-	file_deployPB_deploy_proto_msgTypes[3].OneofWrappers = []any{}
-	file_deployPB_deploy_proto_msgTypes[15].OneofWrappers = []any{
+	file_deployPB_deploy_proto_msgTypes[7].OneofWrappers = []any{}
+	file_deployPB_deploy_proto_msgTypes[19].OneofWrappers = []any{
 		(*DeploymentRequest_Register)(nil),
 		(*DeploymentRequest_Heartbeat)(nil),
 		(*DeploymentRequest_DiscoverResponse)(nil),
 		(*DeploymentRequest_TestResponse)(nil),
 		(*DeploymentRequest_ExecuteResponse)(nil),
 		(*DeploymentRequest_ChallengeResponse)(nil),
+		(*DeploymentRequest_DnsCheckResponse)(nil),
+		(*DeploymentRequest_DnsConfigureResponse)(nil),
 	}
-	file_deployPB_deploy_proto_msgTypes[16].OneofWrappers = []any{
+	file_deployPB_deploy_proto_msgTypes[20].OneofWrappers = []any{
 		(*DeploymentResponse_Register)(nil),
 		(*DeploymentResponse_DiscoverRequest)(nil),
 		(*DeploymentResponse_TestRequest)(nil),
 		(*DeploymentResponse_ExecuteRequest)(nil),
 		(*DeploymentResponse_ChallengeRequest)(nil),
 		(*DeploymentResponse_UpdateRequest)(nil),
+		(*DeploymentResponse_DnsCheckRequest)(nil),
+		(*DeploymentResponse_DnsConfigureRequest)(nil),
 	}
-	file_deployPB_deploy_proto_msgTypes[17].OneofWrappers = []any{
+	file_deployPB_deploy_proto_msgTypes[21].OneofWrappers = []any{
 		(*NotifyRequest_GetProviderResponse)(nil),
 		(*NotifyRequest_RegisterResponse)(nil),
 		(*NotifyRequest_ConnectRequest)(nil),
 		(*NotifyRequest_ExecuteBusinesRequest)(nil),
 		(*NotifyRequest_ChallengeResponse)(nil),
 	}
-	file_deployPB_deploy_proto_msgTypes[18].OneofWrappers = []any{
+	file_deployPB_deploy_proto_msgTypes[22].OneofWrappers = []any{
 		(*NotifyResponse_GetProviderResponse)(nil),
 		(*NotifyResponse_RegisterRequest)(nil),
 		(*NotifyResponse_ConnectRequest)(nil),
@@ -4372,14 +4905,14 @@ func file_deployPB_deploy_proto_init() {
 		(*NotifyResponse_ChallengeRequest)(nil),
 		(*NotifyResponse_GetProviderRequest)(nil),
 	}
-	file_deployPB_deploy_proto_msgTypes[29].OneofWrappers = []any{}
+	file_deployPB_deploy_proto_msgTypes[33].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_deployPB_deploy_proto_rawDesc), len(file_deployPB_deploy_proto_rawDesc)),
-			NumEnums:      15,
-			NumMessages:   34,
+			NumEnums:      17,
+			NumMessages:   38,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

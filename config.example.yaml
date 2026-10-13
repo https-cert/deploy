@@ -88,6 +88,16 @@ log:
 
 # 可选。云服务 provider 配置。未配置则不启用云服务证书上传与部署。
 # 密钥信息只保存在 deploy 客户端内存或本地配置中，不会上报到服务端。
+# 一键配置 CNAME 需 CLI 上报 deployment.dns.cname，不依赖已有证书或部署绑定。
+# DNS 检查只读；以下接口需允许访问实际托管区和全部记录线路：
+# 阿里云：alidns:DescribeDomainInfo / DescribeDomainRecords / AddDomainRecord。
+# 腾讯云：dnspod:DescribeDomain / DescribeRecordList / CreateRecord。
+# 华为云：公网 Zone 查询 / 含线路 RecordSet 查询 / RecordSet 新增。
+# 百度云：DNS Zone 查询 / Record 查询 / Record 新增。
+# 京东云：domainservice:describeDomains / describeResourceRecord / createResourceRecord。
+# 火山引擎：dns:ListZones / ListRecords / CreateRecord。
+# Cloudflare：Zone:Read、DNS:Read、DNS:Edit（建议限制到所需 Zone）。
+# 仅 DNS 配置不需要 CAS、SCM、CDN 或其他证书部署权限。相同记录保留，冲突不覆盖。
 # provider:
 #   - name: "aliyun"
 #     remark: "阿里云"
@@ -112,6 +122,12 @@ log:
 #       secretId: "your-tencent-secret-id"
 #       # 腾讯云 SecretKey。
 #       secretKey: "your-tencent-secret-key"
+#
+#   - name: "cloudflare"
+#     remark: "Cloudflare DNS"
+#     auth:
+#       # Cloudflare API Token，建议仅授予指定 Zone 的 Zone:Read、DNS:Read、DNS:Edit。
+#       apiToken: "your-cloudflare-api-token"
 #
 #   - name: "huawei"
 #     remark: "华为云"

@@ -5,33 +5,38 @@ import (
 	"errors"
 
 	"github.com/https-cert/deploy/internal/client/deploys"
+	"github.com/https-cert/deploy/internal/client/dnsconfig"
 	"github.com/https-cert/deploy/internal/client/providers"
+	"github.com/https-cert/deploy/internal/config"
 	"github.com/https-cert/deploy/pb/deployPB"
 	"github.com/https-cert/deploy/pkg/logger"
 )
 
 // deploymentService 处理 v2 业务消息分发、执行与回包组装。
 type deploymentService struct {
-	client       *WSClient
-	handlers     *DeploymentHandlerRegistry
-	executor     *DeploymentExecutor
-	ops          *operationRunner
-	accessKey    string
-	clientID     string
-	parent       context.Context
-	sendEnvelope func(*deployPB.DeploymentRequest)
+	client        *WSClient                                                              // client 提供运行期配置和连接生命周期。
+	handlers      *DeploymentHandlerRegistry                                             // handlers 保存原有证书部署能力。
+	executor      *DeploymentExecutor                                                    // executor 执行原有部署任务。
+	ops           *operationRunner                                                       // ops 限制并发并串行化同名资源。
+	accessKey     string                                                                 // accessKey 仅用于既有连接信封认证。
+	clientID      string                                                                 // clientID 是当前客户端标识。
+	parent        context.Context                                                        // parent 约束客户端关闭时的任务生命周期。
+	sendEnvelope  func(*deployPB.DeploymentRequest)                                      // sendEnvelope 回传操作结果。
+	newDNSBackend func(*config.Runtime, deployPB.DnsProvider) (dnsconfig.Backend, error) // newDNSBackend 构建独立 DNS 适配器，允许模拟不可取消的 SDK。
 }
 
+// newDeploymentService 复用客户端的业务调度器，并注入官方 DNS 适配器。
 func newDeploymentService(client *WSClient) *deploymentService {
 	return &deploymentService{
-		client:       client,
-		handlers:     client.deploymentHandlers,
-		executor:     client.deploymentExecutor,
-		ops:          client.ops,
-		accessKey:    client.accessKey,
-		clientID:     client.clientId,
-		parent:       client.ctx,
-		sendEnvelope: client.sendDeploymentEnvelope,
+		client:        client,
+		handlers:      client.deploymentHandlers,
+		executor:      client.deploymentExecutor,
+		ops:           client.ops,
+		accessKey:     client.accessKey,
+		clientID:      client.clientId,
+		parent:        client.ctx,
+		sendEnvelope:  client.sendDeploymentEnvelope,
+		newDNSBackend: dnsconfig.NewBackend,
 	}
 }
 
@@ -73,6 +78,10 @@ func (s *deploymentService) HandleResponse(response *deployPB.DeploymentResponse
 		}, func() {
 			s.handleChallengeRequest(requestID, data.ChallengeRequest)
 		})
+	case *deployPB.DeploymentResponse_DnsCheckRequest:
+		s.runDNS(response.GetRequestId(), data.DnsCheckRequest, false)
+	case *deployPB.DeploymentResponse_DnsConfigureRequest:
+		s.runDNS(response.GetRequestId(), data.DnsConfigureRequest, true)
 	case *deployPB.DeploymentResponse_UpdateRequest:
 		s.ops.Run("deployment-v2-update", nil, func() {
 			s.handleUpdateRequest(data.UpdateRequest)

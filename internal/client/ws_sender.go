@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+	"github.com/https-cert/deploy/internal/client/dnsconfig"
 	"github.com/https-cert/deploy/internal/config"
 	"github.com/https-cert/deploy/internal/system"
 	"github.com/https-cert/deploy/pb/deployPB"
@@ -104,7 +105,7 @@ func (c *WSClient) sendDeploymentRequestOnConnection(ctx context.Context, conn *
 // buildDeploymentRegistration 构造原生 v2 注册能力摘要。
 func (c *WSClient) buildDeploymentRegistration(sysInfo *system.SystemInfo) *deployPB.DeploymentRegisterV2 {
 	capabilities := c.deploymentHandlers.Capabilities()
-	registration := &deployPB.DeploymentRegisterV2{ProtocolVersion: 2, ClientVersion: config.Version, Features: []string{"deployment.v2", "deployment.challenge"}, Capabilities: capabilities}
+	registration := &deployPB.DeploymentRegisterV2{ProtocolVersion: 2, ClientVersion: config.Version, Features: []string{"deployment.v2", "deployment.challenge", "deployment.dns.cname"}, Capabilities: capabilities, DnsCapabilities: dnsconfig.Capabilities(c.runtime)}
 	if sysInfo != nil {
 		registration.Os = sysInfo.OS
 		registration.Arch = sysInfo.Arch

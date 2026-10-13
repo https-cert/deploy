@@ -29,6 +29,8 @@ const (
 	ProviderDogeCloud = "dogecloud"
 	// ProviderLeCDN 是 LeCDN provider 的配置名称。
 	ProviderLeCDN = "lecdn"
+	// ProviderCloudflare 是 Cloudflare DNS provider 的配置名称。
+	ProviderCloudflare = "cloudflare"
 )
 
 // DeploymentProviderName 返回 v2 provider 对应的兼容配置键。
@@ -153,7 +155,8 @@ func validateRemovedDeploymentResourceFields(rawProviders any) error {
 func validateProviderCredentials(provider *Provider, environment string) error {
 	if provider.Name != ProviderAliyun && provider.Name != ProviderTencentCloud && provider.Name != ProviderQiniu &&
 		provider.Name != ProviderHuaweiCloud && provider.Name != ProviderVolcengine && provider.Name != ProviderJDCloud &&
-		provider.Name != ProviderBaiduCloud && provider.Name != ProviderDogeCloud && provider.Name != ProviderLeCDN {
+		provider.Name != ProviderBaiduCloud && provider.Name != ProviderDogeCloud && provider.Name != ProviderLeCDN &&
+		provider.Name != ProviderCloudflare {
 		return nil
 	}
 	if provider.Auth == nil {
@@ -201,6 +204,10 @@ func validateProviderCredentials(provider *Provider, environment string) error {
 		if strings.TrimSpace(provider.Auth.APIBaseURL) == "" {
 			missingFields = append(missingFields, "apiBaseUrl")
 		}
+		if strings.TrimSpace(provider.Auth.APIToken) == "" {
+			missingFields = append(missingFields, "apiToken")
+		}
+	case ProviderCloudflare:
 		if strings.TrimSpace(provider.Auth.APIToken) == "" {
 			missingFields = append(missingFields, "apiToken")
 		}
