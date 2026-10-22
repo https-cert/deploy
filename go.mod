@@ -1,32 +1,32 @@
 module github.com/https-cert/deploy
 
-go 1.27
+go 1.27.3
 
 require (
-	connectrpc.com/connect v1.21.0
+	connectrpc.com/connect v1.21.1
 	github.com/alibabacloud-go/darabonba-openapi/v2 v2.2.4
 	github.com/alibabacloud-go/tea-utils/v2 v2.0.9
 	github.com/baidubce/bce-sdk-go v0.9.275
 	github.com/cloudflare/cloudflare-go/v4 v4.6.0
 	github.com/coder/websocket v1.8.15
 	github.com/huaweicloud/huaweicloud-sdk-go-obs v3.26.6+incompatible
-	github.com/huaweicloud/huaweicloud-sdk-go-v3 v0.1.216
-	github.com/jdcloud-api/jdcloud-sdk-go v1.67.0
-	github.com/qiniu/go-sdk/v7 v7.28.1
+	github.com/huaweicloud/huaweicloud-sdk-go-v3 v0.1.219
+	github.com/jdcloud-api/jdcloud-sdk-go v1.68.0
+	github.com/qiniu/go-sdk/v7 v7.29.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/cdn v1.3.173
-	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/clb v1.3.176
-	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.3.188
-	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/cvm v1.3.177
+	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/clb v1.3.194
+	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.3.196
+	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/cvm v1.3.183
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/dnspod v1.3.131
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ssl v1.3.147
-	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/teo v1.3.180
+	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/teo v1.3.194
 	github.com/tencentyun/cos-go-sdk-v5 v0.7.75
 	github.com/volcengine/ve-tos-golang-sdk/v2 v2.9.10
-	github.com/volcengine/volcengine-go-sdk v1.2.53
-	golang.org/x/crypto v0.57.0
-	golang.org/x/net v0.59.0
+	github.com/volcengine/volcengine-go-sdk v1.2.58
+	golang.org/x/crypto v0.58.0
+	golang.org/x/net v0.61.0
 	google.golang.org/protobuf v1.36.12
 )
 
@@ -58,24 +58,24 @@ require (
 	github.com/mozillazg/go-httpheader v0.4.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.4.3 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	github.com/rogpeppe/go-internal v1.14.1 // indirect
+	github.com/rogpeppe/go-internal v1.16.0 // indirect
 	github.com/sagikazarmark/locafero v0.12.0 // indirect
 	github.com/spf13/afero v1.15.0 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/stretchr/testify v1.12.1 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
-	github.com/tidwall/gjson v1.14.4 // indirect
-	github.com/tidwall/match v1.1.1 // indirect
-	github.com/tidwall/pretty v1.2.1 // indirect
+	github.com/tidwall/gjson v1.20.0 // indirect
+	github.com/tidwall/match v1.2.0 // indirect
+	github.com/tidwall/pretty v1.2.2 // indirect
 	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/tjfoc/gmsm v1.4.1 // indirect
-	github.com/volcengine/volc-sdk-golang v1.0.257 // indirect
+	github.com/volcengine/volc-sdk-golang v1.0.258 // indirect
 	go.mongodb.org/mongo-driver v1.17.10 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
-	golang.org/x/sync v0.23.0 // indirect
-	golang.org/x/sys v0.48.0 // indirect
-	golang.org/x/text v0.42.0 // indirect
+	golang.org/x/sync v0.24.0 // indirect
+	golang.org/x/sys v0.49.0 // indirect
+	golang.org/x/text v0.43.0 // indirect
 	gopkg.in/ini.v1 v1.67.3 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
