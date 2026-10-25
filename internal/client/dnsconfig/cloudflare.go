@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	cloudflare "github.com/cloudflare/cloudflare-go/v4"
-	cfdns "github.com/cloudflare/cloudflare-go/v4/dns"
-	"github.com/cloudflare/cloudflare-go/v4/option"
-	cfzones "github.com/cloudflare/cloudflare-go/v4/zones"
+	cloudflare "github.com/cloudflare/cloudflare-go/v7"
+	cfdns "github.com/cloudflare/cloudflare-go/v7/dns"
+	"github.com/cloudflare/cloudflare-go/v7/option"
+	cfzones "github.com/cloudflare/cloudflare-go/v7/zones"
 
 	"github.com/https-cert/deploy/internal/config"
 	"github.com/https-cert/deploy/pb/deployPB"

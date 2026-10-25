@@ -5,106 +5,147 @@
 package deployPBconnect
 
 import (
-	connect "connectrpc.com/connect"
+	connect "connectrpc.com/connect/v2"
 	context "context"
-	errors "errors"
 	deployPB "github.com/https-cert/deploy/pb/deployPB"
-	http "net/http"
-	strings "strings"
+	sync "sync"
 )
-
-// This is a compile-time assertion to ensure that this generated file and the connect package are
-// compatible. If you get a compiler error that this constant is not defined, this code was
-// generated with a version of connect newer than the one compiled into your binary. You can fix the
-// problem by either regenerating this code with an older version of connect or updating the connect
-// version compiled into your binary.
-const _ = connect.IsAtLeastVersion1_13_0
 
 const (
 	// DeployServiceName is the fully-qualified name of the DeployService service.
 	DeployServiceName = "deployPB.DeployService"
 )
 
-// These constants are the fully-qualified names of the RPCs defined in this package. They're
-// exposed at runtime as Spec.Procedure and as the final two segments of the HTTP route.
+// These constants are the procedure names of the RPCs defined in this package. They're exposed at
+// runtime as Spec.Procedure and as the final two segments of the HTTP route.
 //
 // Note that these are different from the fully-qualified method names used by
 // google.golang.org/protobuf/reflect/protoreflect. To convert from these constants to
 // reflection-formatted method names, remove the leading slash and convert the remaining slash to a
 // period.
 const (
-	// DeployServiceNotifyProcedure is the fully-qualified name of the DeployService's Notify RPC.
+	// DeployServiceNotifyProcedure is the procedure name of the DeployService's Notify RPC.
 	DeployServiceNotifyProcedure = "/deployPB.DeployService/Notify"
+)
+
+var (
+	deployServiceNotifySpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeBidi,
+			Schema:     deployPB.File_deployPB_deploy_proto.Services().ByName("DeployService").Methods().ByName("Notify"),
+			Procedure:  DeployServiceNotifyProcedure,
+		}
+	})
 )
 
 // DeployServiceClient is a client for the deployPB.DeployService service.
 type DeployServiceClient interface {
 	// 通知
-	Notify(context.Context) *connect.BidiStreamForClient[deployPB.NotifyRequest, deployPB.NotifyResponse]
+	Notify(context.Context) (DeployServiceNotifyClientStream, error)
 }
 
-// NewDeployServiceClient constructs a client for the deployPB.DeployService service. By default, it
-// uses the Connect protocol with the binary Protobuf Codec, asks for gzipped responses, and sends
-// uncompressed requests. To use the gRPC or gRPC-Web protocols, supply the connect.WithGRPC() or
-// connect.WithGRPCWeb() options.
-//
-// The URL supplied here should be the base URL for the Connect or gRPC server (for example,
-// http://api.acme.com or https://acme.com/grpc).
-func NewDeployServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...connect.ClientOption) DeployServiceClient {
-	baseURL = strings.TrimRight(baseURL, "/")
-	deployServiceMethods := deployPB.File_deployPB_deploy_proto.Services().ByName("DeployService").Methods()
-	return &deployServiceClient{
-		notify: connect.NewClient[deployPB.NotifyRequest, deployPB.NotifyResponse](
-			httpClient,
-			baseURL+DeployServiceNotifyProcedure,
-			connect.WithSchema(deployServiceMethods.ByName("Notify")),
-			connect.WithClientOptions(opts...),
-		),
+// NewDeployServiceClient constructs a client for the deployPB.DeployService service. Multiple
+// service clients may share a single connect.Client.
+func NewDeployServiceClient(client *connect.Client) DeployServiceClient {
+	return &deployServiceClient{client: client}
+}
+
+// DeployServiceNotifyClientStream is the client stream for the DeployService's Notify RPC.
+type DeployServiceNotifyClientStream struct {
+	stream connect.ClientStream
+}
+
+// SendHeaders opens the stream and flushes the request headers without a message. The first Send or
+// Receive does this implicitly.
+func (s DeployServiceNotifyClientStream) SendHeaders() error {
+	return s.stream.SendHeaders()
+}
+
+// Send sends a request message to the server.
+func (s DeployServiceNotifyClientStream) Send(req *deployPB.NotifyRequest) error {
+	return s.stream.Send(req)
+}
+
+// CloseSend closes the request side of the stream.
+func (s DeployServiceNotifyClientStream) CloseSend() error {
+	return s.stream.CloseSend()
+}
+
+// Receive returns the next response message from the server.
+func (s DeployServiceNotifyClientStream) Receive() (*deployPB.NotifyResponse, error) {
+	var res deployPB.NotifyResponse
+	if err := s.stream.Receive(&res); err != nil {
+		return nil, err
 	}
+	return &res, nil
 }
 
-// deployServiceClient implements DeployServiceClient.
-type deployServiceClient struct {
-	notify *connect.Client[deployPB.NotifyRequest, deployPB.NotifyResponse]
-}
-
-// Notify calls deployPB.DeployService.Notify.
-func (c *deployServiceClient) Notify(ctx context.Context) *connect.BidiStreamForClient[deployPB.NotifyRequest, deployPB.NotifyResponse] {
-	return c.notify.CallBidiStream(ctx)
+// Close releases the stream's resources. It is idempotent and is typically deferred to clean up a
+// stream abandoned before io.EOF.
+func (s DeployServiceNotifyClientStream) Close() error {
+	return s.stream.Close()
 }
 
 // DeployServiceHandler is an implementation of the deployPB.DeployService service.
 type DeployServiceHandler interface {
 	// 通知
-	Notify(context.Context, *connect.BidiStream[deployPB.NotifyRequest, deployPB.NotifyResponse]) error
+	Notify(context.Context, DeployServiceNotifyServerStream) error
 }
 
-// NewDeployServiceHandler builds an HTTP handler from the service implementation. It returns the
-// path on which to mount the handler and the handler itself.
-//
-// By default, handlers support the Connect, gRPC, and gRPC-Web protocols with the binary Protobuf
-// and JSON codecs. They also support gzip compression.
-func NewDeployServiceHandler(svc DeployServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
-	deployServiceMethods := deployPB.File_deployPB_deploy_proto.Services().ByName("DeployService").Methods()
-	deployServiceNotifyHandler := connect.NewBidiStreamHandler(
-		DeployServiceNotifyProcedure,
-		svc.Notify,
-		connect.WithSchema(deployServiceMethods.ByName("Notify")),
-		connect.WithHandlerOptions(opts...),
+// RegisterDeployServiceHandler registers svc as the deployPB.DeployService implementation on
+// server.
+func RegisterDeployServiceHandler(server *connect.Server, svc DeployServiceHandler) {
+	adapter := deployServiceHandler{svc: svc}
+	server.Register(
+		connect.Method{Spec: deployServiceNotifySpec(), Handler: adapter.notify},
 	)
-	return "/deployPB.DeployService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case DeployServiceNotifyProcedure:
-			deployServiceNotifyHandler.ServeHTTP(w, r)
-		default:
-			http.NotFound(w, r)
-		}
-	})
+}
+
+// DeployServiceNotifyServerStream is the server stream for the DeployService's Notify RPC.
+type DeployServiceNotifyServerStream struct {
+	stream connect.ServerStream
+}
+
+// Receive returns the next request message from the client.
+func (s DeployServiceNotifyServerStream) Receive() (*deployPB.NotifyRequest, error) {
+	var req deployPB.NotifyRequest
+	if err := s.stream.Receive(&req); err != nil {
+		return nil, err
+	}
+	return &req, nil
+}
+
+// SendHeaders flushes the response headers without a message. The first Send does this implicitly.
+func (s DeployServiceNotifyServerStream) SendHeaders() error {
+	return s.stream.SendHeaders()
+}
+
+// Send sends a response message to the client.
+func (s DeployServiceNotifyServerStream) Send(res *deployPB.NotifyResponse) error {
+	return s.stream.Send(res)
 }
 
 // UnimplementedDeployServiceHandler returns CodeUnimplemented from all methods.
 type UnimplementedDeployServiceHandler struct{}
 
-func (UnimplementedDeployServiceHandler) Notify(context.Context, *connect.BidiStream[deployPB.NotifyRequest, deployPB.NotifyResponse]) error {
-	return connect.NewError(connect.CodeUnimplemented, errors.New("deployPB.DeployService.Notify is not implemented"))
+func (UnimplementedDeployServiceHandler) Notify(context.Context, DeployServiceNotifyServerStream) error {
+	return connect.NewError(connect.CodeUnimplemented, "deployPB.DeployService.Notify is not implemented")
+}
+
+type deployServiceClient struct {
+	client *connect.Client
+}
+
+func (c *deployServiceClient) Notify(ctx context.Context) (DeployServiceNotifyClientStream, error) {
+	stream, err := c.client.CallClientStream(ctx, deployServiceNotifySpec())
+	if err != nil {
+		return DeployServiceNotifyClientStream{}, err
+	}
+	return DeployServiceNotifyClientStream{stream: stream}, nil
+}
+
+type deployServiceHandler struct{ svc DeployServiceHandler }
+
+func (h deployServiceHandler) notify(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	return h.svc.Notify(ctx, DeployServiceNotifyServerStream{stream: stream})
 }

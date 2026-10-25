@@ -3,28 +3,28 @@ module github.com/https-cert/deploy
 go 1.27.3
 
 require (
-	connectrpc.com/connect v1.21.1
+	connectrpc.com/connect/v2 v2.0.2
 	github.com/alibabacloud-go/darabonba-openapi/v2 v2.2.4
 	github.com/alibabacloud-go/tea-utils/v2 v2.0.9
 	github.com/baidubce/bce-sdk-go v0.9.275
-	github.com/cloudflare/cloudflare-go/v4 v4.6.0
+	github.com/cloudflare/cloudflare-go/v7 v7.13.1
 	github.com/coder/websocket v1.8.15
 	github.com/huaweicloud/huaweicloud-sdk-go-obs v3.26.6+incompatible
-	github.com/huaweicloud/huaweicloud-sdk-go-v3 v0.1.219
+	github.com/huaweicloud/huaweicloud-sdk-go-v3 v0.1.220
 	github.com/jdcloud-api/jdcloud-sdk-go v1.68.0
 	github.com/qiniu/go-sdk/v7 v7.29.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/cdn v1.3.173
-	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/clb v1.3.194
-	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.3.196
+	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/clb v1.3.198
+	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.3.198
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/cvm v1.3.183
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/dnspod v1.3.131
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ssl v1.3.147
-	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/teo v1.3.194
-	github.com/tencentyun/cos-go-sdk-v5 v0.7.75
+	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/teo v1.3.198
+	github.com/tencentyun/cos-go-sdk-v5 v0.7.76
 	github.com/volcengine/ve-tos-golang-sdk/v2 v2.9.10
-	github.com/volcengine/volcengine-go-sdk v1.2.58
+	github.com/volcengine/volcengine-go-sdk v1.2.59
 	golang.org/x/crypto v0.58.0
 	golang.org/x/net v0.61.0
 	google.golang.org/protobuf v1.36.12
